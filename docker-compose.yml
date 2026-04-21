@@ -1,0 +1,75 @@
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: smarttraffic-api
+    ports:
+      - "8080:8080"
+    environment:
+      - APP_PORT=8080
+      - DB_PATH=/data/smarttraffic.db
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ACCESS_TTL=${JWT_ACCESS_TTL:-15m}
+      - JWT_REFRESH_TTL=${JWT_REFRESH_TTL:-168h}
+      - WG_INTERFACE=${WG_INTERFACE:-wg0}
+      - SINGBOX_CONFIG_PATH=/etc/singbox/config.json
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+    volumes:
+      - api-data:/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: smarttraffic-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8080
+    restart: unless-stopped
+
+  landing:
+    build:
+      context: ./landing
+      dockerfile: Dockerfile
+    container_name: smarttraffic-landing
+    ports:
+      - "8081:80"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: smarttraffic-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/server-ru/nginx/conf.d:/etc/nginx/conf.d
+      - certbot-data:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    depends_on:
+      - api
+      - frontend
+      - landing
+    restart: unless-stopped
+
+  singbox:
+    image: ghcr.io/sagernet/sing-box
+    container_name: smarttraffic-singbox
+    volumes:
+      - ./deploy/server-ru/singbox:/etc/singbox
+    ports:
+      - "12345:12345"
+      - "5353:5353/udp"
+      - "5353:5353/tcp"
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+    profiles:
+      - routing
+
+volumes:
+  certbot-data:
+  api-data:
