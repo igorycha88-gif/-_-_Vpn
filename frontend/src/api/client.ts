@@ -52,7 +52,9 @@ client.interceptors.response.use(
       const refreshToken = getRefreshToken()
       if (!refreshToken) {
         clearTokens()
-        window.location.href = '/login'
+        if (!window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login'
+        }
         return Promise.reject(error)
       }
 
@@ -67,7 +69,9 @@ client.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null)
         clearTokens()
-        window.location.href = '/login'
+        if (!window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login'
+        }
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false

@@ -72,10 +72,10 @@ CREATE TABLE IF NOT EXISTS dns_settings (
     block_ads BOOLEAN DEFAULT FALSE
 );
 
-CREATE INDEX idx_wg_peers_public_key ON wg_peers(public_key);
-CREATE INDEX idx_wg_peers_is_active ON wg_peers(is_active);
-CREATE INDEX idx_routing_rules_priority ON routing_rules(priority);
-CREATE INDEX idx_routing_rules_type ON routing_rules(type);
-CREATE INDEX idx_traffic_logs_peer_id ON traffic_logs(peer_id);
-CREATE INDEX idx_traffic_logs_timestamp ON traffic_logs(timestamp);
-CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_wg_peers_public_key ON wg_peers(public_key);
+CREATE INDEX IF NOT EXISTS idx_wg_peers_is_active ON wg_peers(is_active);
+CREATE INDEX IF NOT EXISTS idx_routing_rules_priority ON routing_rules(priority);
+CREATE INDEX IF NOT EXISTS idx_routing_rules_type ON routing_rules(type);
+CREATE INDEX IF NOT EXISTS idx_traffic_logs_peer_id ON traffic_logs(peer_id);
+CREATE INDEX IF NOT EXISTS idx_traffic_logs_timestamp ON traffic_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);

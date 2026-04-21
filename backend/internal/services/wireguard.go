@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os/exec"
 	"strings"
 
 	"smarttraffic/internal/config"
@@ -71,6 +72,10 @@ func (s *WireGuardService) CreatePeer(ctx context.Context, req *models.PeerCreat
 		return nil, fmt.Errorf("service.wireguard.CreatePeer save: %w", err)
 	}
 
+	if err := s.addPeerToInterface(peer.PublicKey, peer.Address); err != nil {
+		s.logger.Error("не удалось добавить peer в WG интерфейс", "error", err)
+	}
+
 	s.logger.Info("создан WG клиент", "id", peer.ID, "name", peer.Name, "address", peer.Address)
 	return peer, nil
 }
@@ -92,6 +97,15 @@ func (s *WireGuardService) ListPeers(ctx context.Context) ([]*models.Peer, error
 }
 
 func (s *WireGuardService) DeletePeer(ctx context.Context, id string) error {
+	peer, err := s.peerRepo.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("service.wireguard.DeletePeer: %w", err)
+	}
+
+	if err := s.removePeerFromInterface(peer.PublicKey); err != nil {
+		s.logger.Error("не удалось удалить peer из WG интерфейса", "error", err)
+	}
+
 	if err := s.peerRepo.Delete(ctx, id); err != nil {
 		return fmt.Errorf("service.wireguard.DeletePeer: %w", err)
 	}
@@ -108,6 +122,17 @@ func (s *WireGuardService) TogglePeer(ctx context.Context, id string, active boo
 	if err := s.peerRepo.Update(ctx, peer); err != nil {
 		return fmt.Errorf("service.wireguard.TogglePeer update: %w", err)
 	}
+
+	if active {
+		if err := s.addPeerToInterface(peer.PublicKey, peer.Address); err != nil {
+			s.logger.Error("не удалось добавить peer в WG интерфейс", "error", err)
+		}
+	} else {
+		if err := s.removePeerFromInterface(peer.PublicKey); err != nil {
+			s.logger.Error("не удалось удалить peer из WG интерфейса", "error", err)
+		}
+	}
+
 	s.logger.Info("изменён статус WG клиента", "id", id, "active", active)
 	return nil
 }
@@ -138,6 +163,50 @@ func (s *WireGuardService) GetPeerStats(ctx context.Context, id string) (*models
 		TotalTx: peer.TotalTx,
 		Online:  peer.IsActive,
 	}, nil
+}
+
+func (s *WireGuardService) SyncAllPeers(ctx context.Context) error {
+	peers, err := s.peerRepo.List(ctx)
+	if err != nil && !errors.Is(err, repository.ErrNotFound) {
+		return fmt.Errorf("service.wireguard.SyncAllPeers list: %w", err)
+	}
+
+	for _, peer := range peers {
+		if peer.IsActive {
+			if err := s.addPeerToInterface(peer.PublicKey, peer.Address); err != nil {
+				s.logger.Error("sync: не удалось добавить peer", "id", peer.ID, "error", err)
+			} else {
+				s.logger.Info("sync: peer добавлен", "name", peer.Name, "address", peer.Address)
+			}
+		}
+	}
+
+	s.logger.Info("синхронизация пиров завершена", "total", len(peers))
+	return nil
+}
+
+func (s *WireGuardService) addPeerToInterface(publicKey, address string) error {
+	iface := s.cfg.Interface
+	args := []string{"set", iface, "peer", publicKey, "allowed-ips", address + "/32"}
+
+	cmd := exec.Command("wg", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("wg set %s peer %s… allowed-ips %s/32: %w: %s", iface, publicKey[:8], address, err, string(output))
+	}
+	return nil
+}
+
+func (s *WireGuardService) removePeerFromInterface(publicKey string) error {
+	iface := s.cfg.Interface
+	args := []string{"set", iface, "peer", publicKey, "remove"}
+
+	cmd := exec.Command("wg", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("wg set %s peer %s… remove: %w: %s", iface, publicKey[:8], err, string(output))
+	}
+	return nil
 }
 
 func (s *WireGuardService) allocateAddress(ctx context.Context) (string, error) {

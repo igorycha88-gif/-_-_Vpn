@@ -40,6 +40,7 @@ export function useSession() {
     queryFn: () => authApi.getSession(),
     retry: false,
     refetchOnWindowFocus: false,
+    enabled: !!getRefreshToken(),
   })
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -48,6 +49,10 @@ func main() {
 	dnsSvc := services.NewDNSService(dnsRepo, logger)
 	trafficSvc := services.NewTrafficService(trafficRepo, peerRepo, logger)
 
+	if err := wgSvc.SyncAllPeers(context.Background()); err != nil {
+		logger.Warn("не удалось синхронизировать пиры WG при запуске", "error", err)
+	}
+
 	authHandler := handlers.NewAuthHandler(authSvc, logger)
 	peerHandler := handlers.NewPeerHandler(wgSvc, singboxSvc, logger)
 	routeHandler := handlers.NewRouteHandler(routingSvc, singboxSvc, logger)
@@ -78,6 +83,7 @@ func main() {
 			r.Route("/wg/peers", func(r chi.Router) {
 				r.Get("/", peerHandler.List)
 				r.Post("/", peerHandler.Create)
+				r.Post("/sync", peerHandler.Sync)
 				r.Route("/{id}", func(r chi.Router) {
 					r.Get("/", peerHandler.Get)
 					r.Delete("/", peerHandler.Delete)

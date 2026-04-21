@@ -1,0 +1,102 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: smarttraffic-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ../landing/dist:/usr/share/nginx/html:ro
+      - certbot-data:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      api:
+        condition: service_started
+      frontend:
+        condition: service_started
+      landing:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  certbot:
+    image: certbot/certbot
+    container_name: smarttraffic-certbot
+    volumes:
+      - certbot-data:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    container_name: smarttraffic-api
+    environment:
+      - APP_PORT=8080
+      - DB_PATH=/data/smarttraffic.db
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ACCESS_TTL=${JWT_ACCESS_TTL:-15m}
+      - JWT_REFRESH_TTL=${JWT_REFRESH_TTL:-168h}
+      - WG_INTERFACE=${WG_INTERFACE:-wg0}
+      - WG_PORT=${WG_PORT:-51820}
+      - WG_SERVER_ENDPOINT=${WG_SERVER_ENDPOINT:-}
+      - WG_SERVER_PUBLIC_KEY=${WG_SERVER_PUBLIC_KEY:-}
+      - WG_DNS=${WG_DNS:-1.1.1.1,8.8.8.8}
+      - WG_CLIENT_SUBNET=${WG_CLIENT_SUBNET:-10.10.0.0/24}
+      - WG_MTU=${WG_MTU:-1280}
+      - SINGBOX_CONFIG_PATH=/etc/singbox/config.json
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-https://${DOMAIN}}
+      - FOREIGN_SERVER_IP=${FOREIGN_SERVER_IP:-}
+      - FOREIGN_TUNNEL_PRIVATE_KEY=${FOREIGN_TUNNEL_PRIVATE_KEY:-}
+      - FOREIGN_TUNNEL_PEER_PUBLIC_KEY=${FOREIGN_TUNNEL_PEER_PUBLIC_KEY:-}
+      - FOREIGN_TUNNEL_LOCAL_ADDRESS=${FOREIGN_TUNNEL_LOCAL_ADDRESS:-10.20.0.2/30}
+    volumes:
+      - api-data:/data
+      - ./singbox:/etc/singbox
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  singbox:
+    image: ghcr.io/sagernet/sing-box
+    container_name: smarttraffic-singbox
+    volumes:
+      - ./singbox:/etc/singbox
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+    container_name: smarttraffic-frontend
+    environment:
+      - VITE_API_URL=https://${DOMAIN}
+    restart: unless-stopped
+
+  landing:
+    build:
+      context: ../../landing
+      dockerfile: Dockerfile
+    container_name: smarttraffic-landing
+    restart: unless-stopped
+
+volumes:
+  certbot-data:
+  api-data:

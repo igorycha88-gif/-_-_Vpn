@@ -1,19 +1,24 @@
 import { Form, Input, Button, Card, Typography, message } from 'antd'
 import { LockOutlined, MailOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth'
+import { useLogin } from '../hooks/useAuth'
 import type { LoginRequest } from '../types'
 
 const { Title } = Typography
 
 export default function Login() {
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const loginMutation = useLogin()
 
   const onFinish = async (values: LoginRequest) => {
-    await login(values)
-    message.success('Вход выполнен')
-    navigate('/')
+    try {
+      await loginMutation.mutateAsync(values)
+      message.success('Вход выполнен')
+      navigate('/')
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } }
+      message.error(err.response?.data?.error || 'Ошибка входа')
+    }
   }
 
   return (
