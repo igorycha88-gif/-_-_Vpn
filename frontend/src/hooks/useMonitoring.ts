@@ -1,0 +1,34 @@
+import { useQuery } from '@tanstack/react-query'
+import * as monitoringApi from '../api/monitoring'
+
+export function useTrafficLogs(peerId?: string) {
+  return useQuery({
+    queryKey: ['monitoring', 'traffic', peerId],
+    queryFn: () => monitoringApi.getTrafficLogs(peerId),
+    refetchInterval: 10000,
+  })
+}
+
+export function useRoutingLogs(peerId?: string) {
+  return useQuery({
+    queryKey: ['monitoring', 'logs', peerId],
+    queryFn: () => monitoringApi.getRoutingLogs(peerId),
+    refetchInterval: 10000,
+  })
+}
+
+export function useAlerts() {
+  return useQuery({
+    queryKey: ['monitoring', 'alerts'],
+    queryFn: () => monitoringApi.getAlerts(),
+    refetchInterval: 30000,
+  })
+}
+
+export function useMonitoringStats() {
+  return useQuery({
+    queryKey: ['monitoring', 'stats'],
+    queryFn: () => monitoringApi.getMonitoringStats(),
+    refetchInterval: 10000,
+  })
+}
