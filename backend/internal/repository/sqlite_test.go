@@ -153,6 +153,8 @@ func TestRouteRepository_CRUD(t *testing.T) {
 	repo := NewRouteRepository(db)
 	ctx := context.Background()
 
+	initialCount, _ := repo.Count(ctx)
+
 	rule := &models.RoutingRule{
 		ID: "rule-1", Name: "Test", Type: "domain", Pattern: "example.com",
 		Action: "direct", Priority: 1, IsActive: true,
@@ -171,8 +173,8 @@ func TestRouteRepository_CRUD(t *testing.T) {
 	}
 
 	rules, _ := repo.List(ctx)
-	if len(rules) != 1 {
-		t.Errorf("List count = %d, want 1", len(rules))
+	if len(rules) != initialCount+1 {
+		t.Errorf("List count = %d, want %d", len(rules), initialCount+1)
 	}
 
 	got.Name = "Updated"
@@ -181,8 +183,8 @@ func TestRouteRepository_CRUD(t *testing.T) {
 	}
 
 	count, _ := repo.Count(ctx)
-	if count != 1 {
-		t.Errorf("Count = %d, want 1", count)
+	if count != initialCount+1 {
+		t.Errorf("Count = %d, want %d", count, initialCount+1)
 	}
 
 	if err := repo.Delete(ctx, "rule-1"); err != nil {
@@ -198,7 +200,7 @@ func TestRouteRepository_Reorder(t *testing.T) {
 	for i, n := range []string{"A", "B", "C"} {
 		repo.Create(ctx, &models.RoutingRule{
 			ID: "r" + n, Name: n, Type: "domain",
-			Pattern: n + ".com", Action: "direct", Priority: i + 1,
+			Pattern: n + ".com", Action: "direct", Priority: i + 10,
 		})
 	}
 
@@ -207,8 +209,17 @@ func TestRouteRepository_Reorder(t *testing.T) {
 	}
 
 	rules, _ := repo.List(ctx)
-	if rules[0].ID != "rC" {
-		t.Errorf("first = %q, want rC", rules[0].ID)
+	var testRules []*models.RoutingRule
+	for _, r := range rules {
+		if r.ID == "rA" || r.ID == "rB" || r.ID == "rC" {
+			testRules = append(testRules, r)
+		}
+	}
+	if len(testRules) < 3 {
+		t.Fatalf("expected at least 3 test rules, got %d", len(testRules))
+	}
+	if testRules[0].ID != "rC" {
+		t.Errorf("first = %q, want rC", testRules[0].ID)
 	}
 }
 

@@ -15,8 +15,14 @@ services:
       - WG_INTERFACE=${WG_INTERFACE:-wg0}
       - SINGBOX_CONFIG_PATH=/etc/singbox/config.json
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      - FOREIGN_SERVER_IP=${FOREIGN_SERVER_IP:-}
+      - FOREIGN_TUNNEL_PRIVATE_KEY=${FOREIGN_TUNNEL_PRIVATE_KEY:-}
+      - FOREIGN_TUNNEL_PEER_PUBLIC_KEY=${FOREIGN_TUNNEL_PEER_PUBLIC_KEY:-}
+      - FOREIGN_TUNNEL_LOCAL_ADDRESS=${FOREIGN_TUNNEL_LOCAL_ADDRESS:-10.20.0.2/30}
+      - WG_MTU=${WG_MTU:-1280}
     volumes:
       - api-data:/data
+      - ./deploy/server-ru/singbox:/etc/singbox
     restart: unless-stopped
 
   frontend:

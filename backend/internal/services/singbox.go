@@ -14,12 +14,12 @@ import (
 )
 
 type SingBoxService struct {
-	routeRepo repository.RouteRepository
-	dnsRepo   repository.DNSRepository
-	cfg       *config.SingBoxConfig
-	wgConfig  *config.WGConfig
-	srvConfig *config.ServerConfig
-	logger    *slog.Logger
+	routeRepo  repository.RouteRepository
+	dnsRepo    repository.DNSRepository
+	cfg        *config.SingBoxConfig
+	wgConfig   *config.WGConfig
+	srvConfig  *config.ServerConfig
+	logger     *slog.Logger
 }
 
 func NewSingBoxService(
@@ -133,6 +133,7 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*SingBoxConfig, er
 		},
 		Outbounds: []SingBoxOutbound{
 			{Type: "direct", Tag: "direct-out"},
+			{Type: "block", Tag: "block"},
 		},
 		Route: &SingBoxRoute{
 			Rules:                []SingBoxRouteRule{},
@@ -149,11 +150,11 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*SingBoxConfig, er
 			Tag:           "foreign-out",
 			Server:        s.srvConfig.ForeignIP,
 			ServerPort:    51821,
-			LocalAddress:  []string{"10.20.0.2/30"},
-			PrivateKey:    "",
-			PeerPublicKey: "",
+			LocalAddress:  []string{s.wgConfig.TunnelLocalAddress},
+			PrivateKey:    s.wgConfig.TunnelPrivateKey,
+			PeerPublicKey: s.wgConfig.TunnelPeerPublicKey,
 			Reserved:      []int{0, 0, 0},
-			MTU:           1280,
+			MTU:           s.wgConfig.MTU,
 		})
 		cfg.Route.Final = "foreign-out"
 	}
@@ -226,15 +227,50 @@ func (s *SingBoxService) Reload() error {
 	return nil
 }
 
+func (s *SingBoxService) WriteConfigAndReload(ctx context.Context) error {
+	if err := s.WriteConfig(ctx); err != nil {
+		return err
+	}
+
+	go func() {
+		if err := s.Reload(); err != nil {
+			s.logger.Error("ошибка hot-reload sing-box", "error", err)
+		}
+	}()
+
+	return nil
+}
+
 func (s *SingBoxService) buildDNSConfig(settings *models.DNSSettings) *SingBoxDNS {
 	var servers []SingBoxDNSServer
+	ruTags := []string{}
+	foreignTags := []string{}
 	for _, addr := range splitList(settings.UpstreamRU) {
-		servers = append(servers, SingBoxDNSServer{Tag: "dns-ru-" + addr, Address: addr})
+		tag := "dns-ru-" + addr
+		servers = append(servers, SingBoxDNSServer{Tag: tag, Address: addr})
+		ruTags = append(ruTags, tag)
 	}
 	for _, addr := range splitList(settings.UpstreamForeign) {
-		servers = append(servers, SingBoxDNSServer{Tag: "dns-foreign-" + addr, Address: addr})
+		tag := "dns-foreign-" + addr
+		servers = append(servers, SingBoxDNSServer{Tag: tag, Address: addr})
+		foreignTags = append(foreignTags, tag)
 	}
-	return &SingBoxDNS{Servers: servers}
+
+	var rules []SingBoxDNSRule
+	if len(ruTags) > 0 {
+		rules = append(rules, SingBoxDNSRule{
+			Server:   ruTags[0],
+			Outbound: []string{"direct-out"},
+		})
+	}
+	if len(foreignTags) > 0 {
+		rules = append(rules, SingBoxDNSRule{
+			Server:   foreignTags[0],
+			Outbound: []string{"foreign-out"},
+		})
+	}
+
+	return &SingBoxDNS{Servers: servers, Rules: rules}
 }
 
 func (s *SingBoxService) actionToOutbound(action string) string {
@@ -251,9 +287,6 @@ func (s *SingBoxService) actionToOutbound(action string) string {
 
 func splitList(s string) []string {
 	var result []string
-	for _, v := range []string{} {
-		_ = v
-	}
 	for _, item := range splitComma(s) {
 		result = append(result, item)
 	}

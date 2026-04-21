@@ -54,7 +54,7 @@ func (h *PeerHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.sbSvc.WriteConfig(r.Context())
+	_ = h.sbSvc.WriteConfigAndReload(r.Context())
 
 	JSON(w, http.StatusCreated, peer)
 }
@@ -104,7 +104,7 @@ func (h *PeerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.sbSvc.WriteConfig(r.Context())
+	_ = h.sbSvc.WriteConfigAndReload(r.Context())
 
 	JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
@@ -220,7 +220,7 @@ func (h *PeerHandler) Toggle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.sbSvc.WriteConfig(r.Context())
+	_ = h.sbSvc.WriteConfigAndReload(r.Context())
 
 	JSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }

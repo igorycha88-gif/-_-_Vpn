@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"os"
@@ -422,5 +423,134 @@ func TestBcryptPassword(t *testing.T) {
 	}
 	if err := bcrypt.CompareHashAndPassword(hash, []byte(password)); err != nil {
 		t.Fatalf("bcrypt.Compare: %v", err)
+	}
+}
+
+func newTestSingBoxService(t *testing.T) (*SingBoxService, *sql.DB) {
+	t.Helper()
+	db, err := repository.InitDB(":memory:", migrations.Files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	routeRepo := repository.NewRouteRepository(db)
+	dnsRepo := repository.NewDNSRepository(db)
+	cfg := &config.SingBoxConfig{ConfigPath: t.TempDir() + "/config.json"}
+	wgCfg := &config.WGConfig{MTU: 1280, TunnelLocalAddress: "10.20.0.2/30"}
+	srvCfg := &config.ServerConfig{ForeignIP: "1.2.3.4"}
+	svc := NewSingBoxService(routeRepo, dnsRepo, cfg, wgCfg, srvCfg, testLogger())
+	return svc, db
+}
+
+func TestSingBoxService_GenerateConfig_WithForeignIP(t *testing.T) {
+	svc, _ := newTestSingBoxService(t)
+
+	cfg, err := svc.GenerateConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateConfig: %v", err)
+	}
+
+	hasDirect := false
+	hasBlock := false
+	hasForeign := false
+	for _, o := range cfg.Outbounds {
+		switch o.Tag {
+		case "direct-out":
+			hasDirect = true
+		case "block":
+			hasBlock = true
+		case "foreign-out":
+			hasForeign = true
+			if o.Server != "1.2.3.4" {
+				t.Errorf("foreign Server = %q, want 1.2.3.4", o.Server)
+			}
+		}
+	}
+	if !hasDirect {
+		t.Error("missing direct-out outbound")
+	}
+	if !hasBlock {
+		t.Error("missing block outbound")
+	}
+	if !hasForeign {
+		t.Error("missing foreign-out outbound")
+	}
+	if cfg.Route.Final != "foreign-out" {
+		t.Errorf("Final = %q, want foreign-out", cfg.Route.Final)
+	}
+}
+
+func TestSingBoxService_GenerateConfig_NoForeignIP(t *testing.T) {
+	db, err := repository.InitDB(":memory:", migrations.Files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	routeRepo := repository.NewRouteRepository(db)
+	dnsRepo := repository.NewDNSRepository(db)
+	cfg := &config.SingBoxConfig{ConfigPath: t.TempDir() + "/config.json"}
+	wgCfg := &config.WGConfig{MTU: 1280}
+	srvCfg := &config.ServerConfig{ForeignIP: ""}
+	svc := NewSingBoxService(routeRepo, dnsRepo, cfg, wgCfg, srvCfg, testLogger())
+
+	result, err := svc.GenerateConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateConfig: %v", err)
+	}
+	if result.Route.Final != "direct-out" {
+		t.Errorf("Final = %q, want direct-out", result.Route.Final)
+	}
+	for _, o := range result.Outbounds {
+		if o.Tag == "foreign-out" {
+			t.Error("foreign-out should not exist without ForeignIP")
+		}
+	}
+}
+
+func TestSingBoxService_GenerateConfig_DNSRules(t *testing.T) {
+	svc, _ := newTestSingBoxService(t)
+
+	cfg, err := svc.GenerateConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateConfig: %v", err)
+	}
+	if cfg.DNS == nil {
+		t.Fatal("DNS config is nil")
+	}
+	if len(cfg.DNS.Servers) == 0 {
+		t.Error("DNS servers empty")
+	}
+	if len(cfg.DNS.Rules) == 0 {
+		t.Error("DNS rules empty")
+	}
+}
+
+func TestSingBoxService_WriteConfig(t *testing.T) {
+	svc, _ := newTestSingBoxService(t)
+
+	if err := svc.WriteConfig(context.Background()); err != nil {
+		t.Fatalf("WriteConfig: %v", err)
+	}
+}
+
+func TestSingBoxService_ActionToOutbound(t *testing.T) {
+	svc, _ := newTestSingBoxService(t)
+
+	tests := []struct {
+		action   string
+		expected string
+	}{
+		{"direct", "direct-out"},
+		{"proxy", "foreign-out"},
+		{"block", "block"},
+		{"unknown", ""},
+	}
+	for _, tt := range tests {
+		got := svc.actionToOutbound(tt.action)
+		if got != tt.expected {
+			t.Errorf("actionToOutbound(%q) = %q, want %q", tt.action, got, tt.expected)
+		}
 	}
 }

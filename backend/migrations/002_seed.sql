@@ -34,3 +34,9 @@ VALUES (
 
 INSERT OR IGNORE INTO dns_settings (id, upstream_ru, upstream_foreign, block_ads)
 VALUES (1, '77.88.8.8,77.88.8.1', '1.1.1.1,8.8.8.8', FALSE);
+
+INSERT OR IGNORE INTO routing_rules (id, name, type, pattern, action, priority, is_active)
+VALUES ('rule-ru-domains', 'Российские домены', 'domain_suffix', '.ru', 'direct', 1, TRUE);
+
+INSERT OR IGNORE INTO routing_rules (id, name, type, pattern, action, priority, is_active)
+VALUES ('rule-ru-geoip', 'Российские IP (GeoIP)', 'geoip', 'ru', 'direct', 2, TRUE);

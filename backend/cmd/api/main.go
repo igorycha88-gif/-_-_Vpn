@@ -51,7 +51,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(authSvc, logger)
 	peerHandler := handlers.NewPeerHandler(wgSvc, singboxSvc, logger)
 	routeHandler := handlers.NewRouteHandler(routingSvc, singboxSvc, logger)
-	presetHandler := handlers.NewPresetHandler(routingSvc, singboxSvc, logger)
+	presetHandler := handlers.NewPresetHandler(routingSvc, singboxSvc, presetRepo, logger)
 	dnsHandler := handlers.NewDNSHandler(dnsSvc, logger)
 	serverHandler := handlers.NewServerHandler(trafficSvc, logger)
 	monitoringHandler := handlers.NewMonitoringHandler(trafficSvc, logger)

@@ -52,7 +52,7 @@ func (h *RouteHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.sbSvc.WriteConfig(r.Context())
+	_ = h.sbSvc.WriteConfigAndReload(r.Context())
 
 	JSON(w, http.StatusCreated, rule)
 }
@@ -101,7 +101,7 @@ func (h *RouteHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.sbSvc.WriteConfig(r.Context())
+	_ = h.sbSvc.WriteConfigAndReload(r.Context())
 
 	JSON(w, http.StatusOK, rule)
 }
@@ -122,7 +122,7 @@ func (h *RouteHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.sbSvc.WriteConfig(r.Context())
+	_ = h.sbSvc.WriteConfigAndReload(r.Context())
 
 	JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
@@ -145,7 +145,7 @@ func (h *RouteHandler) Reorder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.sbSvc.WriteConfig(r.Context())
+	_ = h.sbSvc.WriteConfigAndReload(r.Context())
 
 	JSON(w, http.StatusOK, map[string]string{"status": "reordered"})
 }
