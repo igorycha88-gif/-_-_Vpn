@@ -234,29 +234,3 @@ func (h *PeerHandler) Sync(w http.ResponseWriter, r *http.Request) {
 	}
 	JSON(w, http.StatusOK, map[string]string{"status": "synced"})
 }
-	if id == "" {
-		ErrorJSON(w, http.StatusBadRequest, "id не указан")
-		return
-	}
-
-	var req struct {
-		Active bool `json:"active"`
-	}
-	if err := DecodeJSON(r, &req); err != nil {
-		ErrorJSON(w, http.StatusBadRequest, "неверный формат запроса")
-		return
-	}
-
-	if err := h.wgSvc.TogglePeer(r.Context(), id, req.Active); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			ErrorJSON(w, http.StatusNotFound, "клиент не найден")
-			return
-		}
-		ErrorJSON(w, http.StatusInternalServerError, "внутренняя ошибка сервера")
-		return
-	}
-
-	_ = h.sbSvc.WriteConfigAndReload(r.Context())
-
-	JSON(w, http.StatusOK, map[string]string{"status": "updated"})
-}
