@@ -68,8 +68,7 @@ type SingBoxDNSServer struct {
 }
 
 type SingBoxDNSRule struct {
-	Server   string   `json:"server"`
-	Outbound []string `json:"outbound,omitempty"`
+	Server string `json:"server"`
 }
 
 type SingBoxInbound struct {
@@ -102,9 +101,10 @@ type SingBoxOutbound struct {
 }
 
 type SingBoxRoute struct {
-	Rules               []SingBoxRouteRule `json:"rules"`
-	Final               string             `json:"final"`
-	AutoDetectInterface bool               `json:"auto_detect_interface"`
+	Rules                []SingBoxRouteRule `json:"rules"`
+	Final                string             `json:"final"`
+	AutoDetectInterface  bool               `json:"auto_detect_interface"`
+	DefaultDomainResolver string            `json:"default_domain_resolver,omitempty"`
 }
 
 type SingBoxRouteRule struct {
@@ -112,7 +112,6 @@ type SingBoxRouteRule struct {
 	Domain        []string `json:"domain,omitempty"`
 	DomainKeyword []string `json:"domain_keyword,omitempty"`
 	IPCIDR        []string `json:"ip_cidr,omitempty"`
-	GeoIP         []string `json:"geoip,omitempty"`
 	Port          []int    `json:"port,omitempty"`
 	Protocol      string   `json:"protocol,omitempty"`
 	Action        string   `json:"action,omitempty"`
@@ -152,8 +151,9 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*SingBoxConfig, er
 				{Action: "sniff"},
 				{Protocol: "dns", Action: "hijack-dns"},
 			},
-			Final:               "direct-out",
-			AutoDetectInterface: true,
+			Final:                  "direct-out",
+			AutoDetectInterface:    true,
+			DefaultDomainResolver:  "dns-ru",
 		},
 	}
 
@@ -216,8 +216,6 @@ func (s *SingBoxService) populateRouteRuleFields(routeRule *SingBoxRouteRule, ru
 		routeRule.DomainKeyword = []string{rule.Pattern}
 	case "ip":
 		routeRule.IPCIDR = []string{rule.Pattern}
-	case "geoip":
-		routeRule.GeoIP = []string{rule.Pattern}
 	case "port":
 		var port int
 		fmt.Sscanf(rule.Pattern, "%d", &port)
@@ -293,14 +291,12 @@ func (s *SingBoxService) buildDNSConfig(settings *models.DNSSettings) *SingBoxDN
 	var rules []SingBoxDNSRule
 	if len(ruTags) > 0 {
 		rules = append(rules, SingBoxDNSRule{
-			Server:   ruTags[0],
-			Outbound: []string{"direct-out"},
+			Server: ruTags[0],
 		})
 	}
 	if len(foreignTags) > 0 {
 		rules = append(rules, SingBoxDNSRule{
-			Server:   foreignTags[0],
-			Outbound: []string{"foreign-out"},
+			Server: foreignTags[0],
 		})
 	}
 
