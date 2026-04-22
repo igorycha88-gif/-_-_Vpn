@@ -10,11 +10,12 @@ import (
 
 type MonitoringHandler struct {
 	trafficSvc *services.TrafficService
+	wgSvc      *services.WireGuardService
 	logger     *slog.Logger
 }
 
-func NewMonitoringHandler(trafficSvc *services.TrafficService, logger *slog.Logger) *MonitoringHandler {
-	return &MonitoringHandler{trafficSvc: trafficSvc, logger: logger}
+func NewMonitoringHandler(trafficSvc *services.TrafficService, wgSvc *services.WireGuardService, logger *slog.Logger) *MonitoringHandler {
+	return &MonitoringHandler{trafficSvc: trafficSvc, wgSvc: wgSvc, logger: logger}
 }
 
 func (h *MonitoringHandler) Traffic(w http.ResponseWriter, r *http.Request) {
@@ -81,4 +82,39 @@ func (h *MonitoringHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	JSON(w, http.StatusOK, stats)
+}
+
+func (h *MonitoringHandler) PeerMonitor(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get(":id")
+	if id == "" {
+		id = r.PathValue("id")
+	}
+	if id == "" {
+		ErrorJSON(w, http.StatusBadRequest, "id не указан")
+		return
+	}
+
+	peer, err := h.wgSvc.GetPeer(r.Context(), id)
+	if err != nil {
+		h.logger.Error("ошибка получения пира", "id", id, "error", err)
+		ErrorJSON(w, http.StatusNotFound, "клиент не найден")
+		return
+	}
+
+	filter := models.TrafficFilter{
+		PeerID: id,
+		Limit:  50,
+	}
+	logs, err := h.trafficSvc.GetTrafficLogs(r.Context(), filter)
+	if err != nil {
+		h.logger.Error("ошибка получения логов пира", "id", id, "error", err)
+		logs = []*models.TrafficLog{}
+	}
+
+	result := map[string]interface{}{
+		"peer":       peer,
+		"traffic_logs": logs,
+	}
+
+	JSON(w, http.StatusOK, result)
 }

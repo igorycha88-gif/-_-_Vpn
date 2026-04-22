@@ -4,15 +4,21 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"smarttraffic/internal/models"
 	"smarttraffic/internal/repository"
 )
 
+const maxAlerts = 100
+
 type TrafficService struct {
 	trafficRepo repository.TrafficRepository
 	peerRepo    repository.PeerRepository
 	logger      *slog.Logger
+
+	mu     sync.Mutex
+	alerts []*models.Alert
 }
 
 func NewTrafficService(trafficRepo repository.TrafficRepository, peerRepo repository.PeerRepository, logger *slog.Logger) *TrafficService {
@@ -20,6 +26,7 @@ func NewTrafficService(trafficRepo repository.TrafficRepository, peerRepo reposi
 		trafficRepo: trafficRepo,
 		peerRepo:    peerRepo,
 		logger:      logger,
+		alerts:      make([]*models.Alert, 0, maxAlerts),
 	}
 }
 
@@ -73,6 +80,21 @@ func (s *TrafficService) CleanupOldLogs(ctx context.Context, retainDays int) (in
 	return deleted, nil
 }
 
+func (s *TrafficService) AddAlert(alert *models.Alert) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.alerts = append([]*models.Alert{alert}, s.alerts...)
+	if len(s.alerts) > maxAlerts {
+		s.alerts = s.alerts[:maxAlerts]
+	}
+}
+
 func (s *TrafficService) GetAlerts(ctx context.Context) ([]*models.Alert, error) {
-	return []*models.Alert{}, nil
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	result := make([]*models.Alert, len(s.alerts))
+	copy(result, s.alerts)
+	return result, nil
 }

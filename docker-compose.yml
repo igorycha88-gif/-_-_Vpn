@@ -4,8 +4,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: smarttraffic-api
-    ports:
-      - "8080:8080"
     environment:
       - APP_PORT=8080
       - DB_PATH=/data/smarttraffic.db
@@ -20,9 +18,16 @@ services:
       - FOREIGN_TUNNEL_PEER_PUBLIC_KEY=${FOREIGN_TUNNEL_PEER_PUBLIC_KEY:-}
       - FOREIGN_TUNNEL_LOCAL_ADDRESS=${FOREIGN_TUNNEL_LOCAL_ADDRESS:-10.20.0.2/30}
       - WG_MTU=${WG_MTU:-1280}
+      - WG_PORT=${WG_PORT:-51820}
+      - WG_SERVER_ENDPOINT=${WG_SERVER_ENDPOINT:-}
+      - WG_SERVER_PUBLIC_KEY=${WG_SERVER_PUBLIC_KEY:-}
+      - WG_CLIENT_SUBNET=${WG_CLIENT_SUBNET:-10.10.0.0/24}
+      - WG_DNS=${WG_DNS:-10.10.0.1}
     volumes:
       - api-data:/data
       - ./deploy/server-ru/singbox:/etc/singbox
+    ports:
+      - "8080:8080"
     restart: unless-stopped
 
   frontend:

@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"smarttraffic/internal/config"
@@ -49,17 +51,24 @@ func main() {
 	dnsSvc := services.NewDNSService(dnsRepo, logger)
 	trafficSvc := services.NewTrafficService(trafficRepo, peerRepo, logger)
 
+	collector := services.NewWGStatsCollector(peerRepo, trafficRepo, trafficSvc, cfg.WG.Interface, logger)
+
 	if err := wgSvc.SyncAllPeers(context.Background()); err != nil {
 		logger.Warn("не удалось синхронизировать пиры WG при запуске", "error", err)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go collector.Start(ctx)
 
 	authHandler := handlers.NewAuthHandler(authSvc, logger)
 	peerHandler := handlers.NewPeerHandler(wgSvc, singboxSvc, logger)
 	routeHandler := handlers.NewRouteHandler(routingSvc, singboxSvc, logger)
 	presetHandler := handlers.NewPresetHandler(routingSvc, singboxSvc, presetRepo, logger)
 	dnsHandler := handlers.NewDNSHandler(dnsSvc, logger)
-	serverHandler := handlers.NewServerHandler(trafficSvc, logger)
-	monitoringHandler := handlers.NewMonitoringHandler(trafficSvc, logger)
+	serverHandler := handlers.NewServerHandler(trafficSvc, collector, logger)
+	monitoringHandler := handlers.NewMonitoringHandler(trafficSvc, wgSvc, logger)
 
 	rateLimiter := middleware.NewRateLimiter(1, time.Second, 5)
 
@@ -121,12 +130,29 @@ func main() {
 			r.Get("/monitoring/logs", monitoringHandler.Logs)
 			r.Get("/monitoring/alerts", monitoringHandler.Alerts)
 			r.Get("/monitoring/stats", monitoringHandler.Stats)
+			r.Get("/monitoring/peer/{id}", monitoringHandler.PeerMonitor)
 		})
 	})
 
 	addr := fmt.Sprintf(":%d", cfg.App.Port)
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: r,
+	}
+
+	go func() {
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+		<-sigCh
+		logger.Info("получен сигнал остановки, завершение...")
+		cancel()
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutdownCancel()
+		srv.Shutdown(shutdownCtx)
+	}()
+
 	logger.Info("запуск API сервера", "addr", addr)
-	if err := http.ListenAndServe(addr, r); err != nil {
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Error("ошибка запуска сервера", "error", err)
 		os.Exit(1)
 	}

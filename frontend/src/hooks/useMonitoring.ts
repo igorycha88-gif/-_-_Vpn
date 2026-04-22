@@ -32,3 +32,12 @@ export function useMonitoringStats() {
     refetchInterval: 10000,
   })
 }
+
+export function usePeerMonitor(peerId: string | undefined) {
+  return useQuery({
+    queryKey: ['monitoring', 'peer', peerId],
+    queryFn: () => monitoringApi.getPeerMonitor(peerId!),
+    enabled: !!peerId,
+    refetchInterval: 10000,
+  })
+}
