@@ -206,7 +206,7 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*SingBoxConfig, er
 	return cfg, nil
 }
 
-func (s *SingBoxService) populateRouteRuleFields(routeRule *SingBoxRouteRule, rule *models.Route) {
+func (s *SingBoxService) populateRouteRuleFields(routeRule *SingBoxRouteRule, rule *models.RoutingRule) {
 	switch rule.Type {
 	case "domain":
 		routeRule.Domain = []string{rule.Pattern}
