@@ -68,11 +68,13 @@ echo "[5/7] Настройка UFW фаервола..."
 ufw --force reset
 ufw default deny incoming
 ufw default allow outgoing
+ufw default allow FORWARD
 ufw allow 22/tcp comment 'SSH'
 ufw allow 80/tcp comment 'HTTP'
 ufw allow 443/tcp comment 'HTTPS'
 ufw allow 51820/udp comment 'WireGuard VPN clients'
 ufw allow 51821/udp comment 'WireGuard tunnel to foreign server'
+sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw
 ufw --force enable
 
 echo "[6/7] Запуск WireGuard..."

@@ -40,8 +40,16 @@ func NewSingBoxService(
 	}
 }
 
+type SingBoxGeoData struct {
+	Path          string `json:"path"`
+	DownloadURL   string `json:"download_url"`
+	DownloadDetour string `json:"download_detour"`
+}
+
 type SingBoxConfig struct {
 	Log       *SingBoxLog       `json:"log,omitempty"`
+	GeoIP     *SingBoxGeoData   `json:"geoip,omitempty"`
+	GeoSite   *SingBoxGeoData   `json:"geosite,omitempty"`
 	DNS       *SingBoxDNS       `json:"dns,omitempty"`
 	Inbounds  []SingBoxInbound  `json:"inbounds"`
 	Outbounds []SingBoxOutbound `json:"outbounds"`
@@ -53,13 +61,16 @@ type SingBoxLog struct {
 }
 
 type SingBoxDNS struct {
-	Servers []SingBoxDNSServer `json:"servers"`
-	Rules   []SingBoxDNSRule   `json:"rules,omitempty"`
+	Servers  []SingBoxDNSServer `json:"servers"`
+	Rules    []SingBoxDNSRule   `json:"rules,omitempty"`
+	Final    string             `json:"final,omitempty"`
+	Strategy string             `json:"strategy,omitempty"`
 }
 
 type SingBoxDNSServer struct {
 	Tag     string `json:"tag"`
 	Address string `json:"address"`
+	Detour  string `json:"detour,omitempty"`
 }
 
 type SingBoxDNSRule struct {
@@ -68,12 +79,13 @@ type SingBoxDNSRule struct {
 }
 
 type SingBoxInbound struct {
-	Type        string `json:"type"`
-	Tag         string `json:"tag"`
-	Listen      string `json:"listen"`
-	ListenPort  int    `json:"listen_port,omitempty"`
-	Sniff       bool   `json:"sniff,omitempty"`
-	SniffOverrideDestination bool `json:"sniff_override_destination,omitempty"`
+	Type                   string `json:"type"`
+	Tag                    string `json:"tag"`
+	Listen                 string `json:"listen"`
+	ListenPort             int    `json:"listen_port,omitempty"`
+	Sniff                  bool   `json:"sniff,omitempty"`
+	SniffOverrideDestination bool  `json:"sniff_override_destination,omitempty"`
+	OverrideDestination    bool   `json:"override_destination,omitempty"`
 }
 
 type SingBoxOutbound struct {
@@ -101,6 +113,7 @@ type SingBoxRouteRule struct {
 	IPCIDR        []string `json:"ip_cidr,omitempty"`
 	GeoIP         []string `json:"geoip,omitempty"`
 	Port          []int    `json:"port,omitempty"`
+	Protocol      string   `json:"protocol,omitempty"`
 	Outbound      string   `json:"outbound"`
 }
 
@@ -121,22 +134,42 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*SingBoxConfig, er
 
 	cfg := &SingBoxConfig{
 		Log: &SingBoxLog{Level: "info"},
+		GeoIP: &SingBoxGeoData{
+			Path:           "geoip.db",
+			DownloadURL:    "https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db",
+			DownloadDetour: "direct-out",
+		},
+		GeoSite: &SingBoxGeoData{
+			Path:           "geosite.db",
+			DownloadURL:    "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db",
+			DownloadDetour: "direct-out",
+		},
 		Inbounds: []SingBoxInbound{
 			{
-				Type:       "tproxy",
-				Tag:        "tproxy-in",
-				Listen:     "::",
-				ListenPort: 12345,
-				Sniff:      true,
+				Type:                "dns",
+				Tag:                 "dns-in",
+				Listen:              "0.0.0.0",
+				ListenPort:          53,
+				OverrideDestination: true,
+			},
+			{
+				Type:                   "redirect",
+				Tag:                    "redirect-in",
+				Listen:                 "::",
+				ListenPort:             12345,
+				Sniff:                  true,
 				SniffOverrideDestination: true,
 			},
 		},
 		Outbounds: []SingBoxOutbound{
 			{Type: "direct", Tag: "direct-out"},
 			{Type: "block", Tag: "block"},
+			{Type: "dns", Tag: "dns-out"},
 		},
 		Route: &SingBoxRoute{
-			Rules:                []SingBoxRouteRule{},
+			Rules: []SingBoxRouteRule{
+				{Protocol: "dns", Outbound: "dns-out"},
+			},
 			Final:                "direct-out",
 			AutoDetectInterface:  true,
 		},
@@ -247,12 +280,12 @@ func (s *SingBoxService) buildDNSConfig(settings *models.DNSSettings) *SingBoxDN
 	foreignTags := []string{}
 	for _, addr := range splitList(settings.UpstreamRU) {
 		tag := "dns-ru-" + addr
-		servers = append(servers, SingBoxDNSServer{Tag: tag, Address: addr})
+		servers = append(servers, SingBoxDNSServer{Tag: tag, Address: addr, Detour: "direct-out"})
 		ruTags = append(ruTags, tag)
 	}
 	for _, addr := range splitList(settings.UpstreamForeign) {
 		tag := "dns-foreign-" + addr
-		servers = append(servers, SingBoxDNSServer{Tag: tag, Address: addr})
+		servers = append(servers, SingBoxDNSServer{Tag: tag, Address: addr, Detour: "foreign-out"})
 		foreignTags = append(foreignTags, tag)
 	}
 
@@ -270,7 +303,19 @@ func (s *SingBoxService) buildDNSConfig(settings *models.DNSSettings) *SingBoxDN
 		})
 	}
 
-	return &SingBoxDNS{Servers: servers, Rules: rules}
+	finalTag := ""
+	if len(foreignTags) > 0 {
+		finalTag = foreignTags[0]
+	} else if len(ruTags) > 0 {
+		finalTag = ruTags[0]
+	}
+
+	return &SingBoxDNS{
+		Servers:  servers,
+		Rules:    rules,
+		Final:    finalTag,
+		Strategy: "prefer_ipv4",
+	}
 }
 
 func (s *SingBoxService) actionToOutbound(action string) string {

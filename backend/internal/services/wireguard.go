@@ -141,8 +141,11 @@ func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
 	var sb strings.Builder
 	sb.WriteString("[Interface]\n")
 	sb.WriteString(fmt.Sprintf("PrivateKey = %s\n", peer.PrivateKey))
+
+	subnet := strings.TrimSuffix(s.cfg.ClientSubnet, ".0/24")
 	sb.WriteString(fmt.Sprintf("Address = %s/24\n", peer.Address))
-	sb.WriteString(fmt.Sprintf("DNS = %s\n", peer.DNS))
+
+	sb.WriteString(fmt.Sprintf("DNS = %s.1\n", subnet))
 	sb.WriteString(fmt.Sprintf("MTU = %d\n", peer.MTU))
 	sb.WriteString("\n[Peer]\n")
 	sb.WriteString(fmt.Sprintf("PublicKey = %s\n", s.cfg.ServerPubKey))

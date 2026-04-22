@@ -49,7 +49,7 @@ services:
       - WG_PORT=${WG_PORT:-51820}
       - WG_SERVER_ENDPOINT=${WG_SERVER_ENDPOINT:-}
       - WG_SERVER_PUBLIC_KEY=${WG_SERVER_PUBLIC_KEY:-}
-      - WG_DNS=${WG_DNS:-1.1.1.1,8.8.8.8}
+      - WG_DNS=${WG_DNS:-10.10.0.1}
       - WG_CLIENT_SUBNET=${WG_CLIENT_SUBNET:-10.10.0.0/24}
       - WG_MTU=${WG_MTU:-1280}
       - SINGBOX_CONFIG_PATH=/etc/singbox/config.json
@@ -75,6 +75,8 @@ services:
   singbox:
     image: ghcr.io/sagernet/sing-box
     container_name: smarttraffic-singbox
+    working_dir: /etc/singbox
+    entrypoint: ["/bin/sh", "-c", "if [ ! -f geoip.db ] || [ ! -s geoip.db ]; then echo 'WARNING: geoip.db missing, downloading...'; wget -q -O geoip.db https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db || echo 'FAIL: geoip.db download failed - geoip routing will not work'; fi; if [ ! -f geosite.db ] || [ ! -s geosite.db ]; then echo 'WARNING: geosite.db missing, downloading...'; wget -q -O geosite.db https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db || echo 'FAIL: geosite.db download failed'; fi; exec sing-box run -c /etc/singbox/config.json"]
     volumes:
       - ./singbox:/etc/singbox
     network_mode: host

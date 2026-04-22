@@ -88,7 +88,7 @@ func Load() (*Config, error) {
 	cfg.WG.ClientSubnet = getEnv("WG_CLIENT_SUBNET", "10.10.0.0/24")
 	cfg.WG.TunnelSubnet = getEnv("WG_TUNNEL_SUBNET", "10.20.0.0/30")
 	cfg.WG.MTU = getEnvInt("WG_MTU", 1280)
-	cfg.WG.DNS = getEnv("WG_DNS", "1.1.1.1,8.8.8.8")
+	cfg.WG.DNS = getEnv("WG_DNS", "10.10.0.1")
 	cfg.WG.TunnelPrivateKey = getEnv("FOREIGN_TUNNEL_PRIVATE_KEY", "")
 	cfg.WG.TunnelPeerPublicKey = getEnv("FOREIGN_TUNNEL_PEER_PUBLIC_KEY", "")
 	cfg.WG.TunnelLocalAddress = getEnv("FOREIGN_TUNNEL_LOCAL_ADDRESS", "10.20.0.2/30")
