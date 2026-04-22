@@ -24,3 +24,11 @@ export function useUpdateDnsSettings() {
     },
   })
 }
+
+export function useDnsPresets() {
+  return useQuery({
+    queryKey: ['dns-presets'],
+    queryFn: () => dnsApi.listDnsPresets(),
+    staleTime: Infinity,
+  })
+}

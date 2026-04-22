@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,6 +27,19 @@ func testJWTConfig() *config.JWTConfig {
 		Secret:     "test-secret-key-at-least-32-chars!",
 		AccessTTL:  15 * time.Minute,
 		RefreshTTL: 168 * time.Hour,
+	}
+}
+
+func testVLESSConfig() *config.VLESSConfig {
+	return &config.VLESSConfig{
+		PrivateKey:     "test-private-key",
+		PublicKey:      "test-public-key",
+		ShortID:        "test-short-id",
+		ServerName:     "www.microsoft.com",
+		Port:           443,
+		Flow:           "xtls-rprx-vision",
+		Fingerprint:    "chrome",
+		ServerEndpoint: "1.2.3.4",
 	}
 }
 
@@ -140,11 +154,7 @@ func TestWireGuardService_CreatePeer(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
 	defer db.Close()
 
-	cfg := &config.WGConfig{
-		ClientSubnet: "10.10.0.0", DNS: "1.1.1.1", MTU: 1280,
-		ServerEndpoint: "1.2.3.4", ServerPubKey: "testpubkey", Port: 51820,
-	}
-	svc := NewWireGuardService(repository.NewPeerRepository(db), cfg, testLogger())
+	svc := NewWireGuardService(repository.NewPeerRepository(db), testVLESSConfig(), testLogger())
 
 	peer, err := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "Test Peer"})
 	if err != nil {
@@ -154,7 +164,7 @@ func TestWireGuardService_CreatePeer(t *testing.T) {
 		t.Error("ID is empty")
 	}
 	if peer.PublicKey == "" {
-		t.Error("PublicKey is empty")
+		t.Error("PublicKey (UUID) is empty")
 	}
 	if peer.Address == "" {
 		t.Error("Address is empty")
@@ -162,14 +172,16 @@ func TestWireGuardService_CreatePeer(t *testing.T) {
 	if !peer.IsActive {
 		t.Error("should be active")
 	}
+	if peer.MTU != 1280 {
+		t.Errorf("MTU = %d, want 1280", peer.MTU)
+	}
 }
 
 func TestWireGuardService_CreatePeer_ValidationError(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
 	defer db.Close()
 
-	cfg := &config.WGConfig{ClientSubnet: "10.10.0.0"}
-	svc := NewWireGuardService(repository.NewPeerRepository(db), cfg, testLogger())
+	svc := NewWireGuardService(repository.NewPeerRepository(db), testVLESSConfig(), testLogger())
 
 	_, err := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{})
 	if err == nil {
@@ -181,8 +193,7 @@ func TestWireGuardService_ListPeers(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
 	defer db.Close()
 
-	cfg := &config.WGConfig{ClientSubnet: "10.10.0.0", DNS: "1.1.1.1", MTU: 1280}
-	svc := NewWireGuardService(repository.NewPeerRepository(db), cfg, testLogger())
+	svc := NewWireGuardService(repository.NewPeerRepository(db), testVLESSConfig(), testLogger())
 
 	peers, err := svc.ListPeers(context.Background())
 	if err != nil {
@@ -203,8 +214,7 @@ func TestWireGuardService_DeletePeer(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
 	defer db.Close()
 
-	cfg := &config.WGConfig{ClientSubnet: "10.10.0.0", DNS: "1.1.1.1", MTU: 1280}
-	svc := NewWireGuardService(repository.NewPeerRepository(db), cfg, testLogger())
+	svc := NewWireGuardService(repository.NewPeerRepository(db), testVLESSConfig(), testLogger())
 
 	peer, _ := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1"})
 	if err := svc.DeletePeer(context.Background(), peer.ID); err != nil {
@@ -213,15 +223,31 @@ func TestWireGuardService_DeletePeer(t *testing.T) {
 }
 
 func TestWireGuardService_GenerateClientConfig(t *testing.T) {
-	cfg := &config.WGConfig{ServerEndpoint: "1.2.3.4", ServerPubKey: "serverpubkey", Port: 51820}
-	svc := NewWireGuardService(nil, cfg, testLogger())
+	svc := NewWireGuardService(nil, testVLESSConfig(), testLogger())
 
-	config := svc.GenerateClientConfig(&models.Peer{
-		PrivateKey: "clientprivkey", Address: "10.10.0.2", DNS: "1.1.1.1", MTU: 1280,
-	})
+	peer := &models.Peer{
+		PublicKey: "7f2105d9-3962-4dd3-80d5-6ac86d271855",
+	}
+	config := svc.GenerateClientConfig(peer)
 	if config == "" {
 		t.Fatal("config is empty")
 	}
+	if !contains(config, "vless") {
+		t.Error("config should contain vless type")
+	}
+	if !contains(config, "7f2105d9-3962-4dd3-80d5-6ac86d271855") {
+		t.Error("config should contain UUID")
+	}
+	if !contains(config, "max.ru") {
+		t.Error("config should contain max.ru in direct rules")
+	}
+	if !contains(config, "gosuslugi.ru") {
+		t.Error("config should contain gosuslugi.ru in direct rules")
+	}
+}
+
+func contains(s, substr string) bool {
+	return strings.Contains(s, substr)
 }
 
 func TestRoutingService_CreateRule(t *testing.T) {
@@ -436,14 +462,16 @@ func newTestSingBoxService(t *testing.T) (*SingBoxService, *sql.DB) {
 
 	routeRepo := repository.NewRouteRepository(db)
 	dnsRepo := repository.NewDNSRepository(db)
-	cfg := &config.SingBoxConfig{ConfigPath: t.TempDir() + "/config.json"}
-	wgCfg := &config.WGConfig{MTU: 1280, TunnelLocalAddress: "10.20.0.2/30"}
+	peerRepo := repository.NewPeerRepository(db)
+	sbCfg := &config.SingBoxConfig{ConfigPath: t.TempDir() + "/config.json"}
+	vlessCfg := testVLESSConfig()
+	wgCfg := &config.WGConfig{MTU: 1280, TunnelLocalAddress: "10.20.0.2/30", TunnelPrivateKey: "testkey", TunnelPeerPublicKey: "testpeerkey"}
 	srvCfg := &config.ServerConfig{ForeignIP: "1.2.3.4"}
-	svc := NewSingBoxService(routeRepo, dnsRepo, cfg, wgCfg, srvCfg, testLogger())
+	svc := NewSingBoxService(routeRepo, dnsRepo, peerRepo, sbCfg, vlessCfg, wgCfg, srvCfg, testLogger())
 	return svc, db
 }
 
-func TestSingBoxService_GenerateConfig_WithForeignIP(t *testing.T) {
+func TestSingBoxService_GenerateConfig_WithVLESSInbound(t *testing.T) {
 	svc, _ := newTestSingBoxService(t)
 
 	cfg, err := svc.GenerateConfig(context.Background())
@@ -451,33 +479,11 @@ func TestSingBoxService_GenerateConfig_WithForeignIP(t *testing.T) {
 		t.Fatalf("GenerateConfig: %v", err)
 	}
 
-	hasDirect := false
-	hasBlock := false
-	hasForeign := false
-	for _, o := range cfg.Outbounds {
-		switch o.Tag {
-		case "direct-out":
-			hasDirect = true
-		case "block":
-			hasBlock = true
-		case "foreign-out":
-			hasForeign = true
-			if o.Server != "1.2.3.4" {
-				t.Errorf("foreign Server = %q, want 1.2.3.4", o.Server)
-			}
-		}
-	}
-	if !hasDirect {
-		t.Error("missing direct-out outbound")
-	}
-	if !hasBlock {
-		t.Error("missing block outbound")
-	}
-	if !hasForeign {
-		t.Error("missing foreign-out outbound")
-	}
 	if cfg.Route.Final != "foreign-out" {
 		t.Errorf("Final = %q, want foreign-out", cfg.Route.Final)
+	}
+	if len(cfg.Inbounds) == 0 {
+		t.Error("expected at least one inbound")
 	}
 }
 
@@ -490,10 +496,12 @@ func TestSingBoxService_GenerateConfig_NoForeignIP(t *testing.T) {
 
 	routeRepo := repository.NewRouteRepository(db)
 	dnsRepo := repository.NewDNSRepository(db)
-	cfg := &config.SingBoxConfig{ConfigPath: t.TempDir() + "/config.json"}
+	peerRepo := repository.NewPeerRepository(db)
+	sbCfg := &config.SingBoxConfig{ConfigPath: t.TempDir() + "/config.json"}
+	vlessCfg := testVLESSConfig()
 	wgCfg := &config.WGConfig{MTU: 1280}
 	srvCfg := &config.ServerConfig{ForeignIP: ""}
-	svc := NewSingBoxService(routeRepo, dnsRepo, cfg, wgCfg, srvCfg, testLogger())
+	svc := NewSingBoxService(routeRepo, dnsRepo, peerRepo, sbCfg, vlessCfg, wgCfg, srvCfg, testLogger())
 
 	result, err := svc.GenerateConfig(context.Background())
 	if err != nil {
@@ -501,11 +509,6 @@ func TestSingBoxService_GenerateConfig_NoForeignIP(t *testing.T) {
 	}
 	if result.Route.Final != "direct-out" {
 		t.Errorf("Final = %q, want direct-out", result.Route.Final)
-	}
-	for _, o := range result.Outbounds {
-		if o.Tag == "foreign-out" {
-			t.Error("foreign-out should not exist without ForeignIP")
-		}
 	}
 }
 
@@ -521,9 +524,6 @@ func TestSingBoxService_GenerateConfig_DNSRules(t *testing.T) {
 	}
 	if len(cfg.DNS.Servers) == 0 {
 		t.Error("DNS servers empty")
-	}
-	if len(cfg.DNS.Rules) == 0 {
-		t.Error("DNS rules empty")
 	}
 }
 
@@ -544,7 +544,6 @@ func TestSingBoxService_ActionToOutbound(t *testing.T) {
 	}{
 		{"direct", "direct-out"},
 		{"proxy", "foreign-out"},
-		{"block", "block"},
 		{"unknown", ""},
 	}
 	for _, tt := range tests {

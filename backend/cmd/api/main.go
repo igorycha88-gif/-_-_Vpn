@@ -45,16 +45,16 @@ func main() {
 	authRepo := repository.NewAuthRepository(db)
 
 	authSvc := services.NewAuthService(authRepo, &cfg.JWT, logger)
-	wgSvc := services.NewWireGuardService(peerRepo, &cfg.WG, logger)
-	singboxSvc := services.NewSingBoxService(routeRepo, dnsRepo, &cfg.SingBox, &cfg.WG, &cfg.Server, logger)
+	wgSvc := services.NewWireGuardService(peerRepo, &cfg.VLESS, logger)
+	singboxSvc := services.NewSingBoxService(routeRepo, dnsRepo, peerRepo, &cfg.SingBox, &cfg.VLESS, &cfg.WG, &cfg.Server, logger)
 	routingSvc := services.NewRoutingService(routeRepo, presetRepo, logger)
 	dnsSvc := services.NewDNSService(dnsRepo, logger)
 	trafficSvc := services.NewTrafficService(trafficRepo, peerRepo, logger)
 
 	collector := services.NewWGStatsCollector(peerRepo, trafficRepo, trafficSvc, cfg.WG.Interface, logger)
 
-	if err := wgSvc.SyncAllPeers(context.Background()); err != nil {
-		logger.Warn("не удалось синхронизировать пиры WG при запуске", "error", err)
+	if err := singboxSvc.WriteConfigAndReload(context.Background()); err != nil {
+		logger.Warn("не удалось записать начальный конфиг sing-box", "error", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -121,6 +121,7 @@ func main() {
 
 			r.Get("/dns/settings", dnsHandler.Get)
 			r.Put("/dns/settings", dnsHandler.Update)
+			r.Get("/dns/presets", dnsHandler.ListPresets)
 
 			r.Get("/servers/status", serverHandler.Status)
 			r.Get("/servers/ru/stats", serverHandler.RUStats)

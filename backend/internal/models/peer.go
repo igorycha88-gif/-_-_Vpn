@@ -22,8 +22,6 @@ type Peer struct {
 type PeerCreateRequest struct {
 	Name  string `json:"name"`
 	Email string `json:"email,omitempty"`
-	DNS   string `json:"dns,omitempty"`
-	MTU   int    `json:"mtu,omitempty"`
 }
 
 func (r *PeerCreateRequest) Validate() map[string]string {
@@ -38,8 +36,8 @@ func (r *PeerCreateRequest) Validate() map[string]string {
 }
 
 type PeerStats struct {
-	PeerID   string `json:"peer_id"`
-	TotalRx  int64  `json:"total_rx"`
-	TotalTx  int64  `json:"total_tx"`
-	Online   bool   `json:"online"`
+	PeerID  string `json:"peer_id"`
+	TotalRx int64  `json:"total_rx"`
+	TotalTx int64  `json:"total_tx"`
+	Online  bool   `json:"online"`
 }

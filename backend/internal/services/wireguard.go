@@ -2,31 +2,27 @@ package services
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os/exec"
-	"strings"
 
 	"smarttraffic/internal/config"
 	"smarttraffic/internal/models"
 	"smarttraffic/internal/repository"
-
-	wgcrypto "smarttraffic/pkg/wgcrypto"
 
 	"github.com/google/uuid"
 )
 
 type WireGuardService struct {
 	peerRepo repository.PeerRepository
-	cfg      *config.WGConfig
+	vlessCfg *config.VLESSConfig
 	logger   *slog.Logger
 }
 
-func NewWireGuardService(peerRepo repository.PeerRepository, cfg *config.WGConfig, logger *slog.Logger) *WireGuardService {
+func NewWireGuardService(peerRepo repository.PeerRepository, vlessCfg *config.VLESSConfig, logger *slog.Logger) *WireGuardService {
 	return &WireGuardService{
 		peerRepo: peerRepo,
-		cfg:      cfg,
+		vlessCfg: vlessCfg,
 		logger:   logger,
 	}
 }
@@ -36,35 +32,17 @@ func (s *WireGuardService) CreatePeer(ctx context.Context, req *models.PeerCreat
 		return nil, fmt.Errorf("service.wireguard.CreatePeer: невалидные данные: %v", errs)
 	}
 
-	privateKey, publicKey, err := wgcrypto.GenerateKeyPair()
-	if err != nil {
-		return nil, fmt.Errorf("service.wireguard.CreatePeer generate keys: %w", err)
-	}
-
-	address, err := s.allocateAddress(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("service.wireguard.CreatePeer allocate address: %w", err)
-	}
-
-	dns := req.DNS
-	if dns == "" {
-		dns = s.cfg.DNS
-	}
-
-	mtu := req.MTU
-	if mtu == 0 {
-		mtu = s.cfg.MTU
-	}
+	peerUUID := uuid.New().String()
 
 	peer := &models.Peer{
 		ID:         uuid.New().String(),
 		Name:       req.Name,
 		Email:      req.Email,
-		PublicKey:  publicKey,
-		PrivateKey: privateKey,
-		Address:    address,
-		DNS:        dns,
-		MTU:        mtu,
+		PublicKey:  peerUUID,
+		PrivateKey: "",
+		Address:    peerUUID,
+		DNS:        "1.1.1.1,8.8.8.8",
+		MTU:        1280,
 		IsActive:   true,
 	}
 
@@ -72,11 +50,7 @@ func (s *WireGuardService) CreatePeer(ctx context.Context, req *models.PeerCreat
 		return nil, fmt.Errorf("service.wireguard.CreatePeer save: %w", err)
 	}
 
-	if err := s.addPeerToInterface(peer.PublicKey, peer.Address); err != nil {
-		s.logger.Error("не удалось добавить peer в WG интерфейс", "error", err)
-	}
-
-	s.logger.Info("создан WG клиент", "id", peer.ID, "name", peer.Name, "address", peer.Address)
+	s.logger.Info("создан VLESS клиент", "id", peer.ID, "name", peer.Name, "uuid", peerUUID)
 	return peer, nil
 }
 
@@ -97,19 +71,14 @@ func (s *WireGuardService) ListPeers(ctx context.Context) ([]*models.Peer, error
 }
 
 func (s *WireGuardService) DeletePeer(ctx context.Context, id string) error {
-	peer, err := s.peerRepo.GetByID(ctx, id)
-	if err != nil {
+	if _, err := s.peerRepo.GetByID(ctx, id); err != nil {
 		return fmt.Errorf("service.wireguard.DeletePeer: %w", err)
-	}
-
-	if err := s.removePeerFromInterface(peer.PublicKey); err != nil {
-		s.logger.Error("не удалось удалить peer из WG интерфейса", "error", err)
 	}
 
 	if err := s.peerRepo.Delete(ctx, id); err != nil {
 		return fmt.Errorf("service.wireguard.DeletePeer: %w", err)
 	}
-	s.logger.Info("удалён WG клиент", "id", id)
+	s.logger.Info("удалён VLESS клиент", "id", id)
 	return nil
 }
 
@@ -123,36 +92,80 @@ func (s *WireGuardService) TogglePeer(ctx context.Context, id string, active boo
 		return fmt.Errorf("service.wireguard.TogglePeer update: %w", err)
 	}
 
-	if active {
-		if err := s.addPeerToInterface(peer.PublicKey, peer.Address); err != nil {
-			s.logger.Error("не удалось добавить peer в WG интерфейс", "error", err)
-		}
-	} else {
-		if err := s.removePeerFromInterface(peer.PublicKey); err != nil {
-			s.logger.Error("не удалось удалить peer из WG интерфейса", "error", err)
-		}
-	}
-
-	s.logger.Info("изменён статус WG клиента", "id", id, "active", active)
+	s.logger.Info("изменён статус клиента", "id", id, "active", active)
 	return nil
 }
 
 func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
-	var sb strings.Builder
-	sb.WriteString("[Interface]\n")
-	sb.WriteString(fmt.Sprintf("PrivateKey = %s\n", peer.PrivateKey))
+	cfg := map[string]any{
+		"log": map[string]any{
+			"level":     "info",
+			"timestamp": true,
+		},
+		"dns": map[string]any{
+			"servers": []any{
+				map[string]any{"tag": "remote", "address": "1.1.1.1"},
+				map[string]any{"tag": "local", "address": "77.88.8.8", "detour": "direct-out"},
+			},
+			"rules":    []any{map[string]any{"server": "local"}},
+			"final":    "remote",
+			"strategy": "prefer_ipv4",
+		},
+		"inbounds": []any{
+			map[string]any{
+				"type":         "tun",
+				"tag":          "tun-in",
+				"address":      []string{"172.19.0.1/30"},
+				"auto_route":   true,
+				"strict_route": true,
+				"stack":        "mixed",
+			},
+		},
+		"outbounds": []any{
+			map[string]any{
+				"type":        "vless",
+				"tag":         "proxy",
+				"server":      s.vlessCfg.ServerEndpoint,
+				"server_port": s.vlessCfg.Port,
+				"uuid":        peer.PublicKey,
+				"flow":        s.vlessCfg.Flow,
+				"tls": map[string]any{
+					"enabled":     true,
+					"server_name": s.vlessCfg.ServerName,
+					"utls": map[string]any{
+						"enabled":     true,
+						"fingerprint": s.vlessCfg.Fingerprint,
+					},
+					"reality": map[string]any{
+						"enabled":    true,
+						"public_key": s.vlessCfg.PublicKey,
+						"short_id":   s.vlessCfg.ShortID,
+					},
+				},
+			},
+			map[string]any{"type": "direct", "tag": "direct-out"},
+		},
+		"route": map[string]any{
+			"rules": []any{
+				map[string]any{"action": "sniff"},
+				map[string]any{"protocol": "dns", "action": "hijack-dns"},
+				map[string]any{"ip_is_private": true, "outbound": "direct-out"},
+				map[string]any{
+					"domain_suffix": []string{"max.ru", "maxpatrol.ru", "positive-technologies.ru"},
+					"outbound":      "direct-out",
+				},
+				map[string]any{
+					"domain_suffix": []string{"gosuslugi.ru", "esia.gosuslugi.ru"},
+					"outbound":      "direct-out",
+				},
+			},
+			"final":                 "proxy",
+			"auto_detect_interface": true,
+		},
+	}
 
-	subnet := strings.TrimSuffix(s.cfg.ClientSubnet, ".0/24")
-	sb.WriteString(fmt.Sprintf("Address = %s/24\n", peer.Address))
-
-	sb.WriteString(fmt.Sprintf("DNS = %s.1\n", subnet))
-	sb.WriteString(fmt.Sprintf("MTU = %d\n", peer.MTU))
-	sb.WriteString("\n[Peer]\n")
-	sb.WriteString(fmt.Sprintf("PublicKey = %s\n", s.cfg.ServerPubKey))
-	sb.WriteString(fmt.Sprintf("Endpoint = %s:%d\n", s.cfg.ServerEndpoint, s.cfg.Port))
-	sb.WriteString("AllowedIPs = 0.0.0.0/0, ::/0\n")
-	sb.WriteString("PersistentKeepalive = 25\n")
-	return sb.String()
+	data, _ := json.MarshalIndent(cfg, "", "  ")
+	return string(data)
 }
 
 func (s *WireGuardService) GetPeerStats(ctx context.Context, id string) (*models.PeerStats, error) {
@@ -169,71 +182,6 @@ func (s *WireGuardService) GetPeerStats(ctx context.Context, id string) (*models
 }
 
 func (s *WireGuardService) SyncAllPeers(ctx context.Context) error {
-	peers, err := s.peerRepo.List(ctx)
-	if err != nil && !errors.Is(err, repository.ErrNotFound) {
-		return fmt.Errorf("service.wireguard.SyncAllPeers list: %w", err)
-	}
-
-	for _, peer := range peers {
-		if peer.IsActive {
-			if err := s.addPeerToInterface(peer.PublicKey, peer.Address); err != nil {
-				s.logger.Error("sync: не удалось добавить peer", "id", peer.ID, "error", err)
-			} else {
-				s.logger.Info("sync: peer добавлен", "name", peer.Name, "address", peer.Address)
-			}
-		}
-	}
-
-	s.logger.Info("синхронизация пиров завершена", "total", len(peers))
+	s.logger.Info("синхронизация клиентов VLESS (управление через sing-box конфиг)")
 	return nil
-}
-
-func (s *WireGuardService) addPeerToInterface(publicKey, address string) error {
-	iface := s.cfg.Interface
-	args := []string{"set", iface, "peer", publicKey, "allowed-ips", address + "/32"}
-
-	cmd := exec.Command("wg", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("wg set %s peer %s… allowed-ips %s/32: %w: %s", iface, publicKey[:8], address, err, string(output))
-	}
-	return nil
-}
-
-func (s *WireGuardService) removePeerFromInterface(publicKey string) error {
-	iface := s.cfg.Interface
-	args := []string{"set", iface, "peer", publicKey, "remove"}
-
-	cmd := exec.Command("wg", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("wg set %s peer %s… remove: %w: %s", iface, publicKey[:8], err, string(output))
-	}
-	return nil
-}
-
-func (s *WireGuardService) allocateAddress(ctx context.Context) (string, error) {
-	peers, err := s.peerRepo.List(ctx)
-	if err != nil && !errors.Is(err, repository.ErrNotFound) {
-		return "", err
-	}
-
-	subnet := strings.TrimSuffix(s.cfg.ClientSubnet, ".0/24")
-
-	used := make(map[string]bool)
-	for _, p := range peers {
-		parts := strings.Split(p.Address, ".")
-		if len(parts) == 4 {
-			used[parts[3]] = true
-		}
-	}
-
-	for i := 2; i <= 254; i++ {
-		host := fmt.Sprintf("%d", i)
-		if !used[host] {
-			return fmt.Sprintf("%s.%s", subnet, host), nil
-		}
-	}
-
-	return "", fmt.Errorf("нет свободных адресов в пуле %s", s.cfg.ClientSubnet)
 }

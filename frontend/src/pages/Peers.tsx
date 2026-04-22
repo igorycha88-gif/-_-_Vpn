@@ -5,7 +5,6 @@ import {
   Modal,
   Form,
   Input,
-  InputNumber,
   Tag,
   Space,
   Switch,
@@ -62,7 +61,7 @@ export default function Peers() {
     }
     const link = document.createElement('a')
     link.href = `/api/v1/wg/peers/${peer.id}/config${authParam}`
-    link.download = `${peer.name}.conf`
+    link.download = `${peer.name}.json`
     link.click()
   }
 
@@ -84,9 +83,10 @@ export default function Peers() {
       ),
     },
     {
-      title: 'Адрес',
-      dataIndex: 'address',
-      key: 'address',
+      title: 'UUID',
+      dataIndex: 'public_key',
+      key: 'public_key',
+      render: (v: string) => v ? `${v.slice(0, 8)}…` : '—',
     },
     {
       title: 'Статус',
@@ -142,7 +142,7 @@ export default function Peers() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h2>WireGuard клиенты</h2>
+        <h2>VLESS клиенты</h2>
         <Space>
           <Button icon={<ReloadOutlined />} onClick={() => refetch()}>Обновить</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
@@ -160,7 +160,7 @@ export default function Peers() {
       />
 
       <Modal
-        title="Новый клиент WireGuard"
+        title="Новый клиент VLESS"
         open={createOpen}
         onCancel={() => { setCreateOpen(false); form.resetFields() }}
         onOk={() => form.submit()}
@@ -173,12 +173,6 @@ export default function Peers() {
           </Form.Item>
           <Form.Item name="email" label="Email">
             <Input placeholder="user@example.com" />
-          </Form.Item>
-          <Form.Item name="dns" label="DNS">
-            <Input placeholder="1.1.1.1,8.8.8.8" />
-          </Form.Item>
-          <Form.Item name="mtu" label="MTU">
-            <InputNumber min={576} max={1500} style={{ width: '100%' }} placeholder="1280" />
           </Form.Item>
         </Form>
       </Modal>

@@ -12,3 +12,9 @@ type DNSSettingsUpdateRequest struct {
 	UpstreamForeign  *string `json:"upstream_foreign,omitempty"`
 	BlockAds        *bool   `json:"block_ads,omitempty"`
 }
+
+type DNSPreset struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Servers string `json:"servers"`
+}

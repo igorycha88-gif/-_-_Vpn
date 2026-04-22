@@ -131,8 +131,8 @@ func (h *PeerHandler) DownloadConfig(w http.ResponseWriter, r *http.Request) {
 
 	config := h.wgSvc.GenerateClientConfig(peer)
 
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Header().Set("Content-Disposition", "attachment; filename="+peer.Name+".conf")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Disposition", "attachment; filename="+peer.Name+".json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(config))
 }
@@ -227,8 +227,8 @@ func (h *PeerHandler) Toggle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PeerHandler) Sync(w http.ResponseWriter, r *http.Request) {
-	if err := h.wgSvc.SyncAllPeers(r.Context()); err != nil {
-		h.logger.Error("ошибка синхронизации пиров", "error", err)
+	if err := h.sbSvc.WriteConfigAndReload(r.Context()); err != nil {
+		h.logger.Error("ошибка синхронизации конфигурации sing-box", "error", err)
 		ErrorJSON(w, http.StatusInternalServerError, "ошибка синхронизации")
 		return
 	}

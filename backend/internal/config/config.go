@@ -8,13 +8,14 @@ import (
 )
 
 type Config struct {
-	App    AppConfig
-	DB     DBConfig
-	JWT    JWTConfig
-	WG     WGConfig
-	Server ServerConfig
+	App     AppConfig
+	DB      DBConfig
+	JWT     JWTConfig
+	WG      WGConfig
+	VLESS   VLESSConfig
+	Server  ServerConfig
 	SingBox SingBoxConfig
-	CORS   CORSConfig
+	CORS    CORSConfig
 }
 
 type AppConfig struct {
@@ -32,17 +33,23 @@ type JWTConfig struct {
 }
 
 type WGConfig struct {
-	Interface            string
-	Port                 int
-	ServerEndpoint       string
-	ServerPubKey         string
-	ClientSubnet         string
-	TunnelSubnet         string
-	MTU                  int
-	DNS                  string
-	TunnelPrivateKey     string
-	TunnelPeerPublicKey  string
-	TunnelLocalAddress   string
+	Interface           string
+	Port                int
+	TunnelPrivateKey    string
+	TunnelPeerPublicKey string
+	TunnelLocalAddress  string
+	MTU                 int
+}
+
+type VLESSConfig struct {
+	PrivateKey     string
+	PublicKey      string
+	ShortID        string
+	ServerName     string
+	Port           int
+	Flow           string
+	Fingerprint    string
+	ServerEndpoint string
 }
 
 type ServerConfig struct {
@@ -83,15 +90,19 @@ func Load() (*Config, error) {
 
 	cfg.WG.Interface = getEnv("WG_INTERFACE", "wg0")
 	cfg.WG.Port = getEnvInt("WG_PORT", 51820)
-	cfg.WG.ServerEndpoint = getEnv("WG_SERVER_ENDPOINT", "")
-	cfg.WG.ServerPubKey = getEnv("WG_SERVER_PUBLIC_KEY", "")
-	cfg.WG.ClientSubnet = getEnv("WG_CLIENT_SUBNET", "10.10.0.0/24")
-	cfg.WG.TunnelSubnet = getEnv("WG_TUNNEL_SUBNET", "10.20.0.0/30")
-	cfg.WG.MTU = getEnvInt("WG_MTU", 1280)
-	cfg.WG.DNS = getEnv("WG_DNS", "10.10.0.1")
 	cfg.WG.TunnelPrivateKey = getEnv("FOREIGN_TUNNEL_PRIVATE_KEY", "")
 	cfg.WG.TunnelPeerPublicKey = getEnv("FOREIGN_TUNNEL_PEER_PUBLIC_KEY", "")
 	cfg.WG.TunnelLocalAddress = getEnv("FOREIGN_TUNNEL_LOCAL_ADDRESS", "10.20.0.2/30")
+	cfg.WG.MTU = getEnvInt("WG_MTU", 1280)
+
+	cfg.VLESS.PrivateKey = getEnv("VLESS_PRIVATE_KEY", "")
+	cfg.VLESS.PublicKey = getEnv("VLESS_PUBLIC_KEY", "")
+	cfg.VLESS.ShortID = getEnv("VLESS_SHORT_ID", "")
+	cfg.VLESS.ServerName = getEnv("VLESS_SERVER_NAME", "www.microsoft.com")
+	cfg.VLESS.Port = getEnvInt("VLESS_PORT", 443)
+	cfg.VLESS.Flow = getEnv("VLESS_FLOW", "xtls-rprx-vision")
+	cfg.VLESS.Fingerprint = getEnv("VLESS_FINGERPRINT", "chrome")
+	cfg.VLESS.ServerEndpoint = getEnv("VLESS_SERVER_ENDPOINT", "")
 
 	cfg.Server.ForeignIP = getEnv("FOREIGN_SERVER_IP", "")
 

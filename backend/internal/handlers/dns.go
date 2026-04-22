@@ -30,7 +30,6 @@ func (h *DNSHandler) Get(w http.ResponseWriter, r *http.Request) {
 		ErrorJSON(w, http.StatusInternalServerError, "внутренняя ошибка сервера")
 		return
 	}
-
 	JSON(w, http.StatusOK, settings)
 }
 
@@ -49,4 +48,9 @@ func (h *DNSHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	JSON(w, http.StatusOK, settings)
+}
+
+func (h *DNSHandler) ListPresets(w http.ResponseWriter, r *http.Request) {
+	presets := h.dnsSvc.GetPresets()
+	JSON(w, http.StatusOK, presets)
 }

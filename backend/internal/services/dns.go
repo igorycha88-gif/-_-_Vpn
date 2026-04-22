@@ -52,3 +52,13 @@ func (s *DNSService) UpdateSettings(ctx context.Context, req *models.DNSSettings
 	s.logger.Info("DNS настройки обновлены")
 	return current, nil
 }
+
+func (s *DNSService) GetPresets() []models.DNSPreset {
+	return []models.DNSPreset{
+		{ID: "auto", Name: "Автоматически", Servers: ""},
+		{ID: "yandex", Name: "Яндекс DNS (77.88.8.8, 77.88.8.1)", Servers: "77.88.8.8,77.88.8.1"},
+		{ID: "cloudflare", Name: "Cloudflare (1.1.1.1, 1.0.0.1)", Servers: "1.1.1.1,1.0.0.1"},
+		{ID: "google", Name: "Google (8.8.8.8, 8.8.4.4)", Servers: "8.8.8.8,8.8.4.4"},
+		{ID: "adguard", Name: "AdGuard (94.140.14.14, 94.140.15.15)", Servers: "94.140.14.14,94.140.15.15"},
+	}
+}

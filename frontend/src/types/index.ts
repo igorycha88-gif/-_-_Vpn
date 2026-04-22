@@ -18,8 +18,6 @@ export interface Peer {
 export interface PeerCreateRequest {
   name: string
   email?: string
-  dns?: string
-  mtu?: number
 }
 
 export interface PeerStats {
@@ -163,4 +161,10 @@ export interface RefreshTokenRequest {
 export interface ApiError {
   error?: string
   errors?: Record<string, string>
+}
+
+export interface DNSPreset {
+  id: string
+  name: string
+  servers: string
 }
