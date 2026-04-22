@@ -40,24 +40,18 @@ func NewSingBoxService(
 	}
 }
 
-type SingBoxGeoData struct {
-	Path          string `json:"path"`
-	DownloadURL   string `json:"download_url"`
-	DownloadDetour string `json:"download_detour"`
-}
-
 type SingBoxConfig struct {
 	Log       *SingBoxLog       `json:"log,omitempty"`
-	GeoIP     *SingBoxGeoData   `json:"geoip,omitempty"`
-	GeoSite   *SingBoxGeoData   `json:"geosite,omitempty"`
 	DNS       *SingBoxDNS       `json:"dns,omitempty"`
 	Inbounds  []SingBoxInbound  `json:"inbounds"`
+	Endpoints []SingBoxEndpoint `json:"endpoints,omitempty"`
 	Outbounds []SingBoxOutbound `json:"outbounds"`
 	Route     *SingBoxRoute     `json:"route"`
 }
 
 type SingBoxLog struct {
-	Level string `json:"level"`
+	Level     string `json:"level"`
+	Timestamp bool   `json:"timestamp,omitempty"`
 }
 
 type SingBoxDNS struct {
@@ -68,42 +62,49 @@ type SingBoxDNS struct {
 }
 
 type SingBoxDNSServer struct {
-	Tag     string `json:"tag"`
-	Address string `json:"address"`
-	Detour  string `json:"detour,omitempty"`
+	Tag    string `json:"tag"`
+	Type   string `json:"type"`
+	Server string `json:"server"`
 }
 
 type SingBoxDNSRule struct {
-	Server  string   `json:"server"`
+	Server   string   `json:"server"`
 	Outbound []string `json:"outbound,omitempty"`
 }
 
 type SingBoxInbound struct {
-	Type                   string `json:"type"`
-	Tag                    string `json:"tag"`
-	Listen                 string `json:"listen"`
-	ListenPort             int    `json:"listen_port,omitempty"`
-	Sniff                  bool   `json:"sniff,omitempty"`
-	SniffOverrideDestination bool  `json:"sniff_override_destination,omitempty"`
-	OverrideDestination    bool   `json:"override_destination,omitempty"`
+	Type       string `json:"type"`
+	Tag        string `json:"tag"`
+	Listen     string `json:"listen"`
+	ListenPort int    `json:"listen_port,omitempty"`
+}
+
+type SingBoxEndpoint struct {
+	Type        string              `json:"type"`
+	Tag         string              `json:"tag"`
+	Address     []string            `json:"address"`
+	PrivateKey  string              `json:"private_key"`
+	MTU         int                 `json:"mtu,omitempty"`
+	Peers       []SingBoxWGPeer     `json:"peers"`
+}
+
+type SingBoxWGPeer struct {
+	Address    string `json:"address"`
+	Port       int    `json:"port"`
+	PublicKey  string `json:"public_key"`
+	AllowedIPs []string `json:"allowed_ips"`
+	Reserved   []int  `json:"reserved,omitempty"`
 }
 
 type SingBoxOutbound struct {
-	Type          string   `json:"type"`
-	Tag           string   `json:"tag"`
-	Server        string   `json:"server,omitempty"`
-	ServerPort    int      `json:"server_port,omitempty"`
-	LocalAddress  []string `json:"local_address,omitempty"`
-	PrivateKey    string   `json:"private_key,omitempty"`
-	PeerPublicKey string   `json:"peer_public_key,omitempty"`
-	Reserved      []int    `json:"reserved,omitempty"`
-	MTU           int      `json:"mtu,omitempty"`
+	Type string `json:"type"`
+	Tag  string `json:"tag"`
 }
 
 type SingBoxRoute struct {
-	Rules          []SingBoxRouteRule `json:"rules"`
-	Final          string             `json:"final"`
-	AutoDetectInterface bool          `json:"auto_detect_interface"`
+	Rules               []SingBoxRouteRule `json:"rules"`
+	Final               string             `json:"final"`
+	AutoDetectInterface bool               `json:"auto_detect_interface"`
 }
 
 type SingBoxRouteRule struct {
@@ -114,7 +115,8 @@ type SingBoxRouteRule struct {
 	GeoIP         []string `json:"geoip,omitempty"`
 	Port          []int    `json:"port,omitempty"`
 	Protocol      string   `json:"protocol,omitempty"`
-	Outbound      string   `json:"outbound"`
+	Action        string   `json:"action,omitempty"`
+	Outbound      string   `json:"outbound,omitempty"`
 }
 
 func (s *SingBoxService) GenerateConfig(ctx context.Context) (*SingBoxConfig, error) {
@@ -127,68 +129,55 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*SingBoxConfig, er
 	if err != nil {
 		s.logger.Warn("не удалось получить DNS настройки, используются умолчания")
 		dnsSettings = &models.DNSSettings{
-			UpstreamRU:     "77.88.8.8,77.88.8.1",
+			UpstreamRU:      "77.88.8.8,77.88.8.1",
 			UpstreamForeign: "1.1.1.1,8.8.8.8",
 		}
 	}
 
 	cfg := &SingBoxConfig{
-		Log: &SingBoxLog{Level: "info"},
-		GeoIP: &SingBoxGeoData{
-			Path:           "geoip.db",
-			DownloadURL:    "https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db",
-			DownloadDetour: "direct-out",
-		},
-		GeoSite: &SingBoxGeoData{
-			Path:           "geosite.db",
-			DownloadURL:    "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db",
-			DownloadDetour: "direct-out",
-		},
+		Log: &SingBoxLog{Level: "info", Timestamp: true},
 		Inbounds: []SingBoxInbound{
 			{
-				Type:                "dns",
-				Tag:                 "dns-in",
-				Listen:              "0.0.0.0",
-				ListenPort:          53,
-				OverrideDestination: true,
-			},
-			{
-				Type:                   "redirect",
-				Tag:                    "redirect-in",
-				Listen:                 "::",
-				ListenPort:             12345,
-				Sniff:                  true,
-				SniffOverrideDestination: true,
+				Type:       "tproxy",
+				Tag:        "tproxy-in",
+				Listen:     "::",
+				ListenPort: 12345,
 			},
 		},
 		Outbounds: []SingBoxOutbound{
 			{Type: "direct", Tag: "direct-out"},
-			{Type: "block", Tag: "block"},
-			{Type: "dns", Tag: "dns-out"},
 		},
 		Route: &SingBoxRoute{
 			Rules: []SingBoxRouteRule{
-				{Protocol: "dns", Outbound: "dns-out"},
+				{Action: "sniff"},
+				{Protocol: "dns", Action: "hijack-dns"},
 			},
-			Final:                "direct-out",
-			AutoDetectInterface:  true,
+			Final:               "direct-out",
+			AutoDetectInterface: true,
 		},
 	}
 
 	cfg.DNS = s.buildDNSConfig(dnsSettings)
 
 	if s.srvConfig.ForeignIP != "" {
-		cfg.Outbounds = append(cfg.Outbounds, SingBoxOutbound{
-			Type:          "wireguard",
-			Tag:           "foreign-out",
-			Server:        s.srvConfig.ForeignIP,
-			ServerPort:    51821,
-			LocalAddress:  []string{s.wgConfig.TunnelLocalAddress},
-			PrivateKey:    s.wgConfig.TunnelPrivateKey,
-			PeerPublicKey: s.wgConfig.TunnelPeerPublicKey,
-			Reserved:      []int{0, 0, 0},
-			MTU:           s.wgConfig.MTU,
-		})
+		cfg.Endpoints = []SingBoxEndpoint{
+			{
+				Type:       "wireguard",
+				Tag:        "foreign-out",
+				Address:    []string{s.wgConfig.TunnelLocalAddress},
+				PrivateKey: s.wgConfig.TunnelPrivateKey,
+				MTU:        s.wgConfig.MTU,
+				Peers: []SingBoxWGPeer{
+					{
+						Address:    s.srvConfig.ForeignIP,
+						Port:       51821,
+						PublicKey:  s.wgConfig.TunnelPeerPublicKey,
+						AllowedIPs: []string{"0.0.0.0/0"},
+						Reserved:   []int{0, 0, 0},
+					},
+				},
+			},
+		}
 		cfg.Route.Final = "foreign-out"
 	}
 
@@ -196,36 +185,48 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*SingBoxConfig, er
 		if !rule.IsActive {
 			continue
 		}
+
+		if rule.Action == "block" {
+			routeRule := SingBoxRouteRule{Action: "reject"}
+			s.populateRouteRuleFields(&routeRule, rule)
+			cfg.Route.Rules = append(cfg.Route.Rules, routeRule)
+			continue
+		}
+
 		outbound := s.actionToOutbound(rule.Action)
 		if outbound == "" {
 			continue
 		}
 
 		routeRule := SingBoxRouteRule{Outbound: outbound}
-		switch rule.Type {
-		case "domain":
-			routeRule.Domain = []string{rule.Pattern}
-		case "domain_suffix":
-			routeRule.DomainSuffix = []string{rule.Pattern}
-		case "domain_keyword":
-			routeRule.DomainKeyword = []string{rule.Pattern}
-		case "ip":
-			routeRule.IPCIDR = []string{rule.Pattern}
-		case "geoip":
-			routeRule.GeoIP = []string{rule.Pattern}
-		case "port":
-			var port int
-			fmt.Sscanf(rule.Pattern, "%d", &port)
-			if port > 0 {
-				routeRule.Port = []int{port}
-			}
-		case "regex":
-			routeRule.Domain = []string{"regexp:" + rule.Pattern}
-		}
+		s.populateRouteRuleFields(&routeRule, rule)
 		cfg.Route.Rules = append(cfg.Route.Rules, routeRule)
 	}
 
 	return cfg, nil
+}
+
+func (s *SingBoxService) populateRouteRuleFields(routeRule *SingBoxRouteRule, rule *models.Route) {
+	switch rule.Type {
+	case "domain":
+		routeRule.Domain = []string{rule.Pattern}
+	case "domain_suffix":
+		routeRule.DomainSuffix = []string{rule.Pattern}
+	case "domain_keyword":
+		routeRule.DomainKeyword = []string{rule.Pattern}
+	case "ip":
+		routeRule.IPCIDR = []string{rule.Pattern}
+	case "geoip":
+		routeRule.GeoIP = []string{rule.Pattern}
+	case "port":
+		var port int
+		fmt.Sscanf(rule.Pattern, "%d", &port)
+		if port > 0 {
+			routeRule.Port = []int{port}
+		}
+	case "regex":
+		routeRule.Domain = []string{"regexp:" + rule.Pattern}
+	}
 }
 
 func (s *SingBoxService) WriteConfig(ctx context.Context) error {
@@ -280,12 +281,12 @@ func (s *SingBoxService) buildDNSConfig(settings *models.DNSSettings) *SingBoxDN
 	foreignTags := []string{}
 	for _, addr := range splitList(settings.UpstreamRU) {
 		tag := "dns-ru-" + addr
-		servers = append(servers, SingBoxDNSServer{Tag: tag, Address: addr, Detour: "direct-out"})
+		servers = append(servers, SingBoxDNSServer{Tag: tag, Type: "udp", Server: addr})
 		ruTags = append(ruTags, tag)
 	}
 	for _, addr := range splitList(settings.UpstreamForeign) {
 		tag := "dns-foreign-" + addr
-		servers = append(servers, SingBoxDNSServer{Tag: tag, Address: addr, Detour: "foreign-out"})
+		servers = append(servers, SingBoxDNSServer{Tag: tag, Type: "udp", Server: addr})
 		foreignTags = append(foreignTags, tag)
 	}
 
@@ -324,8 +325,6 @@ func (s *SingBoxService) actionToOutbound(action string) string {
 		return "direct-out"
 	case "proxy":
 		return "foreign-out"
-	case "block":
-		return "block"
 	}
 	return ""
 }
