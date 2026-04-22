@@ -6,7 +6,7 @@
 
 ## Цель проекта
 
-Построить систему из двух серверов (РФ + зарубежный) с автоматическим разделением трафика: российские ресурсы обслуживаются напрямую, доступ к заблокированным ресурсам идёт через зарубежный прокси-сервер. Управление системой — через веб-панель администратора.
+Построить систему из двух серверов (РФ + зарубежный) с автоматическим разделением трафика: российские ресурсы обслуживаются напрямую, доступ к заблокированным ресурсам идёт через зарубежный прокси-сервер. Клиенты подключаются по протоколу VLESS+Reality (через sing-box), межсерверный тоннель — WireGuard. Управление системой — через веб-панель администратора.
 
 ---
 
@@ -35,7 +35,7 @@
 - [ ] 2.3 Реализовать подключение к SQLite + миграции (`migrations/001_init.sql`, `002_seed.sql`)
 - [ ] 2.4 Реализовать слои: models → repository → services → handlers
 - [ ] 2.5 Аутентификация: JWT (access + refresh), bcrypt, rate limiting (`handlers/auth.go`, `middleware/auth.go`)
-- [ ] 2.6 CRUD WireGuard-клиентов: добавление/удаление, генерация ключей, `.conf`, QR-коды (`handlers/peers.go`, `services/wireguard.go`)
+- [ ] 2.6 CRUD VLESS-клиентов: добавление/удаление, генерация UUID, sing-box JSON конфиг, QR-коды (`handlers/peers.go`, `services/wireguard.go`)
 - [ ] 2.7 CRUD правил маршрутизации: создание/обновление/удаление/переупорядочивание (`handlers/routes.go`, `services/routing.go`)
 - [ ] 2.8 Управление пресетами маршрутизации (`handlers/presets.go`)
 - [ ] 2.9 DNS-настройки (`handlers/dns.go`, `services/dns.go`)
@@ -52,7 +52,7 @@
 **Цель**: Настроить sing-box как transparent proxy с маршрутизацией на РФ-сервере.
 
 **Задачи**:
-- [ ] 3.1 Создать базовый конфиг sing-box (`deploy/server-ru/singbox/config.json`) с outbound: direct + wireguard
+- [ ] 3.1 Создать базовый конфиг sing-box (`deploy/server-ru/singbox/config.json`) с inbound: VLESS+Reality, outbound: direct + wireguard (межсерверный)
 - [ ] 3.2 Настроить правила маршрутизации: GeoIP:ru → direct, домены .ru → direct, остальное → foreign proxy
 - [ ] 3.3 Настроить DNS-модуль sing-box (перехват DNS, разделение upstream)
 - [ ] 3.4 Интегрировать генерацию конфига sing-box из backend API (dynamic config)
@@ -70,7 +70,7 @@
 - [ ] 4.3 Реализовать страницу логина (`pages/Login.tsx`)
 - [ ] 4.4 Реализовать Layout с навигацией (sidebar, header)
 - [ ] 4.5 Dashboard — обзор системы: онлайн-клиенты, загрузка каналов, статус серверов
-- [ ] 4.6 Страница WireGuard-клиентов: список, добавление, удаление, QR-код, `.conf` скачивание
+- [ ] 4.6 Страница VLESS-клиентов: список, добавление, удаление, QR-код, `.json` скачивание
 - [ ] 4.7 Страница правил маршрутизации: CRUD, drag-and-drop приоритеты, тестирование
 - [ ] 4.8 Страница пресетов: готовые профили, применение в один клик
 - [ ] 4.9 Страница DNS-настроек
@@ -116,7 +116,7 @@
 
 **Задачи**:
 - [ ] 7.1 Поднять всё локально через docker-compose, проверить связку API ↔ Frontend ↔ Nginx
-- [ ] 7.2 Проверить CRUD WireGuard-клиентов через API
+- [ ] 7.2 Проверить CRUD VLESS-клиентов через API
 - [ ] 7.3 Проверить генерацию и hot-reload конфигурации sing-box
 - [ ] 7.4 Проверить маскировочный сайт (доступен по `/`, SSL)
 - [ ] 7.5 Интеграционное тестирование на реальных серверах: подключение клиента, разделение трафика
@@ -158,7 +158,8 @@
 | Backend API | Go 1.22+, Chi Router, SQLite |
 | Frontend | React 18, TypeScript, Ant Design, Vite, React Query |
 | Routing Engine | sing-box |
-| VPN | WireGuard |
+| Клиентский протокол | VLESS + XTLS-Reality (sing-box) |
+| Межсерверный тоннель | WireGuard |
 | Reverse Proxy | Nginx + Let's Encrypt |
 | Контейнеризация | Docker + Docker Compose |
 | Landing | Статический HTML/CSS или Next.js SSG |

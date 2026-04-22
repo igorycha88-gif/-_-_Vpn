@@ -51,7 +51,7 @@ func main() {
 	dnsSvc := services.NewDNSService(dnsRepo, logger)
 	trafficSvc := services.NewTrafficService(trafficRepo, peerRepo, logger)
 
-	collector := services.NewWGStatsCollector(peerRepo, trafficRepo, trafficSvc, cfg.WG.Interface, logger)
+	collector := services.NewWGStatsCollector(peerRepo, trafficRepo, trafficSvc, cfg.WG.TunnelInterface, logger)
 
 	if err := singboxSvc.WriteConfigAndReload(context.Background()); err != nil {
 		logger.Warn("не удалось записать начальный конфиг sing-box", "error", err)

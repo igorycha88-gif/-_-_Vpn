@@ -211,7 +211,8 @@
 | Backend API | Go 1.22+, Chi Router, SQLite |
 | Frontend | React 18, TypeScript, Ant Design, Vite, React Query |
 | Routing Engine | sing-box |
-| VPN | WireGuard |
+| Клиентский протокол | VLESS + XTLS-Reality (sing-box) |
+| Межсерверный тоннель | WireGuard |
 | Reverse Proxy | Nginx + Let's Encrypt |
 | Контейнеризация | Docker + Docker Compose |
 | Landing | Статический HTML/CSS или Next.js SSG |

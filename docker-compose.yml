@@ -10,19 +10,24 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - JWT_ACCESS_TTL=${JWT_ACCESS_TTL:-15m}
       - JWT_REFRESH_TTL=${JWT_REFRESH_TTL:-168h}
+      - VLESS_PRIVATE_KEY=${VLESS_PRIVATE_KEY:-}
+      - VLESS_PUBLIC_KEY=${VLESS_PUBLIC_KEY:-}
+      - VLESS_SHORT_ID=${VLESS_SHORT_ID:-}
+      - VLESS_SERVER_NAME=${VLESS_SERVER_NAME:-www.microsoft.com}
+      - VLESS_PORT=${VLESS_PORT:-443}
+      - VLESS_FLOW=${VLESS_FLOW:-xtls-rprx-vision}
+      - VLESS_FINGERPRINT=${VLESS_FINGERPRINT:-chrome}
+      - VLESS_SERVER_ENDPOINT=${VLESS_SERVER_ENDPOINT:-}
       - WG_INTERFACE=${WG_INTERFACE:-wg0}
+      - WG_PORT=${WG_PORT:-51820}
+      - WG_MTU=${WG_MTU:-1280}
+      - WG_TUNNEL_INTERFACE=${WG_TUNNEL_INTERFACE:-wg1}
       - SINGBOX_CONFIG_PATH=/etc/singbox/config.json
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       - FOREIGN_SERVER_IP=${FOREIGN_SERVER_IP:-}
       - FOREIGN_TUNNEL_PRIVATE_KEY=${FOREIGN_TUNNEL_PRIVATE_KEY:-}
       - FOREIGN_TUNNEL_PEER_PUBLIC_KEY=${FOREIGN_TUNNEL_PEER_PUBLIC_KEY:-}
       - FOREIGN_TUNNEL_LOCAL_ADDRESS=${FOREIGN_TUNNEL_LOCAL_ADDRESS:-10.20.0.2/30}
-      - WG_MTU=${WG_MTU:-1280}
-      - WG_PORT=${WG_PORT:-51820}
-      - WG_SERVER_ENDPOINT=${WG_SERVER_ENDPOINT:-}
-      - WG_SERVER_PUBLIC_KEY=${WG_SERVER_PUBLIC_KEY:-}
-      - WG_CLIENT_SUBNET=${WG_CLIENT_SUBNET:-10.10.0.0/24}
-      - WG_DNS=${WG_DNS:-10.10.0.1}
     volumes:
       - api-data:/data
       - ./deploy/server-ru/singbox:/etc/singbox
@@ -69,10 +74,7 @@ services:
     container_name: smarttraffic-singbox
     volumes:
       - ./deploy/server-ru/singbox:/etc/singbox
-    ports:
-      - "12345:12345"
-      - "5353:5353/udp"
-      - "5353:5353/tcp"
+    network_mode: host
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
