@@ -16,6 +16,10 @@ server {
 
     resolver 127.0.0.11 valid=30s;
 
+    location ~ ^/admin/(.*) {
+        try_files /$1 /$1/ /index.html;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }
