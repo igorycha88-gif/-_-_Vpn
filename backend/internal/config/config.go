@@ -58,7 +58,9 @@ type ServerConfig struct {
 }
 
 type SingBoxConfig struct {
-	ConfigPath string
+	ConfigPath     string
+	ClashAPIAddr   string
+	ClashAPISecret string
 }
 
 type CORSConfig struct {
@@ -109,6 +111,8 @@ func Load() (*Config, error) {
 	cfg.Server.ForeignIP = getEnv("FOREIGN_SERVER_IP", "")
 
 	cfg.SingBox.ConfigPath = getEnv("SINGBOX_CONFIG_PATH", "/etc/singbox/config.json")
+	cfg.SingBox.ClashAPIAddr = getEnv("SINGBOX_CLASH_API_ADDR", "127.0.0.1:9090")
+	cfg.SingBox.ClashAPISecret = getEnv("SINGBOX_CLASH_API_SECRET", "")
 
 	cfg.CORS.AllowedOrigins = getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
 

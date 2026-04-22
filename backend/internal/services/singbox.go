@@ -47,12 +47,13 @@ func NewSingBoxService(
 }
 
 type singBoxConfig struct {
-	Log       *singBoxLog       `json:"log,omitempty"`
-	DNS       *singBoxDNS       `json:"dns,omitempty"`
-	Inbounds  []any             `json:"inbounds"`
-	Endpoints []any             `json:"endpoints,omitempty"`
-	Outbounds []any             `json:"outbounds"`
-	Route     *singBoxRoute     `json:"route"`
+	Log          *singBoxLog          `json:"log,omitempty"`
+	DNS          *singBoxDNS          `json:"dns,omitempty"`
+	Inbounds     []any                `json:"inbounds"`
+	Endpoints    []any                `json:"endpoints,omitempty"`
+	Outbounds    []any                `json:"outbounds"`
+	Route        *singBoxRoute        `json:"route"`
+	Experimental *singBoxExperimental `json:"experimental,omitempty"`
 }
 
 type singBoxLog struct {
@@ -74,10 +75,19 @@ type singBoxDNSServer struct {
 }
 
 type singBoxRoute struct {
-	Rules               []any  `json:"rules"`
-	Final               string `json:"final"`
-	AutoDetectInterface bool   `json:"auto_detect_interface"`
+	Rules                 []any  `json:"rules"`
+	Final                 string `json:"final"`
+	AutoDetectInterface   bool   `json:"auto_detect_interface"`
 	DefaultDomainResolver string `json:"default_domain_resolver,omitempty"`
+}
+
+type singBoxExperimental struct {
+	ClashAPI *singBoxClashAPI `json:"clash_api,omitempty"`
+}
+
+type singBoxClashAPI struct {
+	ExternalController string `json:"external_controller"`
+	Secret             string `json:"secret,omitempty"`
 }
 
 func (s *SingBoxService) GenerateConfig(ctx context.Context) (*singBoxConfig, error) {
@@ -148,6 +158,14 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*singBoxConfig, er
 	}
 
 	cfg.DNS = s.buildDNSConfig(dnsSettings)
+
+	clashAPI := &singBoxClashAPI{
+		ExternalController: s.cfg.ClashAPIAddr,
+	}
+	if s.cfg.ClashAPISecret != "" {
+		clashAPI.Secret = s.cfg.ClashAPISecret
+	}
+	cfg.Experimental = &singBoxExperimental{ClashAPI: clashAPI}
 
 	if s.srvConfig.ForeignIP != "" && s.wgConfig.TunnelPrivateKey != "" {
 		wgEndpoint := map[string]any{

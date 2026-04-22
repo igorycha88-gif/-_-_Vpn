@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"smarttraffic/internal/models"
 )
@@ -115,14 +116,20 @@ func (r *sqliteTrafficRepository) GetTotalStats(ctx context.Context) (*models.To
 
 func (r *sqliteTrafficRepository) GetPeerStats(ctx context.Context, peerID string) (*models.PeerStats, error) {
 	stats := &models.PeerStats{PeerID: peerID}
-	q := `SELECT total_rx, total_tx, is_active FROM wg_peers WHERE id=?`
-	err := r.db.QueryRowContext(ctx, q, peerID).Scan(&stats.TotalRx, &stats.TotalTx, &stats.Online)
+	var lastSeen sql.NullTime
+	q := `SELECT total_rx, total_tx, is_active, last_seen FROM wg_peers WHERE id=?`
+	err := r.db.QueryRowContext(ctx, q, peerID).Scan(&stats.TotalRx, &stats.TotalTx, new(bool), &lastSeen)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("traffic.GetPeerStats: %w", ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("traffic.GetPeerStats: %w", err)
 	}
+
+	if lastSeen.Valid && time.Since(lastSeen.Time) < 2*time.Minute {
+		stats.Online = true
+	}
+
 	return stats, nil
 }
 

@@ -3,8 +3,11 @@ package services
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -463,7 +466,7 @@ func newTestSingBoxService(t *testing.T) (*SingBoxService, *sql.DB) {
 	routeRepo := repository.NewRouteRepository(db)
 	dnsRepo := repository.NewDNSRepository(db)
 	peerRepo := repository.NewPeerRepository(db)
-	sbCfg := &config.SingBoxConfig{ConfigPath: t.TempDir() + "/config.json"}
+	sbCfg := &config.SingBoxConfig{ConfigPath: t.TempDir() + "/config.json", ClashAPIAddr: "127.0.0.1:9090"}
 	vlessCfg := testVLESSConfig()
 	wgCfg := &config.WGConfig{MTU: 1280, TunnelLocalAddress: "10.20.0.2/30", TunnelPrivateKey: "testkey", TunnelPeerPublicKey: "testpeerkey"}
 	srvCfg := &config.ServerConfig{ForeignIP: "1.2.3.4"}
@@ -497,7 +500,7 @@ func TestSingBoxService_GenerateConfig_NoForeignIP(t *testing.T) {
 	routeRepo := repository.NewRouteRepository(db)
 	dnsRepo := repository.NewDNSRepository(db)
 	peerRepo := repository.NewPeerRepository(db)
-	sbCfg := &config.SingBoxConfig{ConfigPath: t.TempDir() + "/config.json"}
+	sbCfg := &config.SingBoxConfig{ConfigPath: t.TempDir() + "/config.json", ClashAPIAddr: "127.0.0.1:9090"}
 	vlessCfg := testVLESSConfig()
 	wgCfg := &config.WGConfig{MTU: 1280}
 	srvCfg := &config.ServerConfig{ForeignIP: ""}
@@ -551,5 +554,295 @@ func TestSingBoxService_ActionToOutbound(t *testing.T) {
 		if got != tt.expected {
 			t.Errorf("actionToOutbound(%q) = %q, want %q", tt.action, got, tt.expected)
 		}
+	}
+}
+
+func TestSingBoxService_GenerateConfig_ExperimentalClashAPI(t *testing.T) {
+	svc, _ := newTestSingBoxService(t)
+
+	cfg, err := svc.GenerateConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateConfig: %v", err)
+	}
+
+	if cfg.Experimental == nil {
+		t.Fatal("Experimental section is nil")
+	}
+	if cfg.Experimental.ClashAPI == nil {
+		t.Fatal("ClashAPI section is nil")
+	}
+	if cfg.Experimental.ClashAPI.ExternalController != "127.0.0.1:9090" {
+		t.Errorf("ExternalController = %q, want 127.0.0.1:9090", cfg.Experimental.ClashAPI.ExternalController)
+	}
+}
+
+func TestSingBoxStatsCollector_ComputeDeltas_NewConnection(t *testing.T) {
+	collector := &SingBoxStatsCollector{
+		connState: make(map[string]*connBytes),
+	}
+
+	connections := []clashConnection{
+		{ID: "conn1", Upload: 100, Download: 500, Metadata: clashMetadata{User: "user-uuid-1"}},
+	}
+
+	deltas := collector.computeDeltas(connections)
+
+	d, ok := deltas["user-uuid-1"]
+	if !ok {
+		t.Fatal("expected delta for user-uuid-1")
+	}
+	if d.tx != 100 {
+		t.Errorf("tx = %d, want 100", d.tx)
+	}
+	if d.rx != 500 {
+		t.Errorf("rx = %d, want 500", d.rx)
+	}
+}
+
+func TestSingBoxStatsCollector_ComputeDeltas_ExistingConnection(t *testing.T) {
+	collector := &SingBoxStatsCollector{
+		connState: map[string]*connBytes{
+			"conn1": {upload: 100, download: 500},
+		},
+	}
+
+	connections := []clashConnection{
+		{ID: "conn1", Upload: 250, Download: 1200, Metadata: clashMetadata{User: "user-uuid-1"}},
+	}
+
+	deltas := collector.computeDeltas(connections)
+
+	d, ok := deltas["user-uuid-1"]
+	if !ok {
+		t.Fatal("expected delta for user-uuid-1")
+	}
+	if d.tx != 150 {
+		t.Errorf("tx = %d, want 150", d.tx)
+	}
+	if d.rx != 700 {
+		t.Errorf("rx = %d, want 700", d.rx)
+	}
+}
+
+func TestSingBoxStatsCollector_ComputeDeltas_MultipleUsers(t *testing.T) {
+	collector := &SingBoxStatsCollector{
+		connState: make(map[string]*connBytes),
+	}
+
+	connections := []clashConnection{
+		{ID: "conn1", Upload: 100, Download: 200, Metadata: clashMetadata{User: "uuid-1"}},
+		{ID: "conn2", Upload: 300, Download: 400, Metadata: clashMetadata{User: "uuid-2"}},
+		{ID: "conn3", Upload: 50, Download: 60, Metadata: clashMetadata{User: "uuid-1"}},
+	}
+
+	deltas := collector.computeDeltas(connections)
+
+	d1, ok := deltas["uuid-1"]
+	if !ok {
+		t.Fatal("expected delta for uuid-1")
+	}
+	if d1.tx != 150 {
+		t.Errorf("uuid-1 tx = %d, want 150", d1.tx)
+	}
+	if d1.rx != 260 {
+		t.Errorf("uuid-1 rx = %d, want 260", d1.rx)
+	}
+
+	d2, ok := deltas["uuid-2"]
+	if !ok {
+		t.Fatal("expected delta for uuid-2")
+	}
+	if d2.tx != 300 {
+		t.Errorf("uuid-2 tx = %d, want 300", d2.tx)
+	}
+	if d2.rx != 400 {
+		t.Errorf("uuid-2 rx = %d, want 400", d2.rx)
+	}
+}
+
+func TestSingBoxStatsCollector_ComputeDeltas_NoUser(t *testing.T) {
+	collector := &SingBoxStatsCollector{
+		connState: make(map[string]*connBytes),
+	}
+
+	connections := []clashConnection{
+		{ID: "conn1", Upload: 100, Download: 200, Metadata: clashMetadata{User: ""}},
+	}
+
+	deltas := collector.computeDeltas(connections)
+
+	if len(deltas) != 0 {
+		t.Errorf("expected 0 deltas, got %d", len(deltas))
+	}
+}
+
+func TestSingBoxStatsCollector_ComputeDeltas_ZeroDelta(t *testing.T) {
+	collector := &SingBoxStatsCollector{
+		connState: map[string]*connBytes{
+			"conn1": {upload: 100, download: 200},
+		},
+	}
+
+	connections := []clashConnection{
+		{ID: "conn1", Upload: 100, Download: 200, Metadata: clashMetadata{User: "uuid-1"}},
+	}
+
+	deltas := collector.computeDeltas(connections)
+
+	if len(deltas) != 0 {
+		t.Errorf("expected 0 deltas for zero change, got %d", len(deltas))
+	}
+}
+
+func TestSingBoxStatsCollector_CleanupStaleConnections(t *testing.T) {
+	collector := &SingBoxStatsCollector{
+		connState: map[string]*connBytes{
+			"conn1": {upload: 100, download: 200},
+			"conn2": {upload: 300, download: 400},
+		},
+	}
+
+	connections := []clashConnection{
+		{ID: "conn1"},
+	}
+
+	collector.cleanupStaleConnections(connections)
+
+	if _, exists := collector.connState["conn1"]; !exists {
+		t.Error("conn1 should still exist")
+	}
+	if _, exists := collector.connState["conn2"]; exists {
+		t.Error("conn2 should have been cleaned up")
+	}
+}
+
+func TestSingBoxStatsCollector_FetchConnections(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/connections" {
+			t.Errorf("path = %q, want /connections", r.URL.Path)
+		}
+		resp := clashConnectionsResponse{
+			Connections: []clashConnection{
+				{ID: "c1", Upload: 100, Download: 200, Metadata: clashMetadata{User: "uuid-1"}},
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	collector := NewSingBoxStatsCollector(nil, nil, addr, "", testLogger())
+
+	resp, err := collector.fetchConnections()
+	if err != nil {
+		t.Fatalf("fetchConnections: %v", err)
+	}
+	if len(resp.Connections) != 1 {
+		t.Fatalf("connections = %d, want 1", len(resp.Connections))
+	}
+	if resp.Connections[0].Metadata.User != "uuid-1" {
+		t.Errorf("user = %q, want uuid-1", resp.Connections[0].Metadata.User)
+	}
+}
+
+func TestSingBoxStatsCollector_FetchConnections_WithSecret(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		if auth != "Bearer my-secret" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		json.NewEncoder(w).Encode(clashConnectionsResponse{})
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	collector := NewSingBoxStatsCollector(nil, nil, addr, "my-secret", testLogger())
+
+	_, err := collector.fetchConnections()
+	if err != nil {
+		t.Fatalf("fetchConnections with secret: %v", err)
+	}
+}
+
+func TestSingBoxStatsCollector_FetchConnections_ServerDown(t *testing.T) {
+	collector := NewSingBoxStatsCollector(nil, nil, "127.0.0.1:1", "", testLogger())
+
+	_, err := collector.fetchConnections()
+	if err == nil {
+		t.Error("expected error when server is down")
+	}
+}
+
+func TestSingBoxStatsCollector_Collect_Integration(t *testing.T) {
+	db, err := repository.InitDB(":memory:", migrations.Files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	peerRepo := repository.NewPeerRepository(db)
+	trafficRepo := repository.NewTrafficRepository(db)
+
+	err = peerRepo.Create(context.Background(), &models.Peer{
+		ID: "peer-1", Name: "Test", PublicKey: "test-uuid-1", PrivateKey: "pk",
+		Address: "test-uuid-1", DNS: "1.1.1.1", MTU: 1280, IsActive: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := clashConnectionsResponse{
+			Connections: []clashConnection{
+				{ID: "c1", Upload: 1000, Download: 5000, Metadata: clashMetadata{User: "test-uuid-1"}},
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	collector := NewSingBoxStatsCollector(peerRepo, trafficRepo, addr, "", testLogger())
+	collector.connState = make(map[string]*connBytes)
+
+	collector.collect(context.Background())
+
+	updated, err := peerRepo.GetByID(context.Background(), "peer-1")
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if updated.TotalRx != 5000 {
+		t.Errorf("TotalRx = %d, want 5000", updated.TotalRx)
+	}
+	if updated.TotalTx != 1000 {
+		t.Errorf("TotalTx = %d, want 1000", updated.TotalTx)
+	}
+	if updated.LastSeen == nil {
+		t.Error("LastSeen should be set")
+	}
+}
+
+func TestWireGuardService_GetPeerStats_OnlineByLastSeen(t *testing.T) {
+	db, _ := repository.InitDB(":memory:", migrations.Files)
+	defer db.Close()
+
+	peerRepo := repository.NewPeerRepository(db)
+	svc := NewWireGuardService(peerRepo, testVLESSConfig(), testLogger())
+
+	peer, _ := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1"})
+
+	stats, err := svc.GetPeerStats(context.Background(), peer.ID)
+	if err != nil {
+		t.Fatalf("GetPeerStats: %v", err)
+	}
+	if stats.Online {
+		t.Error("new peer without last_seen should not be online")
 	}
 }

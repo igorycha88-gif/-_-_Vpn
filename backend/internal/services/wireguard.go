@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"smarttraffic/internal/config"
 	"smarttraffic/internal/models"
@@ -173,11 +174,17 @@ func (s *WireGuardService) GetPeerStats(ctx context.Context, id string) (*models
 	if err != nil {
 		return nil, fmt.Errorf("service.wireguard.GetPeerStats: %w", err)
 	}
+
+	online := false
+	if peer.LastSeen != nil && time.Since(*peer.LastSeen) < 2*time.Minute {
+		online = true
+	}
+
 	return &models.PeerStats{
 		PeerID:  peer.ID,
 		TotalRx: peer.TotalRx,
 		TotalTx: peer.TotalTx,
-		Online:  peer.IsActive,
+		Online:  online,
 	}, nil
 }
 
