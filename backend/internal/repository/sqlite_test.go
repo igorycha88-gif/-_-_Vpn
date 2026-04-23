@@ -27,6 +27,7 @@ func TestPeerRepository_CRUD(t *testing.T) {
 
 	peer := &models.Peer{
 		ID: "test-peer-1", Name: "Test Peer", Email: "test@example.com",
+		DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "dGVzdHB1YmxpY2tleQ==", PrivateKey: "dGVzdHByaXZhdGVrZXk=",
 		Address: "10.10.0.2", DNS: "1.1.1.1", MTU: 1280, IsActive: true,
 	}
@@ -101,7 +102,8 @@ func TestPeerRepository_GetByPublicKey(t *testing.T) {
 	ctx := context.Background()
 
 	repo.Create(ctx, &models.Peer{
-		ID: "pk-test", Name: "PK", PublicKey: "uniquepubkey123",
+		ID: "pk-test", Name: "PK", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "uniquepubkey123",
 		PrivateKey: "uniqueprivkey123", Address: "10.10.0.3", IsActive: true,
 	})
 
@@ -120,7 +122,8 @@ func TestPeerRepository_UpdateTraffic(t *testing.T) {
 	ctx := context.Background()
 
 	repo.Create(ctx, &models.Peer{
-		ID: "t-test", Name: "T", PublicKey: "tpk", PrivateKey: "tpv",
+		ID: "t-test", Name: "T", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "tpk", PrivateKey: "tpv",
 		Address: "10.10.0.4", IsActive: true,
 	})
 
@@ -137,7 +140,8 @@ func TestPeerRepository_UpdateLastSeen(t *testing.T) {
 	ctx := context.Background()
 
 	repo.Create(ctx, &models.Peer{
-		ID: "seen-test", Name: "S", PublicKey: "spk", PrivateKey: "spv",
+		ID: "seen-test", Name: "S", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "spk", PrivateKey: "spv",
 		Address: "10.10.0.5", IsActive: true,
 	})
 
@@ -353,7 +357,8 @@ func TestTrafficRepository_LogAndList(t *testing.T) {
 	ctx := context.Background()
 
 	peerRepo.Create(ctx, &models.Peer{
-		ID: "peer-1", Name: "P1", PublicKey: "pk1", PrivateKey: "pv1",
+		ID: "peer-1", Name: "P1", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "pk1", PrivateKey: "pv1",
 		Address: "10.10.0.2", IsActive: true,
 	})
 
@@ -382,8 +387,8 @@ func TestTrafficRepository_FilterByPeer(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{ID: "p1", Name: "P1", PublicKey: "pk1", PrivateKey: "pv1", Address: "10.10.0.2", IsActive: true})
-	peerRepo.Create(ctx, &models.Peer{ID: "p2", Name: "P2", PublicKey: "pk2", PrivateKey: "pv2", Address: "10.10.0.3", IsActive: true})
+	peerRepo.Create(ctx, &models.Peer{ID: "p1", Name: "P1", DeviceType: models.DeviceTypeIPhone, PublicKey: "pk1", PrivateKey: "pv1", Address: "10.10.0.2", IsActive: true})
+	peerRepo.Create(ctx, &models.Peer{ID: "p2", Name: "P2", DeviceType: models.DeviceTypeAndroid, PublicKey: "pk2", PrivateKey: "pv2", Address: "10.10.0.3", IsActive: true})
 
 	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "p1", Domain: "a.com", Action: "direct", BytesRx: 100, BytesTx: 50})
 	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "p2", Domain: "b.com", Action: "proxy", BytesRx: 200, BytesTx: 100})

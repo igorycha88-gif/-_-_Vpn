@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS wg_peers (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT,
+    device_type TEXT NOT NULL DEFAULT 'iphone',
     public_key TEXT NOT NULL UNIQUE,
     private_key TEXT NOT NULL,
     address TEXT NOT NULL UNIQUE,

@@ -11,6 +11,7 @@ import {
   message,
   Popconfirm,
   Typography,
+  Select,
 } from 'antd'
 import {
   PlusOutlined,
@@ -21,7 +22,7 @@ import {
 } from '@ant-design/icons'
 import { usePeers, useCreatePeer, useDeletePeer, useTogglePeer } from '../hooks/usePeers'
 import QrModal from '../components/QrModal'
-import type { Peer, PeerCreateRequest } from '../types'
+import type { Peer, PeerCreateRequest, DeviceType } from '../types'
 
 const { Text } = Typography
 
@@ -80,6 +81,16 @@ export default function Peers() {
           <Text strong>{name}</Text>
           {record.email && <Text type="secondary">({record.email})</Text>}
         </Space>
+      ),
+    },
+    {
+      title: 'Устройство',
+      dataIndex: 'device_type',
+      key: 'device_type',
+      render: (v: DeviceType) => (
+        <Tag color={v === 'iphone' ? 'blue' : 'green'}>
+          {v === 'iphone' ? 'iPhone' : 'Android'}
+        </Tag>
       ),
     },
     {
@@ -167,12 +178,18 @@ export default function Peers() {
         confirmLoading={createMutation.isPending}
         destroyOnClose
       >
-        <Form form={form} layout="vertical" onFinish={handleCreate}>
+        <Form form={form} layout="vertical" onFinish={handleCreate} initialValues={{ device_type: 'iphone' }}>
           <Form.Item name="name" label="Имя" rules={[{ required: true, message: 'Обязательное поле' }]}>
             <Input placeholder="Имя устройства" />
           </Form.Item>
           <Form.Item name="email" label="Email">
             <Input placeholder="user@example.com" />
+          </Form.Item>
+          <Form.Item name="device_type" label="Тип устройства" rules={[{ required: true, message: 'Выберите тип устройства' }]}>
+            <Select placeholder="Выберите устройство">
+              <Select.Option value="iphone">iPhone</Select.Option>
+              <Select.Option value="android">Android</Select.Option>
+            </Select>
           </Form.Item>
         </Form>
       </Modal>

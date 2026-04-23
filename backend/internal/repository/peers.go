@@ -30,10 +30,10 @@ func NewPeerRepository(db *sql.DB) PeerRepository {
 }
 
 func (r *sqlitePeerRepository) Create(ctx context.Context, p *models.Peer) error {
-	q := `INSERT INTO wg_peers (id, name, email, public_key, private_key, address, dns, mtu, is_active)
-	      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	q := `INSERT INTO wg_peers (id, name, email, device_type, public_key, private_key, address, dns, mtu, is_active)
+	      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	_, err := r.db.ExecContext(ctx, q,
-		p.ID, p.Name, p.Email, p.PublicKey, p.PrivateKey,
+		p.ID, p.Name, p.Email, p.DeviceType, p.PublicKey, p.PrivateKey,
 		p.Address, p.DNS, p.MTU, p.IsActive,
 	)
 	if err != nil {
@@ -43,7 +43,7 @@ func (r *sqlitePeerRepository) Create(ctx context.Context, p *models.Peer) error
 }
 
 func (r *sqlitePeerRepository) GetByID(ctx context.Context, id string) (*models.Peer, error) {
-	q := `SELECT id, name, email, public_key, private_key, address, dns, mtu,
+	q := `SELECT id, name, email, device_type, public_key, private_key, address, dns, mtu,
 	             is_active, created_at, updated_at, total_rx, total_tx, last_seen
 	      FROM wg_peers WHERE id = ?`
 	row := r.db.QueryRowContext(ctx, q, id)
@@ -52,7 +52,7 @@ func (r *sqlitePeerRepository) GetByID(ctx context.Context, id string) (*models.
 	var lastSeen sql.NullTime
 
 	err := row.Scan(
-		&p.ID, &p.Name, &p.Email, &p.PublicKey, &p.PrivateKey,
+		&p.ID, &p.Name, &p.Email, &p.DeviceType, &p.PublicKey, &p.PrivateKey,
 		&p.Address, &p.DNS, &p.MTU, &p.IsActive,
 		&p.CreatedAt, &p.UpdatedAt, &p.TotalRx, &p.TotalTx, &lastSeen,
 	)
@@ -70,7 +70,7 @@ func (r *sqlitePeerRepository) GetByID(ctx context.Context, id string) (*models.
 }
 
 func (r *sqlitePeerRepository) List(ctx context.Context) ([]*models.Peer, error) {
-	q := `SELECT id, name, email, public_key, '', address, dns, mtu,
+	q := `SELECT id, name, email, device_type, public_key, '', address, dns, mtu,
 	             is_active, created_at, updated_at, total_rx, total_tx, last_seen
 	      FROM wg_peers ORDER BY created_at DESC`
 	rows, err := r.db.QueryContext(ctx, q)
@@ -84,7 +84,7 @@ func (r *sqlitePeerRepository) List(ctx context.Context) ([]*models.Peer, error)
 		p := &models.Peer{}
 		var lastSeen sql.NullTime
 		err := rows.Scan(
-			&p.ID, &p.Name, &p.Email, &p.PublicKey, &p.PrivateKey,
+			&p.ID, &p.Name, &p.Email, &p.DeviceType, &p.PublicKey, &p.PrivateKey,
 			&p.Address, &p.DNS, &p.MTU, &p.IsActive,
 			&p.CreatedAt, &p.UpdatedAt, &p.TotalRx, &p.TotalTx, &lastSeen,
 		)
@@ -100,9 +100,9 @@ func (r *sqlitePeerRepository) List(ctx context.Context) ([]*models.Peer, error)
 }
 
 func (r *sqlitePeerRepository) Update(ctx context.Context, p *models.Peer) error {
-	q := `UPDATE wg_peers SET name=?, email=?, dns=?, mtu=?, is_active=?, updated_at=CURRENT_TIMESTAMP
+	q := `UPDATE wg_peers SET name=?, email=?, device_type=?, dns=?, mtu=?, is_active=?, updated_at=CURRENT_TIMESTAMP
 	      WHERE id=?`
-	result, err := r.db.ExecContext(ctx, q, p.Name, p.Email, p.DNS, p.MTU, p.IsActive, p.ID)
+	result, err := r.db.ExecContext(ctx, q, p.Name, p.Email, p.DeviceType, p.DNS, p.MTU, p.IsActive, p.ID)
 	if err != nil {
 		return fmt.Errorf("peers.Update: %w", err)
 	}
@@ -126,7 +126,7 @@ func (r *sqlitePeerRepository) Delete(ctx context.Context, id string) error {
 }
 
 func (r *sqlitePeerRepository) GetByPublicKey(ctx context.Context, publicKey string) (*models.Peer, error) {
-	q := `SELECT id, name, email, public_key, private_key, address, dns, mtu,
+	q := `SELECT id, name, email, device_type, public_key, private_key, address, dns, mtu,
 	             is_active, created_at, updated_at, total_rx, total_tx, last_seen
 	      FROM wg_peers WHERE public_key = ?`
 	row := r.db.QueryRowContext(ctx, q, publicKey)
@@ -135,7 +135,7 @@ func (r *sqlitePeerRepository) GetByPublicKey(ctx context.Context, publicKey str
 	var lastSeen sql.NullTime
 
 	err := row.Scan(
-		&p.ID, &p.Name, &p.Email, &p.PublicKey, &p.PrivateKey,
+		&p.ID, &p.Name, &p.Email, &p.DeviceType, &p.PublicKey, &p.PrivateKey,
 		&p.Address, &p.DNS, &p.MTU, &p.IsActive,
 		&p.CreatedAt, &p.UpdatedAt, &p.TotalRx, &p.TotalTx, &lastSeen,
 	)

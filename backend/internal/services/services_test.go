@@ -159,7 +159,7 @@ func TestWireGuardService_CreatePeer(t *testing.T) {
 
 	svc := NewWireGuardService(repository.NewPeerRepository(db), testVLESSConfig(), testLogger())
 
-	peer, err := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "Test Peer"})
+	peer, err := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "Test Peer", DeviceType: models.DeviceTypeIPhone})
 	if err != nil {
 		t.Fatalf("CreatePeer: %v", err)
 	}
@@ -177,6 +177,9 @@ func TestWireGuardService_CreatePeer(t *testing.T) {
 	}
 	if peer.MTU != 1280 {
 		t.Errorf("MTU = %d, want 1280", peer.MTU)
+	}
+	if peer.DeviceType != models.DeviceTypeIPhone {
+		t.Errorf("DeviceType = %q, want %q", peer.DeviceType, models.DeviceTypeIPhone)
 	}
 }
 
@@ -206,7 +209,7 @@ func TestWireGuardService_ListPeers(t *testing.T) {
 		t.Errorf("count = %d, want 0", len(peers))
 	}
 
-	svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1"})
+	svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1", DeviceType: models.DeviceTypeIPhone})
 	peers, _ = svc.ListPeers(context.Background())
 	if len(peers) != 1 {
 		t.Errorf("count = %d, want 1", len(peers))
@@ -219,7 +222,7 @@ func TestWireGuardService_DeletePeer(t *testing.T) {
 
 	svc := NewWireGuardService(repository.NewPeerRepository(db), testVLESSConfig(), testLogger())
 
-	peer, _ := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1"})
+	peer, _ := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1", DeviceType: models.DeviceTypeIPhone})
 	if err := svc.DeletePeer(context.Background(), peer.ID); err != nil {
 		t.Fatalf("DeletePeer: %v", err)
 	}
@@ -229,7 +232,8 @@ func TestWireGuardService_GenerateClientConfig(t *testing.T) {
 	svc := NewWireGuardService(nil, testVLESSConfig(), testLogger())
 
 	peer := &models.Peer{
-		PublicKey: "7f2105d9-3962-4dd3-80d5-6ac86d271855",
+		PublicKey:  "7f2105d9-3962-4dd3-80d5-6ac86d271855",
+		DeviceType: models.DeviceTypeIPhone,
 	}
 	config := svc.GenerateClientConfig(peer)
 	if config == "" {
@@ -246,6 +250,90 @@ func TestWireGuardService_GenerateClientConfig(t *testing.T) {
 	}
 	if !contains(config, "gosuslugi.ru") {
 		t.Error("config should contain gosuslugi.ru in direct rules")
+	}
+	if !contains(config, `"stack": "mixed"`) {
+		t.Error("iPhone config should use stack mixed")
+	}
+	if !contains(config, "youtube.com") {
+		t.Error("config should contain youtube.com in proxy rules")
+	}
+	if !contains(config, "telegram.org") {
+		t.Error("config should contain telegram.org in proxy rules")
+	}
+	if !contains(config, "vk.com") {
+		t.Error("config should contain vk.com in direct rules")
+	}
+	if !contains(config, ".ru") {
+		t.Error("config should contain .ru domain suffix in direct rules")
+	}
+}
+
+func TestWireGuardService_GenerateClientConfig_Android(t *testing.T) {
+	svc := NewWireGuardService(nil, testVLESSConfig(), testLogger())
+
+	peer := &models.Peer{
+		PublicKey:  "test-uuid-android",
+		DeviceType: models.DeviceTypeAndroid,
+	}
+	config := svc.GenerateClientConfig(peer)
+	if config == "" {
+		t.Fatal("config is empty")
+	}
+	if !contains(config, `"stack": "gvisor"`) {
+		t.Error("Android config should use stack gvisor")
+	}
+	if !contains(config, "youtube.com") {
+		t.Error("Android config should contain youtube.com in proxy rules")
+	}
+	if !contains(config, "vk.com") {
+		t.Error("Android config should contain vk.com in direct rules")
+	}
+}
+
+func TestWireGuardService_GenerateClientConfig_DefaultFallback(t *testing.T) {
+	svc := NewWireGuardService(nil, testVLESSConfig(), testLogger())
+
+	peer := &models.Peer{
+		PublicKey:  "test-uuid-empty",
+		DeviceType: "",
+	}
+	config := svc.GenerateClientConfig(peer)
+	if !contains(config, `"stack": "mixed"`) {
+		t.Error("Empty device_type should fallback to iPhone (stack mixed)")
+	}
+}
+
+func TestPeerCreateRequest_Validate_DeviceType(t *testing.T) {
+	tests := []struct {
+		name       string
+		req        models.PeerCreateRequest
+		wantErr    bool
+		errField   string
+	}{
+		{"valid iphone", models.PeerCreateRequest{Name: "Test", DeviceType: "iphone"}, false, ""},
+		{"valid android", models.PeerCreateRequest{Name: "Test", DeviceType: "android"}, false, ""},
+		{"empty device_type", models.PeerCreateRequest{Name: "Test", DeviceType: ""}, true, "device_type"},
+		{"invalid device_type", models.PeerCreateRequest{Name: "Test", DeviceType: "windows"}, true, "device_type"},
+		{"empty name", models.PeerCreateRequest{Name: "", DeviceType: "iphone"}, true, "name"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := tt.req.Validate()
+			if tt.wantErr {
+				if len(errs) == 0 {
+					t.Error("expected validation error")
+				}
+				if tt.errField != "" {
+					if _, ok := errs[tt.errField]; !ok {
+						t.Errorf("expected error for field %q, got errors: %v", tt.errField, errs)
+					}
+				}
+			} else {
+				if len(errs) > 0 {
+					t.Errorf("unexpected errors: %v", errs)
+				}
+			}
+		})
 	}
 }
 
@@ -789,7 +877,8 @@ func TestSingBoxStatsCollector_Collect_Integration(t *testing.T) {
 	trafficRepo := repository.NewTrafficRepository(db)
 
 	err = peerRepo.Create(context.Background(), &models.Peer{
-		ID: "peer-1", Name: "Test", PublicKey: "test-uuid-1", PrivateKey: "pk",
+		ID: "peer-1", Name: "Test", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "test-uuid-1", PrivateKey: "pk",
 		Address: "test-uuid-1", DNS: "1.1.1.1", MTU: 1280, IsActive: true,
 	})
 	if err != nil {
@@ -836,7 +925,7 @@ func TestWireGuardService_GetPeerStats_OnlineByLastSeen(t *testing.T) {
 	peerRepo := repository.NewPeerRepository(db)
 	svc := NewWireGuardService(peerRepo, testVLESSConfig(), testLogger())
 
-	peer, _ := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1"})
+	peer, _ := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1", DeviceType: models.DeviceTypeIPhone})
 
 	stats, err := svc.GetPeerStats(context.Background(), peer.ID)
 	if err != nil {

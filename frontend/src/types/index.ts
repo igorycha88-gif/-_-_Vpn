@@ -1,7 +1,10 @@
+export type DeviceType = 'iphone' | 'android'
+
 export interface Peer {
   id: string
   name: string
   email?: string
+  device_type: DeviceType
   public_key: string
   private_key?: string
   address: string
@@ -18,6 +21,7 @@ export interface Peer {
 export interface PeerCreateRequest {
   name: string
   email?: string
+  device_type: DeviceType
 }
 
 export interface PeerStats {

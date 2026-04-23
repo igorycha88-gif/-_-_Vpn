@@ -39,6 +39,7 @@ func (s *WireGuardService) CreatePeer(ctx context.Context, req *models.PeerCreat
 		ID:         uuid.New().String(),
 		Name:       req.Name,
 		Email:      req.Email,
+		DeviceType: req.DeviceType,
 		PublicKey:  peerUUID,
 		PrivateKey: "",
 		Address:    peerUUID,
@@ -51,7 +52,7 @@ func (s *WireGuardService) CreatePeer(ctx context.Context, req *models.PeerCreat
 		return nil, fmt.Errorf("service.wireguard.CreatePeer save: %w", err)
 	}
 
-	s.logger.Info("создан VLESS клиент", "id", peer.ID, "name", peer.Name, "uuid", peerUUID)
+	s.logger.Info("создан VLESS клиент", "id", peer.ID, "name", peer.Name, "device", peer.DeviceType, "uuid", peerUUID)
 	return peer, nil
 }
 
@@ -98,6 +99,64 @@ func (s *WireGuardService) TogglePeer(ctx context.Context, id string, active boo
 }
 
 func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
+	deviceType := peer.DeviceType
+	if deviceType == "" {
+		deviceType = models.DeviceTypeIPhone
+	}
+
+	stack := "mixed"
+	var routeRules []any
+
+	baseRules := []any{
+		map[string]any{"inbound": []string{"tun-in"}, "action": "sniff"},
+		map[string]any{"protocol": "dns", "inbound": []string{"tun-in"}, "action": "hijack-dns"},
+		map[string]any{"ip_is_private": true, "outbound": "direct-out"},
+		map[string]any{
+			"domain_suffix": []string{".ru", ".su", ".xn--p1ai"},
+			"outbound":      "direct-out",
+		},
+		map[string]any{
+			"domain_suffix": []string{
+				"vk.com", "userapi.com", "vk-cdn.net",
+				"yandex.com", "yandex.ru", "yastatic.net",
+				"ya.ru", "mail.ru", "rambler.ru",
+				"gosuslugi.ru", "esia.gosuslugi.ru",
+				"sberbank.ru", "tinkoff.ru",
+				"ozon.ru", "wildberries.ru", "avito.ru",
+				"habr.com", "kaspersky.com",
+				"max.ru", "maxpatrol.ru", "positive-technologies.ru",
+			},
+			"outbound": "direct-out",
+		},
+	}
+
+	proxyDomains := []any{
+		map[string]any{
+			"domain_suffix": []string{
+				"youtube.com", "youtu.be", "googlevideo.com",
+				"instagram.com", "cdninstagram.com",
+				"facebook.com", "fbcdn.net", "meta.com",
+				"telegram.org", "t.me",
+				"twitter.com", "x.com", "twimg.com",
+				"discord.com", "discordapp.com", "discord.gg",
+				"chatgpt.com", "openai.com", "ai.com",
+				"google.com", "googleapis.com", "gstatic.com",
+				"github.com", "githubusercontent.com",
+				"netflix.com", "nflxvideo.net", "nflximg.net",
+				"tiktok.com", "tiktokcdn.com",
+			},
+			"outbound": "proxy",
+		},
+	}
+
+	switch deviceType {
+	case models.DeviceTypeAndroid:
+		stack = "gvisor"
+		routeRules = append(baseRules, proxyDomains...)
+	default:
+		routeRules = append(baseRules, proxyDomains...)
+	}
+
 	cfg := map[string]any{
 		"log": map[string]any{
 			"level":     "info",
@@ -108,7 +167,7 @@ func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
 				map[string]any{"tag": "remote", "address": "1.1.1.1"},
 				map[string]any{"tag": "local", "address": "77.88.8.8", "detour": "direct-out"},
 			},
-			"rules":    []any{map[string]any{"server": "local"}},
+			"rules":    []any{map[string]any{"inbound": []string{"tun-in"}, "server": "local"}},
 			"final":    "remote",
 			"strategy": "prefer_ipv4",
 		},
@@ -119,7 +178,7 @@ func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
 				"address":      []string{"172.19.0.1/30"},
 				"auto_route":   true,
 				"strict_route": true,
-				"stack":        "mixed",
+				"stack":        stack,
 			},
 		},
 		"outbounds": []any{
@@ -147,19 +206,7 @@ func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
 			map[string]any{"type": "direct", "tag": "direct-out"},
 		},
 		"route": map[string]any{
-			"rules": []any{
-				map[string]any{"action": "sniff"},
-				map[string]any{"protocol": "dns", "action": "hijack-dns"},
-				map[string]any{"ip_is_private": true, "outbound": "direct-out"},
-				map[string]any{
-					"domain_suffix": []string{"max.ru", "maxpatrol.ru", "positive-technologies.ru"},
-					"outbound":      "direct-out",
-				},
-				map[string]any{
-					"domain_suffix": []string{"gosuslugi.ru", "esia.gosuslugi.ru"},
-					"outbound":      "direct-out",
-				},
-			},
+			"rules":                 routeRules,
 			"final":                 "proxy",
 			"auto_detect_interface": true,
 		},

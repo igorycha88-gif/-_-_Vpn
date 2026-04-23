@@ -59,6 +59,10 @@ func runMigrations(db *sql.DB, migrationsFS fs.FS) error {
 
 		_, err = db.Exec(string(content))
 		if err != nil {
+			if strings.Contains(err.Error(), "duplicate column name") {
+				slog.Info("миграция пропущена (колонка уже существует)", "file", name)
+				continue
+			}
 			return fmt.Errorf("exec migration %s: %w", name, err)
 		}
 
