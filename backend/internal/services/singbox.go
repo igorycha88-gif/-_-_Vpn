@@ -152,8 +152,9 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*singBoxConfig, er
 				map[string]any{"action": "sniff"},
 				map[string]any{"protocol": "dns", "action": "hijack-dns"},
 			},
-			Final:               "direct-out",
-			AutoDetectInterface: true,
+			Final:                 "direct-out",
+			AutoDetectInterface:   true,
+			DefaultDomainResolver: "dns-foreign-1.1.1.1",
 		},
 	}
 
