@@ -20,19 +20,26 @@ const (
 func AuthMiddleware(authSvc *services.AuthService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var tokenStr string
+
 			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
+			if authHeader != "" {
+				parts := strings.SplitN(authHeader, " ", 2)
+				if len(parts) == 2 && strings.EqualFold(parts[0], "bearer") {
+					tokenStr = parts[1]
+				}
+			}
+
+			if tokenStr == "" {
+				tokenStr = r.URL.Query().Get("token")
+			}
+
+			if tokenStr == "" {
 				http.Error(w, `{"error":"отсутствует токен авторизации"}`, http.StatusUnauthorized)
 				return
 			}
 
-			parts := strings.SplitN(authHeader, " ", 2)
-			if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
-				http.Error(w, `{"error":"неверный формат токена"}`, http.StatusUnauthorized)
-				return
-			}
-
-			claims, err := authSvc.ValidateAccessToken(parts[1])
+			claims, err := authSvc.ValidateAccessToken(tokenStr)
 			if err != nil {
 				if errors.Is(err, services.ErrInvalidToken) {
 					http.Error(w, `{"error":"неверный или просроченный токен"}`, http.StatusUnauthorized)
