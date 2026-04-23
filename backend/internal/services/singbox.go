@@ -224,6 +224,8 @@ func (s *SingBoxService) populateRouteRuleFields(routeRule map[string]any, rule 
 		routeRule["domain_keyword"] = []string{rule.Pattern}
 	case "ip":
 		routeRule["ip_cidr"] = []string{rule.Pattern}
+	case "geoip":
+		routeRule["geoip"] = []string{rule.Pattern}
 	case "port":
 		var port int
 		fmt.Sscanf(rule.Pattern, "%d", &port)
