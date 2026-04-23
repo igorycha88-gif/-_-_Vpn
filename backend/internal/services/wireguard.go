@@ -118,7 +118,7 @@ func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
 		map[string]any{
 			"domain_suffix": []string{
 				"vk.com", "userapi.com", "vk-cdn.net",
-				"yandex.com", "yandex.ru", "yastatic.net",
+				"yandex.com", "yandex.ru", "yandex.net", "yastatic.net",
 				"ya.ru", "mail.ru", "rambler.ru",
 				"gosuslugi.ru", "esia.gosuslugi.ru",
 				"sberbank.ru", "tinkoff.ru",
@@ -149,10 +149,21 @@ func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
 		},
 	}
 
+	packageNameRules := []any{
+		map[string]any{
+			"package_name": []string{
+				"com.google.android.projection.gearhead",
+				"ru.yandex.weather",
+			},
+			"outbound": "direct-out",
+		},
+	}
+
 	switch deviceType {
 	case models.DeviceTypeAndroid:
 		stack = "gvisor"
-		routeRules = append(baseRules, proxyDomains...)
+		routeRules = append(baseRules, packageNameRules...)
+		routeRules = append(routeRules, proxyDomains...)
 	default:
 		routeRules = append(baseRules, proxyDomains...)
 	}

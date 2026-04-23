@@ -251,6 +251,12 @@ func TestWireGuardService_GenerateClientConfig(t *testing.T) {
 	if !contains(config, "gosuslugi.ru") {
 		t.Error("config should contain gosuslugi.ru in direct rules")
 	}
+	if !contains(config, "yandex.net") {
+		t.Error("config should contain yandex.net in direct rules")
+	}
+	if contains(config, "package_name") {
+		t.Error("iPhone config should NOT contain package_name rules")
+	}
 	if !contains(config, `"stack": "mixed"`) {
 		t.Error("iPhone config should use stack mixed")
 	}
@@ -287,6 +293,18 @@ func TestWireGuardService_GenerateClientConfig_Android(t *testing.T) {
 	}
 	if !contains(config, "vk.com") {
 		t.Error("Android config should contain vk.com in direct rules")
+	}
+	if !contains(config, "yandex.net") {
+		t.Error("Android config should contain yandex.net in direct rules")
+	}
+	if !contains(config, `"package_name"`) {
+		t.Error("Android config should contain package_name rules")
+	}
+	if !contains(config, "com.google.android.projection.gearhead") {
+		t.Error("Android config should contain Android Auto package name")
+	}
+	if !contains(config, "ru.yandex.weather") {
+		t.Error("Android config should contain Yandex Weather package name")
 	}
 }
 
