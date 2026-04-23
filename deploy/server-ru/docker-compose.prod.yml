@@ -4,7 +4,6 @@ services:
     container_name: smarttraffic-nginx
     ports:
       - "80:80"
-      - "443:443"
     extra_hosts:
       - "api:host-gateway"
     volumes:
