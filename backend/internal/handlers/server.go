@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime"
-	"time"
 
 	"smarttraffic/internal/models"
 	"smarttraffic/internal/services"
@@ -61,11 +60,16 @@ func (h *ServerHandler) RUStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ServerHandler) ForeignStats(w http.ResponseWriter, r *http.Request) {
+	wgActive := h.collector != nil && h.collector.IsWGActive()
+
 	JSON(w, http.StatusOK, map[string]interface{}{
-		"online": true,
-		"uptime": time.Now().Format(time.RFC3339),
-		"cpu":    "0%",
-		"memory": "0%",
+		"online":  wgActive,
+		"wg_status": func() string {
+			if wgActive {
+				return "running"
+			}
+			return "stopped"
+		}(),
 	})
 }
 

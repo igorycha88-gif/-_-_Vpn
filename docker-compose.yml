@@ -23,6 +23,7 @@ services:
       - WG_MTU=${WG_MTU:-1280}
       - WG_TUNNEL_INTERFACE=${WG_TUNNEL_INTERFACE:-wg1}
       - SINGBOX_CONFIG_PATH=/etc/singbox/config.json
+      - SINGBOX_CLASH_API_ADDR=${SINGBOX_CLASH_API_ADDR:-127.0.0.1:9090}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       - FOREIGN_SERVER_IP=${FOREIGN_SERVER_IP:-}
       - FOREIGN_TUNNEL_PRIVATE_KEY=${FOREIGN_TUNNEL_PRIVATE_KEY:-}
@@ -31,8 +32,9 @@ services:
     volumes:
       - api-data:/data
       - ./deploy/server-ru/singbox:/etc/singbox
-    ports:
-      - "8080:8080"
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
     restart: unless-stopped
 
   frontend:

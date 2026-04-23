@@ -53,8 +53,16 @@ type VLESSConfig struct {
 	ServerEndpoint string
 }
 
+type ForeignVLESSConfig struct {
+	UUID             string
+	RealityPublicKey string
+	RealityShortID   string
+	ServerName       string
+}
+
 type ServerConfig struct {
-	ForeignIP string
+	ForeignIP    string
+	ForeignVLESS ForeignVLESSConfig
 }
 
 type SingBoxConfig struct {
@@ -109,6 +117,11 @@ func Load() (*Config, error) {
 	cfg.VLESS.ServerEndpoint = getEnv("VLESS_SERVER_ENDPOINT", "")
 
 	cfg.Server.ForeignIP = getEnv("FOREIGN_SERVER_IP", "")
+
+	cfg.Server.ForeignVLESS.UUID = getEnv("FOREIGN_VLESS_UUID", "")
+	cfg.Server.ForeignVLESS.RealityPublicKey = getEnv("FOREIGN_VLESS_REALITY_PUBLIC_KEY", "")
+	cfg.Server.ForeignVLESS.RealityShortID = getEnv("FOREIGN_VLESS_REALITY_SHORT_ID", "")
+	cfg.Server.ForeignVLESS.ServerName = getEnv("FOREIGN_VLESS_SERVER_NAME", "www.microsoft.com")
 
 	cfg.SingBox.ConfigPath = getEnv("SINGBOX_CONFIG_PATH", "/etc/singbox/config.json")
 	cfg.SingBox.ClashAPIAddr = getEnv("SINGBOX_CLASH_API_ADDR", "127.0.0.1:9090")

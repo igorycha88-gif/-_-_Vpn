@@ -51,7 +51,7 @@ type singBoxConfig struct {
 	DNS          *singBoxDNS          `json:"dns,omitempty"`
 	Inbounds     []any                `json:"inbounds"`
 	Endpoints    []any                `json:"endpoints,omitempty"`
-	Outbounds    []any                `json:"outbounds"`
+	Outbounds    []any                `json:"outbounds,omitempty"`
 	Route        *singBoxRoute        `json:"route"`
 	Experimental *singBoxExperimental `json:"experimental,omitempty"`
 }
@@ -72,6 +72,7 @@ type singBoxDNSServer struct {
 	Tag    string `json:"tag"`
 	Type   string `json:"type"`
 	Server string `json:"server"`
+	Detour string `json:"detour,omitempty"`
 }
 
 type singBoxRoute struct {
@@ -168,24 +169,29 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*singBoxConfig, er
 	}
 	cfg.Experimental = &singBoxExperimental{ClashAPI: clashAPI}
 
-	if s.srvConfig.ForeignIP != "" && s.wgConfig.TunnelPrivateKey != "" {
-		wgEndpoint := map[string]any{
-			"type":        "wireguard",
+	if s.srvConfig.ForeignIP != "" && s.srvConfig.ForeignVLESS.UUID != "" {
+		vlessOutbound := map[string]any{
+			"type":        "vless",
 			"tag":         "foreign-out",
-			"address":     []string{s.wgConfig.TunnelLocalAddress},
-			"private_key": s.wgConfig.TunnelPrivateKey,
-			"mtu":         s.wgConfig.MTU,
-			"peers": []any{
-				map[string]any{
-					"address":      s.srvConfig.ForeignIP,
-					"port":         51821,
-					"public_key":   s.wgConfig.TunnelPeerPublicKey,
-					"allowed_ips":  []string{"0.0.0.0/0"},
-					"reserved":     []int{0, 0, 0},
+			"server":      s.srvConfig.ForeignIP,
+			"server_port": 443,
+			"uuid":        s.srvConfig.ForeignVLESS.UUID,
+			"flow":        "xtls-rprx-vision",
+			"tls": map[string]any{
+				"enabled":     true,
+				"server_name": s.srvConfig.ForeignVLESS.ServerName,
+				"utls": map[string]any{
+					"enabled":     true,
+					"fingerprint": "chrome",
+				},
+				"reality": map[string]any{
+					"enabled":     true,
+					"public_key":  s.srvConfig.ForeignVLESS.RealityPublicKey,
+					"short_id":    s.srvConfig.ForeignVLESS.RealityShortID,
 				},
 			},
 		}
-		cfg.Endpoints = []any{wgEndpoint}
+		cfg.Outbounds = append(cfg.Outbounds, vlessOutbound)
 		cfg.Route.Final = "foreign-out"
 	}
 
@@ -293,9 +299,14 @@ func (s *SingBoxService) buildDNSConfig(settings *models.DNSSettings) *singBoxDN
 		servers = append(servers, singBoxDNSServer{Tag: tag, Type: "udp", Server: addr})
 		ruTags = append(ruTags, tag)
 	}
+	hasForeignOut := s.srvConfig.ForeignIP != "" && s.srvConfig.ForeignVLESS.UUID != ""
 	for _, addr := range splitList(settings.UpstreamForeign) {
 		tag := "dns-foreign-" + addr
-		servers = append(servers, singBoxDNSServer{Tag: tag, Type: "udp", Server: addr})
+		srv := singBoxDNSServer{Tag: tag, Type: "udp", Server: addr}
+		if hasForeignOut {
+			srv.Detour = "foreign-out"
+		}
+		servers = append(servers, srv)
 		foreignTags = append(foreignTags, tag)
 	}
 

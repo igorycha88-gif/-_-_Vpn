@@ -27,7 +27,7 @@
       "tag": "proxy",
       "server": "130.49.129.241",
       "server_port": 443,
-      "uuid": "7f2105d9-3962-4dd3-80d5-6ac86d271855",
+      "uuid": "d187e6de-86d3-40fd-8685-e870a88286fa",
       "flow": "xtls-rprx-vision",
       "tls": {
         "enabled": true,
@@ -35,8 +35,8 @@
         "utls": {"enabled": true, "fingerprint": "chrome"},
         "reality": {
           "enabled": true,
-          "public_key": "_dkvILXTvDupEj_NVtaJXACC8PLYRTYPh8HyAe0rmUs",
-          "short_id": "31faac3dd0cc92f3"
+          "public_key": "npwx-mboFds68oyFs6pTY8A5IL17VXjOWDMdXqWvvmg",
+          "short_id": "bb8329663411919b"
         }
       }
     },

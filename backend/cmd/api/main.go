@@ -52,7 +52,7 @@ func main() {
 	trafficSvc := services.NewTrafficService(trafficRepo, peerRepo, logger)
 
 	collector := services.NewWGStatsCollector(peerRepo, trafficRepo, trafficSvc, cfg.WG.TunnelInterface, logger)
-	sbCollector := services.NewSingBoxStatsCollector(peerRepo, trafficRepo, cfg.SingBox.ClashAPIAddr, cfg.SingBox.ClashAPISecret, logger)
+	sbCollector := services.NewSingBoxStatsCollector(peerRepo, trafficRepo, trafficSvc, cfg.SingBox.ClashAPIAddr, cfg.SingBox.ClashAPISecret, logger)
 
 	if err := singboxSvc.WriteConfigAndReload(context.Background()); err != nil {
 		logger.Warn("не удалось записать начальный конфиг sing-box", "error", err)

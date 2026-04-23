@@ -10,20 +10,24 @@ import (
 	"sync"
 	"time"
 
+	"smarttraffic/internal/models"
 	"smarttraffic/internal/repository"
 )
 
 type SingBoxStatsCollector struct {
 	peerRepo    repository.PeerRepository
 	trafficRepo repository.TrafficRepository
+	alertSvc    *TrafficService
 	logger      *slog.Logger
 	apiURL      string
 	apiSecret   string
 	client      *http.Client
 	interval    time.Duration
 
-	mu        sync.Mutex
-	connState map[string]*connBytes
+	mu          sync.Mutex
+	connState   map[string]*connBytes
+	onlinePeers map[string]bool
+	apiReachable bool
 }
 
 type connBytes struct {
@@ -43,30 +47,47 @@ type clashConnection struct {
 }
 
 type clashMetadata struct {
-	User string `json:"user"`
+	User        string `json:"user"`
+	Host        string `json:"host"`
+	Destination string `json:"destination"`
+	DstPort     int    `json:"destination_port"`
+	Network     string `json:"network"`
 }
 
 type userDelta struct {
-	rx int64
-	tx int64
+	rx          int64
+	tx          int64
+	connections []userConnection
+}
+
+type userConnection struct {
+	host        string
+	destination string
+	dstPort     int
+	rx          int64
+	tx          int64
 }
 
 func NewSingBoxStatsCollector(
 	peerRepo repository.PeerRepository,
 	trafficRepo repository.TrafficRepository,
+	alertSvc *TrafficService,
 	apiAddr string,
 	apiSecret string,
 	logger *slog.Logger,
 ) *SingBoxStatsCollector {
 	return &SingBoxStatsCollector{
-		peerRepo:    peerRepo,
-		trafficRepo: trafficRepo,
-		logger:      logger,
-		apiURL:      "http://" + apiAddr,
-		apiSecret:   apiSecret,
-		client:      &http.Client{Timeout: 5 * time.Second},
-		interval:    10 * time.Second,
-		connState:   make(map[string]*connBytes),
+		peerRepo:     peerRepo,
+		trafficRepo:  trafficRepo,
+		alertSvc:     alertSvc,
+		logger:       logger,
+		apiURL:       "http://" + apiAddr,
+		apiSecret:    apiSecret,
+		client:       &http.Client{Timeout: 5 * time.Second},
+		interval:     10 * time.Second,
+		connState:    make(map[string]*connBytes),
+		onlinePeers:  make(map[string]bool),
+		apiReachable: false,
 	}
 }
 
@@ -92,11 +113,35 @@ func (c *SingBoxStatsCollector) Start(ctx context.Context) {
 func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 	resp, err := c.fetchConnections()
 	if err != nil {
-		c.logger.Warn("не удалось получить соединения от sing-box Clash API", "error", err)
+		if c.apiReachable {
+			c.logger.Error("sing-box Clash API недоступен", "api", c.apiURL, "error", err)
+			c.alertSvc.AddAlert(&models.Alert{
+				ID:        fmt.Sprintf("clash-api-down-%d", time.Now().Unix()),
+				Type:      "system",
+				Message:   "sing-box Clash API недоступен: " + err.Error(),
+				Severity:  "error",
+				Timestamp: time.Now(),
+			})
+			c.apiReachable = false
+		}
 		return
 	}
 
+	if !c.apiReachable {
+		c.logger.Info("sing-box Clash API снова доступен", "api", c.apiURL)
+		c.alertSvc.AddAlert(&models.Alert{
+			ID:        fmt.Sprintf("clash-api-up-%d", time.Now().Unix()),
+			Type:      "system",
+			Message:   "sing-box Clash API снова доступен",
+			Severity:  "info",
+			Timestamp: time.Now(),
+		})
+		c.apiReachable = true
+	}
+
 	deltas := c.computeDeltas(resp.Connections)
+
+	currentOnline := make(map[string]bool)
 
 	for uuid, delta := range deltas {
 		if delta.rx == 0 && delta.tx == 0 {
@@ -108,6 +153,8 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 			continue
 		}
 
+		currentOnline[peer.ID] = true
+
 		if err := c.peerRepo.UpdateTraffic(ctx, peer.ID, delta.rx, delta.tx); err != nil {
 			c.logger.Error("ошибка обновления трафика клиента", "uuid", uuid, "error", err)
 			continue
@@ -116,7 +163,60 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 		if err := c.peerRepo.UpdateLastSeen(ctx, peer.ID); err != nil {
 			c.logger.Error("ошибка обновления last_seen клиента", "uuid", uuid, "error", err)
 		}
+
+		for _, conn := range delta.connections {
+			if conn.rx == 0 && conn.tx == 0 {
+				continue
+			}
+			trafficLog := &models.TrafficLog{
+				PeerID:  peer.ID,
+				BytesRx: conn.rx,
+				BytesTx: conn.tx,
+				Action:  "vless_transfer",
+			}
+			if conn.host != "" {
+				trafficLog.Domain = conn.host
+			} else if conn.destination != "" {
+				trafficLog.DestIP = conn.destination
+			}
+			if conn.dstPort > 0 {
+				trafficLog.DestPort = conn.dstPort
+			}
+			if err := c.trafficRepo.Log(ctx, trafficLog); err != nil {
+				c.logger.Error("ошибка логирования трафика клиента в traffic_logs", "uuid", uuid, "error", err)
+			}
+		}
 	}
+
+	for peerID := range currentOnline {
+		if !c.onlinePeers[peerID] {
+			peer, err := c.peerRepo.GetByID(ctx, peerID)
+			if err == nil {
+				c.alertSvc.AddAlert(&models.Alert{
+					ID:        fmt.Sprintf("peer-online-%s-%d", peerID, time.Now().Unix()),
+					Type:      "peer",
+					Message:   "Клиент подключился: " + peer.Name,
+					Severity:  "info",
+					Timestamp: time.Now(),
+				})
+			}
+		}
+	}
+	for peerID := range c.onlinePeers {
+		if !currentOnline[peerID] {
+			peer, err := c.peerRepo.GetByID(ctx, peerID)
+			if err == nil {
+				c.alertSvc.AddAlert(&models.Alert{
+					ID:        fmt.Sprintf("peer-offline-%s-%d", peerID, time.Now().Unix()),
+					Type:      "peer",
+					Message:   "Клиент отключился: " + peer.Name,
+					Severity:  "warning",
+					Timestamp: time.Now(),
+				})
+			}
+		}
+	}
+	c.onlinePeers = currentOnline
 
 	c.cleanupStaleConnections(resp.Connections)
 }
@@ -159,6 +259,13 @@ func (c *SingBoxStatsCollector) computeDeltas(connections []clashConnection) map
 			}
 			d.rx += drx
 			d.tx += dtx
+			d.connections = append(d.connections, userConnection{
+				host:        conn.Metadata.Host,
+				destination: conn.Metadata.Destination,
+				dstPort:     conn.Metadata.DstPort,
+				rx:          drx,
+				tx:          dtx,
+			})
 		}
 
 		c.connState[conn.ID] = &connBytes{upload: conn.Upload, download: conn.Download}

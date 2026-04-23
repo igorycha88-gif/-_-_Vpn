@@ -87,11 +87,27 @@ func (c *WGStatsCollector) collect(ctx context.Context) {
 		c.mu.Unlock()
 		if wasActive {
 			c.logger.Warn("межсерверный WG тоннель недоступен", "interface", c.iface, "error", err)
+			c.alertSvc.AddAlert(&models.Alert{
+				ID:        fmt.Sprintf("wg-tunnel-down-%d", time.Now().Unix()),
+				Type:      "tunnel",
+				Message:   "Межсерверный WG тоннель недоступен: " + err.Error(),
+				Severity:  "error",
+				Timestamp: time.Now(),
+			})
 		}
 		return
 	}
 
 	c.mu.Lock()
+	if !c.wgActive {
+		c.alertSvc.AddAlert(&models.Alert{
+			ID:        fmt.Sprintf("wg-tunnel-up-%d", time.Now().Unix()),
+			Type:      "tunnel",
+			Message:   "Межсерверный WG тоннель восстановлен",
+			Severity:  "info",
+			Timestamp: time.Now(),
+		})
+	}
 	c.wgActive = true
 	c.mu.Unlock()
 
