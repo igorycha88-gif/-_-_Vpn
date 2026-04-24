@@ -53,10 +53,10 @@ rollback_and_exit() {
         git checkout "${PREVIOUS_TAG}" 2>/dev/null || true
     fi
 
-    log "Пересборка и запуск предыдущей версии..."
+    log "Откат: подтягиваю предыдущие образы..."
     cd "${DEPLOY_PATH}"
     docker compose -f "${COMPOSE_FILE}" down --timeout 30 2>/dev/null || true
-    docker compose -f "${COMPOSE_FILE}" build --no-cache 2>&1 | tail -5
+    docker compose -f "${COMPOSE_FILE}" pull 2>&1 | tail -5
     docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans 2>&1
 
     sleep 10
@@ -154,14 +154,15 @@ ok "Старые бэкапы очищены (оставляю ${BACKUP_KEEP})"
 # STEP 2: BUILD
 # ═══════════════════════════════════
 
-step "ШАГ 2: Сборка Docker-образов"
+step "ШАГ 2: Pull Docker-образов"
 
-log "Собираю образы (no-cache)..."
-if ! docker compose -f "${COMPOSE_FILE}" build --no-cache 2>&1 | tail -20; then
-    err "Ошибка сборки Docker-образов!"
+log "IMAGE_TAG=${IMAGE_TAG:-latest} IMAGE_PREFIX=${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/-_-_vpn}"
+log "Подтягиваю образы из GHCR..."
+if ! IMAGE_TAG="${IMAGE_TAG:-latest}" IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/-_-_vpn}" docker compose -f "${COMPOSE_FILE}" pull 2>&1; then
+    err "Ошибка pull Docker-образов!"
     rollback_and_exit
 fi
-ok "Образы собраны"
+ok "Образы подтянуты"
 
 # ═══════════════════════════════════
 # STEP 3: DEPLOY
@@ -173,8 +174,8 @@ log "Останавливаю текущие сервисы (timeout 30s)..."
 docker compose -f "${COMPOSE_FILE}" down --timeout 30 2>/dev/null || true
 ok "Сервисы остановлены"
 
-log "Запускаю новые сервисы..."
-if ! docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans 2>&1; then
+log "Запускаю новые сервисы (IMAGE_TAG=${IMAGE_TAG:-latest})..."
+if ! IMAGE_TAG="${IMAGE_TAG:-latest}" IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/-_-_vpn}" docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans 2>&1; then
     err "Ошибка запуска контейнеров!"
     docker compose -f "${COMPOSE_FILE}" logs --tail=30 2>&1 || true
     rollback_and_exit

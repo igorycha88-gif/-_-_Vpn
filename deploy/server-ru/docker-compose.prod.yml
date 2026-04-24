@@ -34,9 +34,7 @@ services:
     restart: unless-stopped
 
   api:
-    build:
-      context: ../../backend
-      dockerfile: Dockerfile
+    image: ${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/-_-_vpn}/api:${IMAGE_TAG:-latest}
     container_name: smarttraffic-api
     environment:
       - APP_PORT=8080
@@ -98,18 +96,14 @@ services:
     restart: unless-stopped
 
   frontend:
-    build:
-      context: ../../frontend
-      dockerfile: Dockerfile
+    image: ${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/-_-_vpn}/frontend:${IMAGE_TAG:-latest}
     container_name: smarttraffic-frontend
     environment:
       - VITE_API_URL=https://${DOMAIN}
     restart: unless-stopped
 
   landing:
-    build:
-      context: ../../landing
-      dockerfile: Dockerfile
+    image: ${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/-_-_vpn}/landing:${IMAGE_TAG:-latest}
     container_name: smarttraffic-landing
     restart: unless-stopped
 

@@ -102,6 +102,8 @@ jobs:
         run: docker compose -f deploy/server-ru/docker-compose.prod.yml config -q
         env:
           DOMAIN: ci-test.example.com
+          IMAGE_TAG: ci-test
+          IMAGE_PREFIX: ghcr.io/ci-test
 
       - name: Build backend image
         run: docker build -t smarttraffic-api:test ./backend
