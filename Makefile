@@ -1,4 +1,4 @@
-.PHONY: dev build up down logs ps lint test clean
+.PHONY: dev build up down logs ps lint test clean deploy-ru deploy-foreign rollback-ru
 
 COMPOSE=docker compose
 BACKEND_DIR=backend
@@ -66,3 +66,12 @@ clean: ## Удалить контейнеры, volumes, артефакты
 
 help: ## Показать справку
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+deploy-ru: ## Деплой на РФ-сервер (требуется REMOTE_HOST)
+	@bash scripts/deploy.sh --host $${REMOTE_HOST:-$$HOST} --branch $${DEPLOY_BRANCH:-dev1}
+
+rollback-ru: ## Откат на РФ-сервере (требуется REMOTE_HOST)
+	@bash scripts/rollback.sh --host $${REMOTE_HOST:-$$HOST}
+
+deploy-foreign: ## Деплой на зарубежный сервер (требуется REMOTE_HOST)
+	@bash scripts/deploy.sh --host $${REMOTE_HOST:-$$HOST} --skip-tests

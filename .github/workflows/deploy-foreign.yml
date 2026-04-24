@@ -1,0 +1,124 @@
+name: Deploy Foreign Server
+
+on:
+  workflow_dispatch:
+    inputs:
+      restart_wireguard:
+        description: 'Перезапустить WireGuard'
+        type: boolean
+        default: true
+      verify_tunnel:
+        description: 'Проверить тоннель после деплоя'
+        type: boolean
+        default: true
+
+concurrency:
+  group: deploy-foreign
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to Foreign Server
+    runs-on: ubuntu-latest
+    environment: production-foreign
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.FOREIGN_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.FOREIGN_SSH_HOST_KEY }}" > ~/.ssh/known_hosts 2>/dev/null || \
+            ssh-keyscan -H "${{ secrets.FOREIGN_SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Generate WireGuard config from secrets
+        env:
+          WG_PRIVATE_KEY: ${{ secrets.FOREIGN_WG_PRIVATE_KEY }}
+          WG_ADDRESS: ${{ secrets.FOREIGN_WG_ADDRESS }}
+          WG_LISTEN_PORT: ${{ secrets.FOREIGN_WG_LISTEN_PORT }}
+          RU_WG_PUBLIC_KEY: ${{ secrets.RU_WG_PUBLIC_KEY }}
+          RU_SERVER_IP: ${{ secrets.RU_SERVER_HOST }}
+          SINGBOX_WG_PUBLIC_KEY: ${{ secrets.SINGBOX_WG_PUBLIC_KEY }}
+        run: |
+          cat > /tmp/wg0.conf <<EOF
+          [Interface]
+          PrivateKey = ${WG_PRIVATE_KEY}
+          Address = ${WG_ADDRESS}
+          ListenPort = ${WG_LISTEN_PORT}
+
+          PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -A FORWARD -o wg0 -j ACCEPT; iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT; iptables -t nat -A POSTROUTING -s 10.20.0.0/30 -o eth0 -j MASQUERADE; iptables -t nat -A POSTROUTING -s 10.30.0.0/24 -o eth0 -j MASQUERADE
+          PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -D FORWARD -o wg0 -j ACCEPT; iptables -D FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT; iptables -t nat -D POSTROUTING -s 10.20.0.0/30 -o eth0 -j MASQUERADE; iptables -t nat -D POSTROUTING -s 10.30.0.0/24 -o eth0 -j MASQUERADE
+
+          [Peer]
+          PublicKey = ${RU_WG_PUBLIC_KEY}
+          AllowedIPs = 10.20.0.0/30
+          Endpoint = ${RU_SERVER_IP}:51821
+          PersistentKeepalive = 25
+
+          [Peer]
+          PublicKey = ${SINGBOX_WG_PUBLIC_KEY}
+          AllowedIPs = 10.30.0.2/32
+          EOF
+          echo "WireGuard config generated"
+
+      - name: Backup current config and deploy
+        env:
+          FH: ${{ secrets.FOREIGN_SERVER_HOST }}
+          FU: ${{ secrets.FOREIGN_SERVER_USER }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${FU}@${FH}"
+
+          echo "=== Бэкап текущего конфига WireGuard ==="
+          $SSH "cp /etc/wireguard/wg0.conf /etc/wireguard/wg0.conf.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true"
+
+          echo "=== Загрузка нового конфига ==="
+          scp -i ~/.ssh/deploy_key /tmp/wg0.conf ${FU}@${FH}:/etc/wireguard/wg0.conf
+
+          echo "=== Установка прав ==="
+          $SSH "chmod 600 /etc/wireguard/wg0.conf"
+
+      - name: Restart WireGuard
+        if: github.event.inputs.restart_wireguard == 'true'
+        env:
+          FH: ${{ secrets.FOREIGN_SERVER_HOST }}
+          FU: ${{ secrets.FOREIGN_SERVER_USER }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${FU}@${FH}"
+
+          echo "=== Перезапуск WireGuard ==="
+          $SSH "wg-quick down wg0 2>/dev/null || true"
+          $SSH "wg-quick up wg0"
+          echo "WireGuard запущен"
+
+          echo "=== Статус WireGuard ==="
+          $SSH "wg show wg0"
+
+      - name: Verify tunnel connectivity
+        if: github.event.inputs.verify_tunnel == 'true'
+        env:
+          FH: ${{ secrets.FOREIGN_SERVER_HOST }}
+          FU: ${{ secrets.FOREIGN_SERVER_USER }}
+          RU_TUNNEL_IP: ${{ secrets.RU_TUNNEL_IP }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${FU}@${FH}"
+
+          echo "=== Проверка тоннеля ==="
+          if $SSH "ping -c 3 -W 2 ${RU_TUNNEL_IP:-10.20.0.1}" 2>/dev/null; then
+            echo "Тоннель работает: пинг до ${RU_TUNNEL_IP:-10.20.0.1} успешен"
+          else
+            echo "WARNING: пинг до РФ-сервера через тоннель не прошёл"
+            echo "Проверьте конфигурацию на обоих серверах"
+          fi
+
+          echo "=== Трансфер статистика ==="
+          $SSH "wg show wg0 transfer"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f ~/.ssh/deploy_key /tmp/wg0.conf

@@ -1,0 +1,121 @@
+name: Deploy RU Server
+
+on:
+  push:
+    branches: [main, dev1]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.opencode/**'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Ветка для деплоя'
+        required: false
+        default: 'dev1'
+      skip_health_check:
+        description: 'Пропустить health check'
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-ru
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: CI Check
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy to RU Server
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: production-ru
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.RU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.RU_SSH_HOST_KEY }}" > ~/.ssh/known_hosts 2>/dev/null || \
+            ssh-keyscan -H "${{ secrets.RU_SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+        if: env.DEPLOY_SKIP != 'true'
+
+      - name: Determine branch
+        id: branch
+        run: |
+          BRANCH="${{ github.event.inputs.branch || github.ref_name }}"
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "Deploying branch: $BRANCH"
+
+      - name: Deploy to RU server
+        timeout-minutes: 20
+        env:
+          RU_HOST: ${{ secrets.RU_SERVER_HOST }}
+          RU_USER: ${{ secrets.RU_SERVER_USER }}
+          RU_PATH: ${{ secrets.RU_SERVER_PATH }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          PRODUCTION_ENV: ${{ secrets.RU_PRODUCTION_ENV }}
+          SKIP_HEALTH_CHECK: ${{ github.event.inputs.skip_health_check }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=15 -o ServerAliveInterval=30 ${RU_USER}@${RU_HOST}"
+
+          echo "=== Шаг 1: Обновление кода ==="
+          $SSH "cd ${RU_PATH} && git fetch origin ${BRANCH} && git reset --hard origin/${BRANCH}"
+          REMOTE_SHA=$($SSH "cd ${RU_PATH} && git rev-parse --short HEAD")
+          echo "Remote SHA: ${REMOTE_SHA}"
+
+          echo "=== Шаг 2: Запись production .env ==="
+          echo "${PRODUCTION_ENV}" | $SSH "cat > ${RU_PATH}/deploy/server-ru/.env"
+
+          echo "=== Шаг 3: Запуск remote deploy script ==="
+          $SSH "cd ${RU_PATH} && \
+            DEPLOY_PATH=${RU_PATH} \
+            SKIP_HEALTH_CHECK=${SKIP_HEALTH_CHECK} \
+            bash deploy/server-ru/scripts/remote-deploy-ru.sh"
+
+          echo "=== Деплой завершён ==="
+
+      - name: Post-deploy verification
+        if: github.event.inputs.skip_health_check != 'true'
+        env:
+          RU_HOST: ${{ secrets.RU_SERVER_HOST }}
+          RU_USER: ${{ secrets.RU_SERVER_USER }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${RU_USER}@${RU_HOST}"
+
+          echo "Проверка контейнеров..."
+          $SSH "cd /opt/smarttraffic/deploy/server-ru && docker compose -f docker-compose.prod.yml ps --format 'table {{.Name}}\t{{.Status}}'"
+
+          echo "Проверка health endpoint..."
+          HTTP_CODE=$($SSH "curl -sf -o /dev/null -w '%{http_code}' http://localhost:8080/health 2>/dev/null || echo 000")
+          echo "API Health: HTTP ${HTTP_CODE}"
+
+          if [[ "${HTTP_CODE}" != "200" ]]; then
+            echo "WARNING: API health check returned ${HTTP_CODE}"
+          fi
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -rf ~/.ssh/deploy_key
+
+  notify:
+    name: Deploy Summary
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Output result
+        run: |
+          if [[ "${{ needs.deploy.result }}" == "success" ]]; then
+            echo "DEPLOY SUCCESS: ${{ steps.branch.outputs.branch }} deployed to RU server"
+          else
+            echo "DEPLOY FAILED: check logs above"
+          fi

@@ -13,6 +13,8 @@ Thumbs.db
 .env
 .env.local
 .env.production
+deploy/server-ru/.env
+deploy/**/.env
 
 # === Backend (Go) ===
 backend/bin/
@@ -54,5 +56,12 @@ certbot/www/
 *.pem
 wg*.conf
 
+# === Deploy state ===
+.deploy-*
+deploy/**/backups/
+deploy/server-ru/.env
+
 # === Build artifacts ===
 deploy/server-ru/singbox/config.json
+deploy/server-ru/singbox/geoip.db
+deploy/server-ru/singbox/geosite.db
