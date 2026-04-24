@@ -63,7 +63,7 @@ jobs:
         run: npm run typecheck
 
       - name: Test
-        run: npm run test -- --passWithNoTests --ci
+        run: npm run test -- --passWithNoTests
 
       - name: Build
         run: npm run build
