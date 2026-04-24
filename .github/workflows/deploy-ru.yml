@@ -156,6 +156,7 @@ jobs:
           PRODUCTION_ENV: ${{ secrets.RU_PRODUCTION_ENV }}
         run: |
           SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=15 ${RU_USER}@${RU_HOST}"
+          echo "${PRODUCTION_ENV}" | $SSH "cat > ${RU_PATH}/.env"
           echo "${PRODUCTION_ENV}" | $SSH "cat > ${RU_PATH}/deploy/server-ru/.env"
 
       - name: Run deploy script
