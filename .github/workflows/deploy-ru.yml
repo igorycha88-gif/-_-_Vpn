@@ -28,6 +28,7 @@ concurrency:
 
 permissions:
   contents: read
+  packages: write
 
 env:
   DEPLOY_PATH: /opt/smarttraffic
@@ -37,15 +38,73 @@ env:
   HEALTH_INTERVAL: 5
   CANARY_WAIT: 30
   BACKUP_KEEP: 5
+  REGISTRY: ghcr.io
 
 jobs:
   ci:
     name: CI Check
     uses: ./.github/workflows/ci.yml
 
+  build-images:
+    name: Build & Push Images
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      image_prefix: ${{ steps.meta.outputs.image_prefix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image tag
+        id: meta
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          TAG="${SHA}-${TIMESTAMP}"
+          IMAGE_PREFIX="${{ env.REGISTRY }}/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          echo "image_tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "image_prefix=${IMAGE_PREFIX}" >> $GITHUB_OUTPUT
+          echo "Image prefix: ${IMAGE_PREFIX}"
+          echo "Image tag: ${TAG}"
+
+      - name: Build & push api
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image_prefix }}/api:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.meta.outputs.image_prefix }}/api:latest
+
+      - name: Build & push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image_prefix }}/frontend:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.meta.outputs.image_prefix }}/frontend:latest
+
+      - name: Build & push landing
+        uses: docker/build-push-action@v6
+        with:
+          context: ./landing
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image_prefix }}/landing:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.meta.outputs.image_prefix }}/landing:latest
+
   deploy:
     name: Deploy to RU Server
-    needs: ci
+    needs: build-images
     runs-on: ubuntu-latest
     environment: ${{ github.ref == 'refs/heads/main' && 'production-ru' || 'production-ru' }}
     timeout-minutes: 30
@@ -159,6 +218,15 @@ jobs:
           echo "${PRODUCTION_ENV}" | $SSH "cat > ${RU_PATH}/.env"
           echo "${PRODUCTION_ENV}" | $SSH "cat > ${RU_PATH}/deploy/server-ru/.env"
 
+      - name: Login server to GHCR
+        timeout-minutes: 3
+        env:
+          RU_HOST: ${{ secrets.RU_SERVER_HOST }}
+          RU_USER: ${{ secrets.RU_SERVER_USER }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=15 ${RU_USER}@${RU_HOST}"
+          $SSH "echo '${{ secrets.GITHUB_TOKEN }}' | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin"
+
       - name: Run deploy script
         timeout-minutes: 20
         env:
@@ -166,6 +234,8 @@ jobs:
           RU_USER: ${{ secrets.RU_SERVER_USER }}
           RU_PATH: ${{ secrets.RU_SERVER_PATH }}
           SKIP_SMOKE: ${{ github.event.inputs.skip_smoke }}
+          IMAGE_TAG: ${{ needs.build-images.outputs.image_tag }}
+          IMAGE_PREFIX: ${{ needs.build-images.outputs.image_prefix }}
         run: |
           SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=15 -o ServerAliveInterval=30 ${RU_USER}@${RU_HOST}"
           $SSH "cd ${RU_PATH} && \
@@ -173,6 +243,8 @@ jobs:
             SKIP_HEALTH_CHECK=false \
             SKIP_SMOKE=${SKIP_SMOKE:-false} \
             CANARY_WAIT=${{ env.CANARY_WAIT }} \
+            IMAGE_TAG=${IMAGE_TAG} \
+            IMAGE_PREFIX=${IMAGE_PREFIX} \
             bash deploy/server-ru/scripts/remote-deploy-ru.sh"
 
       - name: Post-deploy verification
