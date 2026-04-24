@@ -91,6 +91,12 @@ func NewSingBoxStatsCollector(
 	}
 }
 
+func (c *SingBoxStatsCollector) addAlert(alert *models.Alert) {
+	if c.alertSvc != nil {
+		c.addAlert(alert)
+	}
+}
+
 func (c *SingBoxStatsCollector) Start(ctx context.Context) {
 	c.logger.Info("запуск сборщика статистики VLESS-клиентов", "api", c.apiURL, "interval", c.interval)
 
@@ -115,7 +121,7 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 	if err != nil {
 		if c.apiReachable {
 			c.logger.Error("sing-box Clash API недоступен", "api", c.apiURL, "error", err)
-			c.alertSvc.AddAlert(&models.Alert{
+			c.addAlert(&models.Alert{
 				ID:        fmt.Sprintf("clash-api-down-%d", time.Now().Unix()),
 				Type:      "system",
 				Message:   "sing-box Clash API недоступен: " + err.Error(),
@@ -129,7 +135,7 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 
 	if !c.apiReachable {
 		c.logger.Info("sing-box Clash API снова доступен", "api", c.apiURL)
-		c.alertSvc.AddAlert(&models.Alert{
+		c.addAlert(&models.Alert{
 			ID:        fmt.Sprintf("clash-api-up-%d", time.Now().Unix()),
 			Type:      "system",
 			Message:   "sing-box Clash API снова доступен",
@@ -192,7 +198,7 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 		if !c.onlinePeers[peerID] {
 			peer, err := c.peerRepo.GetByID(ctx, peerID)
 			if err == nil {
-				c.alertSvc.AddAlert(&models.Alert{
+				c.addAlert(&models.Alert{
 					ID:        fmt.Sprintf("peer-online-%s-%d", peerID, time.Now().Unix()),
 					Type:      "peer",
 					Message:   "Клиент подключился: " + peer.Name,
@@ -206,7 +212,7 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 		if !currentOnline[peerID] {
 			peer, err := c.peerRepo.GetByID(ctx, peerID)
 			if err == nil {
-				c.alertSvc.AddAlert(&models.Alert{
+				c.addAlert(&models.Alert{
 					ID:        fmt.Sprintf("peer-offline-%s-%d", peerID, time.Now().Unix()),
 					Type:      "peer",
 					Message:   "Клиент отключился: " + peer.Name,
