@@ -147,7 +147,7 @@ PREV_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 echo "${PREV_COMMIT}" > "${DEPLOY_PATH}/.deploy-previous-tag"
 ok "Previous commit: ${PREV_COMMIT}"
 
-ls -1t "${DEPLOY_PATH}/backups/db_"*.sqlite.bak 2>/dev/null | tail -n +"$((BACKUP_KEEP+1))" | xargs -r rm -f
+ls -1t "${DEPLOY_PATH}/backups/"db_*.sqlite.bak 2>/dev/null | tail -n +"$((BACKUP_KEEP+1))" | xargs -r rm -f || true
 ok "Старые бэкапы очищены (оставляю ${BACKUP_KEEP})"
 
 # ═══════════════════════════════════
