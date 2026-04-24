@@ -110,12 +110,18 @@ func (c *SingBoxStatsCollector) Start(ctx context.Context) {
 	}
 }
 
+func (c *SingBoxStatsCollector) addAlert(ctx context.Context, alert *models.Alert) {
+	if c.alertSvc != nil {
+		c.alertSvc.AddAlert(ctx, alert)
+	}
+}
+
 func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 	resp, err := c.fetchConnections()
 	if err != nil {
 		if c.apiReachable {
 			c.logger.Error("sing-box Clash API недоступен", "api", c.apiURL, "error", err)
-			c.alertSvc.AddAlert(ctx, &models.Alert{
+			c.addAlert(ctx, &models.Alert{
 				ID:        fmt.Sprintf("clash-api-down-%d", time.Now().Unix()),
 				Type:      "system",
 				Message:   "sing-box Clash API недоступен: " + err.Error(),
@@ -129,7 +135,7 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 
 	if !c.apiReachable {
 		c.logger.Info("sing-box Clash API снова доступен", "api", c.apiURL)
-		c.alertSvc.AddAlert(ctx, &models.Alert{
+		c.addAlert(ctx, &models.Alert{
 			ID:        fmt.Sprintf("clash-api-up-%d", time.Now().Unix()),
 			Type:      "system",
 			Message:   "sing-box Clash API снова доступен",
@@ -192,13 +198,13 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 		if !c.onlinePeers[peerID] {
 			peer, err := c.peerRepo.GetByID(ctx, peerID)
 			if err == nil {
-				c.alertSvc.AddAlert(ctx, &models.Alert{
-					ID:        fmt.Sprintf("peer-online-%s-%d", peerID, time.Now().Unix()),
-					Type:      "peer",
-					Message:   "Клиент подключился: " + peer.Name,
-					Severity:  "info",
-					Timestamp: time.Now(),
-				})
+			c.addAlert(ctx, &models.Alert{
+				ID:        fmt.Sprintf("peer-online-%s-%d", peerID, time.Now().Unix()),
+				Type:      "peer",
+				Message:   "Клиент подключился: " + peer.Name,
+				Severity:  "info",
+				Timestamp: time.Now(),
+			})
 			}
 		}
 	}
@@ -206,13 +212,13 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 		if !currentOnline[peerID] {
 			peer, err := c.peerRepo.GetByID(ctx, peerID)
 			if err == nil {
-				c.alertSvc.AddAlert(ctx, &models.Alert{
-					ID:        fmt.Sprintf("peer-offline-%s-%d", peerID, time.Now().Unix()),
-					Type:      "peer",
-					Message:   "Клиент отключился: " + peer.Name,
-					Severity:  "warning",
-					Timestamp: time.Now(),
-				})
+			c.addAlert(ctx, &models.Alert{
+				ID:        fmt.Sprintf("peer-offline-%s-%d", peerID, time.Now().Unix()),
+				Type:      "peer",
+				Message:   "Клиент отключился: " + peer.Name,
+				Severity:  "warning",
+				Timestamp: time.Now(),
+			})
 			}
 		}
 	}
