@@ -839,7 +839,7 @@ func TestSingBoxStatsCollector_FetchConnections(t *testing.T) {
 	defer server.Close()
 
 	addr := strings.TrimPrefix(server.URL, "http://")
-	collector := NewSingBoxStatsCollector(nil, nil, addr, "", testLogger())
+	collector := NewSingBoxStatsCollector(nil, nil, nil, addr, "", testLogger())
 
 	resp, err := collector.fetchConnections()
 	if err != nil {
@@ -867,7 +867,7 @@ func TestSingBoxStatsCollector_FetchConnections_WithSecret(t *testing.T) {
 	defer server.Close()
 
 	addr := strings.TrimPrefix(server.URL, "http://")
-	collector := NewSingBoxStatsCollector(nil, nil, addr, "my-secret", testLogger())
+	collector := NewSingBoxStatsCollector(nil, nil, nil, addr, "my-secret", testLogger())
 
 	_, err := collector.fetchConnections()
 	if err != nil {
@@ -876,7 +876,7 @@ func TestSingBoxStatsCollector_FetchConnections_WithSecret(t *testing.T) {
 }
 
 func TestSingBoxStatsCollector_FetchConnections_ServerDown(t *testing.T) {
-	collector := NewSingBoxStatsCollector(nil, nil, "127.0.0.1:1", "", testLogger())
+	collector := NewSingBoxStatsCollector(nil, nil, nil, "127.0.0.1:1", "", testLogger())
 
 	_, err := collector.fetchConnections()
 	if err == nil {
@@ -916,7 +916,7 @@ func TestSingBoxStatsCollector_Collect_Integration(t *testing.T) {
 	defer server.Close()
 
 	addr := strings.TrimPrefix(server.URL, "http://")
-	collector := NewSingBoxStatsCollector(peerRepo, trafficRepo, addr, "", testLogger())
+	collector := NewSingBoxStatsCollector(peerRepo, trafficRepo, nil, addr, "", testLogger())
 	collector.connState = make(map[string]*connBytes)
 
 	collector.collect(context.Background())
