@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Tabs, Card, Table, Tag, Select, Spin, Alert, Typography, Row, Col, Badge } from 'antd'
-import { CheckCircleOutlined, CloseCircleOutlined, BellOutlined } from '@ant-design/icons'
+import { Tabs, Card, Table, Tag, Select, Spin, Alert, Typography, Row, Col, Badge, Empty } from 'antd'
+import { CheckCircleOutlined, CloseCircleOutlined, BellOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import { useTrafficLogs, useRoutingLogs, useMonitoringStats, useAlerts, usePeerMonitor } from '../hooks/useMonitoring'
 import { usePeers } from '../hooks/usePeers'
 import TrafficChart from '../components/TrafficChart'
@@ -33,16 +33,29 @@ function isOnline(lastSeen?: string): boolean {
 }
 
 export default function Monitoring() {
-  const { data: peers } = usePeers()
+  const { data: peers, error: peersError } = usePeers()
   const { data: stats, isLoading: statsLoading, error: statsError } = useMonitoringStats()
-  const { data: alerts } = useAlerts()
+  const { data: alerts, error: alertsError } = useAlerts()
   const [selectedPeer, setSelectedPeer] = useState<string | undefined>()
 
-  const { data: trafficLogs, isLoading: trafficLoading } = useTrafficLogs(selectedPeer)
-  const { data: routingLogs, isLoading: logsLoading } = useRoutingLogs(selectedPeer)
+  const { data: trafficLogs, isLoading: trafficLoading, error: trafficError } = useTrafficLogs(selectedPeer)
+  const { data: routingLogs, isLoading: logsLoading, error: logsError } = useRoutingLogs(selectedPeer)
   const { data: peerData } = usePeerMonitor(selectedPeer)
 
-  if (statsError) return <Alert type="error" message="Ошибка загрузки мониторинга" />
+  if (statsError) {
+    return (
+      <div>
+        <h2>Мониторинг</h2>
+        <Alert
+          type="error"
+          message="Ошибка загрузки мониторинга"
+          description="Не удалось подключиться к API серверу. Проверьте что бэкенд запущен и доступен."
+          showIcon
+          icon={<ExclamationCircleOutlined />}
+        />
+      </div>
+    )
+  }
 
   const peerOptions = (peers ?? []).map((p) => {
     const online = isOnline(p.last_seen)
@@ -110,7 +123,7 @@ export default function Monitoring() {
         </Card>
       </Spin>
 
-      {(peers ?? []).length > 0 && (
+      {(peers ?? []).length > 0 ? (
         <Card title="Клиенты" style={{ marginBottom: 16 }} size="small">
           <Row gutter={[12, 8]}>
             {(peers ?? []).map((p) => {
@@ -150,6 +163,14 @@ export default function Monitoring() {
             })}
           </Row>
         </Card>
+      ) : !statsLoading && (
+        <Card style={{ marginBottom: 16 }}>
+          <Empty description="Нет WireGuard клиентов. Добавьте клиентов на странице управления." />
+        </Card>
+      )}
+
+      {peersError && (
+        <Alert type="warning" message="Ошибка загрузки клиентов" style={{ marginBottom: 16 }} showIcon />
       )}
 
       <div style={{ marginBottom: 16, display: 'flex', gap: 16, alignItems: 'center' }}>
@@ -189,7 +210,9 @@ export default function Monitoring() {
           {
             key: 'traffic',
             label: 'Трафик',
-            children: (
+            children: trafficError ? (
+              <Alert type="error" message="Ошибка загрузки данных трафика" description="Не удалось получить логи трафика от сервера." showIcon />
+            ) : (
               <Spin spinning={trafficLoading}>
                 <TrafficChart data={trafficLogs ?? []} />
               </Spin>
@@ -198,7 +221,9 @@ export default function Monitoring() {
           {
             key: 'logs',
             label: 'Логи',
-            children: (
+            children: logsError ? (
+              <Alert type="error" message="Ошибка загрузки логов маршрутизации" description="Не удалось получить логи от сервера." showIcon />
+            ) : (
               <Table
                 dataSource={routingLogs ?? []}
                 columns={logColumns}
@@ -216,7 +241,9 @@ export default function Monitoring() {
                 <BellOutlined /> Алерты {(alerts ?? []).length > 0 ? `(${alerts!.length})` : ''}
               </span>
             ),
-            children: (
+            children: alertsError ? (
+              <Alert type="error" message="Ошибка загрузки алертов" showIcon />
+            ) : (
               <Table
                 dataSource={alerts ?? []}
                 columns={[

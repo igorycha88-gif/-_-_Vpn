@@ -43,7 +43,7 @@ export default function App() {
   return (
     <ConfigProvider locale={ruRU}>
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
+        <BrowserRouter basename="/admin">
           <Routes>
             <Route
               path="/login"
