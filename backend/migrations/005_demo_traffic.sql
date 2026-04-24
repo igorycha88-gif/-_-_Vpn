@@ -4,11 +4,11 @@ VALUES
 
 INSERT OR IGNORE INTO wg_peers (id, name, email, device_type, public_key, private_key, address, dns, mtu, is_active, total_rx, total_tx, last_seen)
 VALUES
-    ('demo-peer-002', 'Android (Демо)', NULL, 'android', 'b2c3d4e5-f6a7-8901-bcde-f23456789012', 'demo-private-key-002', '10.10.0.3', '1.1.1.1,8.8.8.8', 1280, 1, 31457280, 20971520, datetime('now', '-1 minutes'));
+    ('demo-peer-002', 'Android (Демо)', '', 'android', 'b2c3d4e5-f6a7-8901-bcde-f23456789012', 'demo-private-key-002', '10.10.0.3', '1.1.1.1,8.8.8.8', 1280, 1, 31457280, 20971520, datetime('now', '-1 minutes'));
 
 INSERT OR IGNORE INTO wg_peers (id, name, email, device_type, public_key, private_key, address, dns, mtu, is_active, total_rx, total_tx, last_seen)
 VALUES
-    ('demo-peer-003', 'MacBook (Демо)', NULL, 'iphone', 'c3d4e5f6-a7b8-9012-cdef-345678901234', 'demo-private-key-003', '10.10.0.4', '1.1.1.1,8.8.8.8', 1280, 0, 10485760, 5242880, datetime('now', '-1 hour'));
+    ('demo-peer-003', 'MacBook (Демо)', '', 'iphone', 'c3d4e5f6-a7b8-9012-cdef-345678901234', 'demo-private-key-003', '10.10.0.4', '1.1.1.1,8.8.8.8', 1280, 0, 10485760, 5242880, datetime('now', '-1 hour'));
 
 INSERT OR IGNORE INTO traffic_logs (peer_id, domain, dest_ip, dest_port, action, bytes_rx, bytes_tx, timestamp)
 VALUES
@@ -64,11 +64,11 @@ VALUES
 
 INSERT OR IGNORE INTO traffic_logs (peer_id, domain, dest_ip, dest_port, action, bytes_rx, bytes_tx, timestamp)
 VALUES
-    (NULL, NULL, '10.20.0.2', 0, 'tunnel_transfer', 104857600, 52428800, datetime('now', '-1 minutes'));
+    ('', '', '10.20.0.2', 0, 'tunnel_transfer', 104857600, 52428800, datetime('now', '-1 minutes'));
 
 INSERT OR IGNORE INTO traffic_logs (peer_id, domain, dest_ip, dest_port, action, bytes_rx, bytes_tx, timestamp)
 VALUES
-    (NULL, NULL, '10.20.0.2', 0, 'tunnel_transfer', 78643200, 41943040, datetime('now', '-11 minutes'));
+    ('', '', '10.20.0.2', 0, 'tunnel_transfer', 78643200, 41943040, datetime('now', '-11 minutes'));
 
 INSERT OR IGNORE INTO traffic_logs (peer_id, domain, dest_ip, dest_port, action, bytes_rx, bytes_tx, timestamp)
 VALUES
