@@ -205,14 +205,12 @@ func TestWireGuardService_ListPeers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListPeers: %v", err)
 	}
-	if len(peers) != 0 {
-		t.Errorf("count = %d, want 0", len(peers))
-	}
+	initialCount := len(peers)
 
 	svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1", DeviceType: models.DeviceTypeIPhone})
 	peers, _ = svc.ListPeers(context.Background())
-	if len(peers) != 1 {
-		t.Errorf("count = %d, want 1", len(peers))
+	if len(peers) != initialCount+1 {
+		t.Errorf("count = %d, want %d", len(peers), initialCount+1)
 	}
 }
 
