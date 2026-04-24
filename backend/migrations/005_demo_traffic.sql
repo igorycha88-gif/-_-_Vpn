@@ -64,11 +64,11 @@ VALUES
 
 INSERT OR IGNORE INTO traffic_logs (peer_id, domain, dest_ip, dest_port, action, bytes_rx, bytes_tx, timestamp)
 VALUES
-    ('', '', '10.20.0.2', 0, 'tunnel_transfer', 104857600, 52428800, datetime('now', '-1 minutes'));
+    ('demo-peer-001', '', '10.20.0.2', 0, 'tunnel_transfer', 104857600, 52428800, datetime('now', '-1 minutes'));
 
 INSERT OR IGNORE INTO traffic_logs (peer_id, domain, dest_ip, dest_port, action, bytes_rx, bytes_tx, timestamp)
 VALUES
-    ('', '', '10.20.0.2', 0, 'tunnel_transfer', 78643200, 41943040, datetime('now', '-11 minutes'));
+    ('demo-peer-001', '', '10.20.0.2', 0, 'tunnel_transfer', 78643200, 41943040, datetime('now', '-11 minutes'));
 
 INSERT OR IGNORE INTO traffic_logs (peer_id, domain, dest_ip, dest_port, action, bytes_rx, bytes_tx, timestamp)
 VALUES
