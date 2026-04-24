@@ -93,7 +93,7 @@ func NewSingBoxStatsCollector(
 
 func (c *SingBoxStatsCollector) addAlert(alert *models.Alert) {
 	if c.alertSvc != nil {
-		c.addAlert(alert)
+		c.alertSvc.AddAlert(alert)
 	}
 }
 
