@@ -156,9 +156,9 @@ ok "Старые бэкапы очищены (оставляю ${BACKUP_KEEP})"
 
 step "ШАГ 2: Pull Docker-образов"
 
-log "IMAGE_TAG=${IMAGE_TAG:-latest} IMAGE_PREFIX=${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/-_-_vpn}"
+log "IMAGE_TAG=${IMAGE_TAG:-latest} IMAGE_PREFIX=${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/smarttraffic}"
 log "Подтягиваю образы из GHCR..."
-if ! IMAGE_TAG="${IMAGE_TAG:-latest}" IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/-_-_vpn}" docker compose -f "${COMPOSE_FILE}" pull 2>&1; then
+if ! IMAGE_TAG="${IMAGE_TAG:-latest}" IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/smarttraffic}" docker compose -f "${COMPOSE_FILE}" pull 2>&1; then
     err "Ошибка pull Docker-образов!"
     rollback_and_exit
 fi
@@ -175,7 +175,7 @@ docker compose -f "${COMPOSE_FILE}" down --timeout 30 2>/dev/null || true
 ok "Сервисы остановлены"
 
 log "Запускаю новые сервисы (IMAGE_TAG=${IMAGE_TAG:-latest})..."
-if ! IMAGE_TAG="${IMAGE_TAG:-latest}" IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/-_-_vpn}" docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans 2>&1; then
+if ! IMAGE_TAG="${IMAGE_TAG:-latest}" IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/smarttraffic}" docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans 2>&1; then
     err "Ошибка запуска контейнеров!"
     docker compose -f "${COMPOSE_FILE}" logs --tail=30 2>&1 || true
     rollback_and_exit
