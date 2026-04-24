@@ -134,6 +134,7 @@ func main() {
 			r.Get("/monitoring/alerts", monitoringHandler.Alerts)
 			r.Get("/monitoring/stats", monitoringHandler.Stats)
 			r.Get("/monitoring/peer/{id}", monitoringHandler.PeerMonitor)
+			r.Get("/monitoring/peers-stats", monitoringHandler.PeersStats)
 		})
 	})
 

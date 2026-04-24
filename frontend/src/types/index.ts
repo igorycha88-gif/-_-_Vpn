@@ -141,6 +141,18 @@ export interface Alert {
   timestamp: string
 }
 
+export interface PeerTrafficSummary {
+  peer_id: string
+  peer_name: string
+  total_rx: number
+  total_tx: number
+  online: boolean
+  is_active: boolean
+  last_seen?: string
+  conn_count: number
+  top_domain?: string
+}
+
 export interface LoginRequest {
   email: string
   password: string

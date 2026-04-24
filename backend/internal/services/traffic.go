@@ -10,7 +10,7 @@ import (
 	"smarttraffic/internal/repository"
 )
 
-const maxAlerts = 100
+const maxInMemoryAlerts = 100
 
 type TrafficService struct {
 	trafficRepo repository.TrafficRepository
@@ -26,7 +26,7 @@ func NewTrafficService(trafficRepo repository.TrafficRepository, peerRepo reposi
 		trafficRepo: trafficRepo,
 		peerRepo:    peerRepo,
 		logger:      logger,
-		alerts:      make([]*models.Alert, 0, maxAlerts),
+		alerts:      make([]*models.Alert, 0, maxInMemoryAlerts),
 	}
 }
 
@@ -80,21 +80,41 @@ func (s *TrafficService) CleanupOldLogs(ctx context.Context, retainDays int) (in
 	return deleted, nil
 }
 
-func (s *TrafficService) AddAlert(alert *models.Alert) {
+func (s *TrafficService) AddAlert(ctx context.Context, alert *models.Alert) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	s.alerts = append([]*models.Alert{alert}, s.alerts...)
-	if len(s.alerts) > maxAlerts {
-		s.alerts = s.alerts[:maxAlerts]
+	if len(s.alerts) > maxInMemoryAlerts {
+		s.alerts = s.alerts[:maxInMemoryAlerts]
+	}
+	s.mu.Unlock()
+
+	if err := s.trafficRepo.InsertAlert(ctx, alert); err != nil {
+		s.logger.Error("ошибка сохранения алерта в БД", "error", err)
 	}
 }
 
 func (s *TrafficService) GetAlerts(ctx context.Context) ([]*models.Alert, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	dbAlerts, err := s.trafficRepo.ListAlerts(ctx, 100)
+	if err != nil {
+		s.mu.Lock()
+		result := make([]*models.Alert, len(s.alerts))
+		copy(result, s.alerts)
+		s.mu.Unlock()
+		return result, nil
+	}
+	if dbAlerts == nil {
+		dbAlerts = []*models.Alert{}
+	}
+	return dbAlerts, nil
+}
 
-	result := make([]*models.Alert, len(s.alerts))
-	copy(result, s.alerts)
-	return result, nil
+func (s *TrafficService) GetAllPeerStats(ctx context.Context) ([]*models.PeerTrafficSummary, error) {
+	summaries, err := s.trafficRepo.GetPeerTrafficSummary(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("service.traffic.GetAllPeerStats: %w", err)
+	}
+	if summaries == nil {
+		summaries = []*models.PeerTrafficSummary{}
+	}
+	return summaries, nil
 }

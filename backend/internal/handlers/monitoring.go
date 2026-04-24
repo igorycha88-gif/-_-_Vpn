@@ -112,9 +112,20 @@ func (h *MonitoringHandler) PeerMonitor(w http.ResponseWriter, r *http.Request) 
 	}
 
 	result := map[string]interface{}{
-		"peer":       peer,
+		"peer":         peer,
 		"traffic_logs": logs,
 	}
 
 	JSON(w, http.StatusOK, result)
+}
+
+func (h *MonitoringHandler) PeersStats(w http.ResponseWriter, r *http.Request) {
+	summaries, err := h.trafficSvc.GetAllPeerStats(r.Context())
+	if err != nil {
+		h.logger.Error("ошибка получения статистики по клиентам", "error", err)
+		ErrorJSON(w, http.StatusInternalServerError, "внутренняя ошибка сервера")
+		return
+	}
+
+	JSON(w, http.StatusOK, summaries)
 }

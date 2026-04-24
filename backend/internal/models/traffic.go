@@ -37,3 +37,15 @@ type Alert struct {
 	Severity  string    `json:"severity"`
 	Timestamp time.Time `json:"timestamp"`
 }
+
+type PeerTrafficSummary struct {
+	PeerID    string    `json:"peer_id"`
+	PeerName  string    `json:"peer_name"`
+	TotalRx   int64     `json:"total_rx"`
+	TotalTx   int64     `json:"total_tx"`
+	Online    bool      `json:"online"`
+	IsActive  bool      `json:"is_active"`
+	LastSeen  *time.Time `json:"last_seen,omitempty"`
+	ConnCount int       `json:"conn_count"`
+	TopDomain string    `json:"top_domain,omitempty"`
+}
