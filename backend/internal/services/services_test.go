@@ -575,7 +575,7 @@ func newTestSingBoxService(t *testing.T) (*SingBoxService, *sql.DB) {
 	sbCfg := &config.SingBoxConfig{ConfigPath: t.TempDir() + "/config.json", ClashAPIAddr: "127.0.0.1:9090"}
 	vlessCfg := testVLESSConfig()
 	wgCfg := &config.WGConfig{MTU: 1280, TunnelLocalAddress: "10.20.0.2/30", TunnelPrivateKey: "testkey", TunnelPeerPublicKey: "testpeerkey"}
-	srvCfg := &config.ServerConfig{ForeignIP: "1.2.3.4"}
+	srvCfg := &config.ServerConfig{ForeignIP: "1.2.3.4", ForeignVLESS: config.ForeignVLESSConfig{UUID: "test-uuid", ServerName: "www.microsoft.com", RealityPublicKey: "test-pk", RealityShortID: "test-sid"}}
 	svc := NewSingBoxService(routeRepo, dnsRepo, peerRepo, sbCfg, vlessCfg, wgCfg, srvCfg, testLogger())
 	return svc, db
 }
