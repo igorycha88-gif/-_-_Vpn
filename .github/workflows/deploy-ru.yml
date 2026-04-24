@@ -69,7 +69,7 @@ jobs:
           SHA=$(git rev-parse --short HEAD)
           TIMESTAMP=$(date +%Y%m%d%H%M%S)
           TAG="${SHA}-${TIMESTAMP}"
-          IMAGE_PREFIX="${{ env.REGISTRY }}/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')"
+          IMAGE_PREFIX="${{ env.REGISTRY }}/${{ github.repository_owner }}/smarttraffic"
           echo "image_tag=${TAG}" >> $GITHUB_OUTPUT
           echo "image_prefix=${IMAGE_PREFIX}" >> $GITHUB_OUTPUT
           echo "Image prefix: ${IMAGE_PREFIX}"
