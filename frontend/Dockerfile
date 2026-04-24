@@ -25,7 +25,7 @@ server {
     }
 
     location /api/ {
-        set $api_upstream http://api:8080;
+        set $api_upstream http://host.docker.internal:8080;
         proxy_pass $api_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
