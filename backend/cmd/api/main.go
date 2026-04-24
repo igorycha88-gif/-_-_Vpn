@@ -130,6 +130,7 @@ func main() {
 			r.Get("/servers/foreign/stats", serverHandler.ForeignStats)
 
 			r.Get("/monitoring/traffic", monitoringHandler.Traffic)
+			r.Get("/monitoring/traffic/aggregate", monitoringHandler.TrafficAggregate)
 			r.Get("/monitoring/logs", monitoringHandler.Logs)
 			r.Get("/monitoring/alerts", monitoringHandler.Alerts)
 			r.Get("/monitoring/stats", monitoringHandler.Stats)

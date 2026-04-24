@@ -38,6 +38,53 @@ func (h *MonitoringHandler) Traffic(w http.ResponseWriter, r *http.Request) {
 	JSON(w, http.StatusOK, logs)
 }
 
+type trafficAggregate struct {
+	Domain string `json:"domain"`
+	RX     int64  `json:"rx"`
+	TX     int64  `json:"tx"`
+	Count  int    `json:"count"`
+}
+
+func (h *MonitoringHandler) TrafficAggregate(w http.ResponseWriter, r *http.Request) {
+	filter := models.TrafficFilter{
+		PeerID: r.URL.Query().Get("peer_id"),
+		Limit:  1000,
+	}
+
+	logs, err := h.trafficSvc.GetTrafficLogs(r.Context(), filter)
+	if err != nil {
+		h.logger.Error("ошибка получения агрегации трафика", "error", err)
+		ErrorJSON(w, http.StatusInternalServerError, "внутренняя ошибка сервера")
+		return
+	}
+
+	aggMap := make(map[string]*trafficAggregate)
+	for _, l := range logs {
+		key := l.Domain
+		if key == "" {
+			key = l.DestIP
+		}
+		if key == "" {
+			key = "unknown"
+		}
+		a, ok := aggMap[key]
+		if !ok {
+			a = &trafficAggregate{Domain: key}
+			aggMap[key] = a
+		}
+		a.RX += l.BytesRx
+		a.TX += l.BytesTx
+		a.Count++
+	}
+
+	result := make([]*trafficAggregate, 0, len(aggMap))
+	for _, a := range aggMap {
+		result = append(result, a)
+	}
+
+	JSON(w, http.StatusOK, result)
+}
+
 func (h *MonitoringHandler) Logs(w http.ResponseWriter, r *http.Request) {
 	filter := models.TrafficFilter{
 		PeerID: r.URL.Query().Get("peer_id"),

@@ -1,9 +1,22 @@
 import client from './client'
 import type { TrafficLog, TotalStats, Alert, Peer, PeerTrafficSummary } from '../types'
 
+export interface TrafficAggregate {
+  domain: string
+  rx: number
+  tx: number
+  count: number
+}
+
 export async function getTrafficLogs(peerId?: string): Promise<TrafficLog[]> {
   const params = peerId ? { peer_id: peerId } : {}
   const res = await client.get<TrafficLog[]>('/monitoring/traffic', { params })
+  return res.data
+}
+
+export async function getTrafficAggregate(peerId?: string): Promise<TrafficAggregate[]> {
+  const params = peerId ? { peer_id: peerId } : {}
+  const res = await client.get<TrafficAggregate[]>('/monitoring/traffic/aggregate', { params })
   return res.data
 }
 

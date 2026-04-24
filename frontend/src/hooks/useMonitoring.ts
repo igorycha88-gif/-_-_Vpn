@@ -9,6 +9,14 @@ export function useTrafficLogs(peerId?: string) {
   })
 }
 
+export function useTrafficAggregate(peerId?: string) {
+  return useQuery({
+    queryKey: ['monitoring', 'traffic-aggregate', peerId],
+    queryFn: () => monitoringApi.getTrafficAggregate(peerId),
+    refetchInterval: 10000,
+  })
+}
+
 export function useRoutingLogs(peerId?: string) {
   return useQuery({
     queryKey: ['monitoring', 'logs', peerId],
