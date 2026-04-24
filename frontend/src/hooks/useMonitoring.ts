@@ -41,3 +41,11 @@ export function usePeerMonitor(peerId: string | undefined) {
     refetchInterval: 10000,
   })
 }
+
+export function usePeersStats() {
+  return useQuery({
+    queryKey: ['monitoring', 'peers-stats'],
+    queryFn: () => monitoringApi.getPeersStats(),
+    refetchInterval: 15000,
+  })
+}

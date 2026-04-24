@@ -1,5 +1,5 @@
 import client from './client'
-import type { TrafficLog, TotalStats, Alert, Peer } from '../types'
+import type { TrafficLog, TotalStats, Alert, Peer, PeerTrafficSummary } from '../types'
 
 export async function getTrafficLogs(peerId?: string): Promise<TrafficLog[]> {
   const params = peerId ? { peer_id: peerId } : {}
@@ -30,5 +30,10 @@ export interface PeerMonitorResponse {
 
 export async function getPeerMonitor(peerId: string): Promise<PeerMonitorResponse> {
   const res = await client.get<PeerMonitorResponse>(`/monitoring/peer/${peerId}`)
+  return res.data
+}
+
+export async function getPeersStats(): Promise<PeerTrafficSummary[]> {
+  const res = await client.get<PeerTrafficSummary[]>('/monitoring/peers-stats')
   return res.data
 }

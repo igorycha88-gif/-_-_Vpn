@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Tabs, Card, Table, Tag, Select, Spin, Alert, Typography, Row, Col, Badge, Empty } from 'antd'
-import { CheckCircleOutlined, CloseCircleOutlined, BellOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
-import { useTrafficLogs, useRoutingLogs, useMonitoringStats, useAlerts, usePeerMonitor } from '../hooks/useMonitoring'
+import { Tabs, Card, Table, Tag, Select, Spin, Alert, Typography, Row, Col, Badge, Empty, Progress } from 'antd'
+import { CheckCircleOutlined, CloseCircleOutlined, BellOutlined, ExclamationCircleOutlined, BarChartOutlined } from '@ant-design/icons'
+import { useTrafficLogs, useRoutingLogs, useMonitoringStats, useAlerts, usePeerMonitor, usePeersStats } from '../hooks/useMonitoring'
 import { usePeers } from '../hooks/usePeers'
 import TrafficChart from '../components/TrafficChart'
+import type { PeerTrafficSummary } from '../types'
 
 const { Text } = Typography
 
@@ -32,10 +33,24 @@ function isOnline(lastSeen?: string): boolean {
   return (Date.now() - new Date(lastSeen).getTime()) < 120_000
 }
 
+function renderAction(action: string) {
+  const map: Record<string, { label: string; color: string }> = {
+    direct: { label: 'Напрямую', color: 'green' },
+    proxy: { label: 'Прокси', color: 'blue' },
+    vless_transfer: { label: 'VLESS', color: 'purple' },
+    tunnel_transfer: { label: 'Тоннель', color: 'geekblue' },
+    block: { label: 'Блок', color: 'red' },
+    transfer: { label: 'Трафик', color: 'purple' },
+  }
+  const info = map[action] || { label: action, color: 'default' }
+  return <Tag color={info.color}>{info.label}</Tag>
+}
+
 export default function Monitoring() {
   const { data: peers, error: peersError } = usePeers()
   const { data: stats, isLoading: statsLoading, error: statsError } = useMonitoringStats()
   const { data: alerts, error: alertsError } = useAlerts()
+  const { data: peersStats, isLoading: peersStatsLoading, error: peersStatsError } = usePeersStats()
   const [selectedPeer, setSelectedPeer] = useState<string | undefined>()
 
   const { data: trafficLogs, isLoading: trafficLoading, error: trafficError } = useTrafficLogs(selectedPeer)
@@ -88,11 +103,7 @@ export default function Monitoring() {
       title: 'Действие',
       dataIndex: 'action',
       key: 'action',
-      render: (action: string) => (
-        <Tag color={action === 'direct' ? 'green' : action === 'proxy' ? 'blue' : action === 'transfer' ? 'purple' : 'red'}>
-          {action === 'direct' ? 'Напрямую' : action === 'proxy' ? 'Прокси' : action === 'transfer' ? 'Трафик' : 'Блок'}
-        </Tag>
-      ),
+      render: (action: string) => renderAction(action),
     },
     {
       title: 'RX',
@@ -105,6 +116,81 @@ export default function Monitoring() {
       dataIndex: 'bytes_tx',
       key: 'bytes_tx',
       render: (v: number) => formatBytes(v),
+    },
+  ]
+
+  const totalAllTraffic = (peersStats ?? []).reduce((acc, p) => acc + p.total_rx + p.total_tx, 0)
+
+  const peerStatsColumns = [
+    {
+      title: 'Клиент',
+      key: 'name',
+      render: (_: unknown, r: PeerTrafficSummary) => (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Badge status={r.online ? 'success' : 'default'} />
+          <Text strong>{r.peer_name}</Text>
+        </span>
+      ),
+    },
+    {
+      title: 'Статус',
+      key: 'status',
+      width: 100,
+      render: (_: unknown, r: PeerTrafficSummary) =>
+        r.online ? (
+          <Tag icon={<CheckCircleOutlined />} color="success">Онлайн</Tag>
+        ) : (
+          <Tag icon={<CloseCircleOutlined />} color="default">Офлайн</Tag>
+        ),
+    },
+    {
+      title: 'RX',
+      dataIndex: 'total_rx',
+      key: 'total_rx',
+      width: 120,
+      render: (v: number) => formatBytes(v),
+    },
+    {
+      title: 'TX',
+      dataIndex: 'total_tx',
+      key: 'total_tx',
+      width: 120,
+      render: (v: number) => formatBytes(v),
+    },
+    {
+      title: 'Доля трафика',
+      key: 'share',
+      width: 200,
+      render: (_: unknown, r: PeerTrafficSummary) => {
+        const total = r.total_rx + r.total_tx
+        const pct = totalAllTraffic > 0 ? Math.round((total / totalAllTraffic) * 100) : 0
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Progress percent={pct} size="small" style={{ width: 100, marginBottom: 0 }} />
+            <Text type="secondary" style={{ fontSize: 12 }}>{formatBytes(total)}</Text>
+          </div>
+        )
+      },
+    },
+    {
+      title: 'Соединений (24ч)',
+      dataIndex: 'conn_count',
+      key: 'conn_count',
+      width: 130,
+      render: (v: number) => v.toLocaleString('ru'),
+    },
+    {
+      title: 'Топ домен',
+      dataIndex: 'top_domain',
+      key: 'top_domain',
+      render: (v: string) => v ? <Tag>{v}</Tag> : '—',
+    },
+    {
+      title: 'Последняя активность',
+      dataIndex: 'last_seen',
+      key: 'last_seen',
+      width: 160,
+      render: (v: string) => timeAgo(v),
     },
   ]
 
@@ -165,7 +251,7 @@ export default function Monitoring() {
         </Card>
       ) : !statsLoading && (
         <Card style={{ marginBottom: 16 }}>
-          <Empty description="Нет WireGuard клиентов. Добавьте клиентов на странице управления." />
+          <Empty description="Нет VLESS клиентов. Добавьте клиентов на странице управления." />
         </Card>
       )}
 
@@ -207,6 +293,31 @@ export default function Monitoring() {
 
       <Tabs
         items={[
+          {
+            key: 'peers-stats',
+            label: (
+              <span>
+                <BarChartOutlined /> Статистика по клиентам
+              </span>
+            ),
+            children: peersStatsError ? (
+              <Alert type="error" message="Ошибка загрузки статистики" description="Не удалось получить статистику по клиентам." showIcon />
+            ) : (
+              <Spin spinning={peersStatsLoading}>
+                {(peersStats ?? []).length > 0 ? (
+                  <Table
+                    dataSource={peersStats ?? []}
+                    columns={peerStatsColumns}
+                    rowKey="peer_id"
+                    pagination={{ pageSize: 20 }}
+                    size="small"
+                  />
+                ) : (
+                  <Empty description="Нет данных о трафике клиентов" />
+                )}
+              </Spin>
+            ),
+          },
           {
             key: 'traffic',
             label: 'Трафик',
@@ -260,8 +371,9 @@ export default function Monitoring() {
                     key: 'type',
                     render: (v: string) => {
                       const colors: Record<string, string> = {
-                        peer_online: 'green',
-                        peer_offline: 'orange',
+                        peer: 'green',
+                        system: 'blue',
+                        tunnel: 'orange',
                       }
                       return <Tag color={colors[v] || 'blue'}>{v}</Tag>
                     },
