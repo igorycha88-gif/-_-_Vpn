@@ -1,0 +1,213 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      server:
+        description: 'Сервер для отката'
+        type: choice
+        options:
+          - ru
+          - foreign
+      target:
+        description: 'Цель отката (previous / commit SHA / deploy tag)'
+        required: false
+        default: 'previous'
+      restore_db:
+        description: 'Восстановить БД из бэкапа (только RU)'
+        type: boolean
+        default: true
+
+concurrency:
+  group: deploy-${{ github.event.inputs.server }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  rollback-ru:
+    name: Rollback RU Server
+    if: github.event.inputs.server == 'ru'
+    runs-on: ubuntu-latest
+    environment: production-ru
+    timeout-minutes: 20
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.RU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.RU_SSH_HOST_KEY }}" > ~/.ssh/known_hosts 2>/dev/null || \
+            ssh-keyscan -H "${{ secrets.RU_SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Determine rollback target
+        id: target
+        env:
+          RU_HOST: ${{ secrets.RU_SERVER_HOST }}
+          RU_USER: ${{ secrets.RU_SERVER_USER }}
+          RU_PATH: ${{ secrets.RU_SERVER_PATH }}
+          INPUT_TARGET: ${{ github.event.inputs.target }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=15 ${RU_USER}@${RU_HOST}"
+          DEPLOY_PATH="${RU_PATH:-/opt/smarttraffic}"
+
+          if [[ "${INPUT_TARGET}" == "previous" ]]; then
+            TARGET=$($SSH "cat ${DEPLOY_PATH}/.deploy-previous-tag 2>/dev/null || echo ''")
+            if [[ -z "${TARGET}" ]]; then
+              echo "ERROR: Не найден предыдущий деплой-тег"
+              exit 1
+            fi
+          else
+            TARGET="${INPUT_TARGET}"
+          fi
+
+          echo "target=${TARGET}" >> $GITHUB_OUTPUT
+          echo "::notice::Rollback target: ${TARGET}"
+
+          echo "=== История деплоев ==="
+          $SSH "tail -5 ${DEPLOY_PATH}/.deploy-history 2>/dev/null || echo 'Нет истории'"
+
+      - name: Restore database
+        if: github.event.inputs.restore_db == 'true'
+        env:
+          RU_HOST: ${{ secrets.RU_SERVER_HOST }}
+          RU_USER: ${{ secrets.RU_SERVER_USER }}
+          RU_PATH: ${{ secrets.RU_SERVER_PATH }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=15 ${RU_USER}@${RU_HOST}"
+          DEPLOY_PATH="${RU_PATH:-/opt/smarttraffic}"
+
+          LATEST_BACKUP=$($SSH "ls -1t ${DEPLOY_PATH}/backups/db_*.sqlite.bak 2>/dev/null | head -1" || true)
+          if [[ -n "${LATEST_BACKUP}" ]]; then
+            echo "Восстанавливаю БД из: ${LATEST_BACKUP}"
+            $SSH "cp ${LATEST_BACKUP} ${DEPLOY_PATH}/data/smarttraffic.db"
+            echo "БД восстановлена"
+          else
+            echo "WARNING: Бэкап БД не найден — пропускаю"
+          fi
+
+      - name: Rollback to target
+        timeout-minutes: 15
+        env:
+          RU_HOST: ${{ secrets.RU_SERVER_HOST }}
+          RU_USER: ${{ secrets.RU_SERVER_USER }}
+          RU_PATH: ${{ secrets.RU_SERVER_PATH }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=15 -o ServerAliveInterval=30 ${RU_USER}@${RU_HOST}"
+          DEPLOY_PATH="${RU_PATH:-/opt/smarttraffic}"
+          TARGET="${{ steps.target.outputs.target }}"
+          COMPOSE_FILE="deploy/server-ru/docker-compose.prod.yml"
+
+          echo "=== Откат к: ${TARGET} ==="
+          $SSH "cd ${DEPLOY_PATH} && git checkout ${TARGET}"
+
+          echo "=== Остановка текущих сервисов ==="
+          $SSH "cd ${DEPLOY_PATH} && docker compose -f ${COMPOSE_FILE} down --timeout 30" || true
+
+          echo "=== Пересборка образов ==="
+          $SSH "cd ${DEPLOY_PATH} && docker compose -f ${COMPOSE_FILE} build --no-cache 2>&1 | tail -10"
+
+          echo "=== Запуск сервисов ==="
+          $SSH "cd ${DEPLOY_PATH} && docker compose -f ${COMPOSE_FILE} up -d --remove-orphans"
+
+          echo "=== Ожидание запуска ==="
+          sleep 10
+
+      - name: Verify rollback
+        timeout-minutes: 3
+        env:
+          RU_HOST: ${{ secrets.RU_SERVER_HOST }}
+          RU_USER: ${{ secrets.RU_SERVER_USER }}
+          RU_PATH: ${{ secrets.RU_SERVER_PATH }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${RU_USER}@${RU_HOST}"
+          DEPLOY_PATH="${RU_PATH:-/opt/smarttraffic}"
+
+          HTTP=$($SSH "curl -sf -o /dev/null -w '%{http_code}' http://localhost:8080/health 2>/dev/null || echo 000")
+          echo "API Health: HTTP ${HTTP}"
+
+          if [[ "${HTTP}" == "200" ]]; then
+            echo "::notice::ROLLBACK SUCCESS — API работает"
+          else
+            echo "::error::ROLLBACK WARNING — API health check returned ${HTTP}"
+            $SSH "cd ${DEPLOY_PATH} && docker compose -f deploy/server-ru/docker-compose.prod.yml logs --tail=30" || true
+          fi
+
+          echo "=== Контейнеры ==="
+          $SSH "cd ${DEPLOY_PATH} && docker compose -f deploy/server-ru/docker-compose.prod.yml ps \
+            --format 'table {{.Name}}\t{{.Status}}'"
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf ~/.ssh/deploy_key
+
+  rollback-foreign:
+    name: Rollback Foreign Server
+    if: github.event.inputs.server == 'foreign'
+    runs-on: ubuntu-latest
+    environment: production-foreign
+    timeout-minutes: 10
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.FOREIGN_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.FOREIGN_SSH_HOST_KEY }}" > ~/.ssh/known_hosts 2>/dev/null || \
+            ssh-keyscan -H "${{ secrets.FOREIGN_SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: List available backups
+        env:
+          FH: ${{ secrets.FOREIGN_SERVER_HOST }}
+          FU: ${{ secrets.FOREIGN_SERVER_USER }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${FU}@${FH}"
+          echo "=== Доступные бэкапы WireGuard ==="
+          $SSH "ls -lt /etc/wireguard/backups/ 2>/dev/null || echo 'Нет бэкапов'"
+
+      - name: Restore WireGuard config
+        env:
+          FH: ${{ secrets.FOREIGN_SERVER_HOST }}
+          FU: ${{ secrets.FOREIGN_SERVER_USER }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${FU}@${FH}"
+
+          LATEST_BACKUP=$($SSH "ls -1t /etc/wireguard/backups/wg0_*.conf.bak 2>/dev/null | head -1" || true)
+          if [[ -z "${LATEST_BACKUP}" ]]; then
+            echo "ERROR: Нет бэкапов для отката"
+            exit 1
+          fi
+
+          echo "Восстанавливаю: ${LATEST_BACKUP}"
+          $SSH "wg-quick down wg0 2>/dev/null || true"
+          $SSH "cp ${LATEST_BACKUP} /etc/wireguard/wg0.conf"
+
+          if $SSH "wg-quick up wg0"; then
+            echo "WireGuard запущен с откатанным конфигом"
+          else
+            echo "ERROR: Не удалось запустить WireGuard с откатанным конфигом!"
+            exit 1
+          fi
+
+      - name: Verify tunnel
+        env:
+          FH: ${{ secrets.FOREIGN_SERVER_HOST }}
+          FU: ${{ secrets.FOREIGN_SERVER_USER }}
+          RU_TUNNEL_IP: ${{ secrets.RU_TUNNEL_IP }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${FU}@${FH}"
+          TARGET_IP="${RU_TUNNEL_IP:-10.20.0.1}"
+
+          sleep 3
+          if $SSH "ping -c 3 -W 2 ${TARGET_IP}" 2>/dev/null; then
+            echo "::notice::ROLLBACK SUCCESS — тоннель работает"
+          else
+            echo "::warning::Пинг до РФ-сервера не прошёл — проверьте конфигурацию"
+          fi
+
+          $SSH "wg show wg0"
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf ~/.ssh/deploy_key

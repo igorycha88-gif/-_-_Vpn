@@ -29,6 +29,50 @@ step() {
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
 
+rollback_wg() {
+    err "Откат конфигурации WireGuard..."
+    local LATEST_BACKUP
+    LATEST_BACKUP=$(ls -1t "${BACKUP_DIR}/wg0_"*.conf.bak 2>/dev/null | head -1 || true)
+    if [[ -n "${LATEST_BACKUP}" ]]; then
+        log "Восстанавливаю: ${LATEST_BACKUP}"
+        cp "${LATEST_BACKUP}" "${WG_CONFIG_FILE}"
+        chmod 600 "${WG_CONFIG_FILE}"
+        wg-quick down wg0 2>/dev/null || true
+        if wg-quick up wg0; then
+            warn "Откат выполнен. WireGuard запущен с предыдущим конфигом."
+        else
+            err "ОТКАТ ПРОВАЛЕН! Требуется ручное вмешательство!"
+        fi
+    else
+        err "Нет бэкапов для отката!"
+    fi
+    exit 1
+}
+
+# ═══════════════════════════════════
+# STEP 0: PRE-FLIGHT
+# ═══════════════════════════════════
+
+step "ШАГ 0: Pre-flight проверки"
+
+if ! command -v wg-quick &>/dev/null; then
+    err "WireGuard не установлен"
+    exit 1
+fi
+ok "WireGuard доступен"
+
+FREE_GB=$(df -BG /etc/wireguard | tail -1 | awk '{print $4}' | tr -d 'G')
+log "Свободное место: ${FREE_GB} GB"
+if [[ "${FREE_GB}" -lt 1 ]]; then
+    err "Мало свободного места на диске (< 1 GB)"
+    exit 1
+fi
+ok "Свободное место: ${FREE_GB} GB"
+
+if [[ "$(sysctl -n net.ipv4.ip_forward 2>/dev/null || echo 0)" != "1" ]]; then
+    warn "net.ipv4.ip_forward не включён — NAT может не работать"
+fi
+
 # ═══════════════════════════════════
 # STEP 1: BACKUP
 # ═══════════════════════════════════
@@ -59,13 +103,23 @@ if [[ ! -f "${WG_CONFIG_FILE}" ]]; then
 fi
 
 if ! grep -q '^\[Interface\]' "${WG_CONFIG_FILE}"; then
-    err "Некорректный формат WireGuard конфига"
-    exit 1
+    err "Некорректный формат WireGuard конфига — нет секции [Interface]"
+    rollback_wg
+fi
+
+if ! grep -q '^\[Peer\]' "${WG_CONFIG_FILE}"; then
+    err "Некорректный формат WireGuard конфига — нет секции [Peer]"
+    rollback_wg
 fi
 
 if grep -q '<.*>' "${WG_CONFIG_FILE}"; then
     err "Конфиг содержит незаполненные плейсхолдеры (<...>)"
-    exit 1
+    rollback_wg
+fi
+
+if ! grep -q '^PrivateKey' "${WG_CONFIG_FILE}"; then
+    err "Конфиг не содержит PrivateKey"
+    rollback_wg
 fi
 
 ok "Конфиг валиден"
@@ -77,11 +131,15 @@ ok "Конфиг валиден"
 step "ШАГ 3: Перезапуск WireGuard"
 
 wg-quick down wg0 2>/dev/null || true
-wg-quick up wg0
+
+if ! wg-quick up wg0; then
+    err "Не удалось запустить WireGuard!"
+    rollback_wg
+fi
 ok "WireGuard запущен"
 
 # ═══════════════════════════════════
-# STEP 4: VERIFY
+# STEP 4: VERIFY TUNNEL
 # ═══════════════════════════════════
 
 step "ШАГ 4: Проверка тоннеля"
@@ -104,6 +162,37 @@ if [[ -n "${TRANSFER}" ]]; then
     log "Трафик: ${TRANSFER}"
 fi
 
+# ═══════════════════════════════════
+# STEP 5: CONNECTIVITY CHECK
+# ═══════════════════════════════════
+
+step "ШАГ 5: Проверка связности"
+
+RU_IP="${RU_SERVER_IP:-10.20.0.1}"
+PING_OK=false
+for i in 1 2 3; do
+    if ping -c 1 -W 3 "${RU_IP}" 2>/dev/null; then
+        PING_OK=true
+        ok "Пинг до ${RU_IP} успешен (попытка ${i})"
+        break
+    else
+        log "Попытка ${i}/3 — нет ответа от ${RU_IP}"
+        sleep 2
+    fi
+done
+
+if [[ "${PING_OK}" != "true" ]]; then
+    warn "Пинг до РФ-сервера (${RU_IP}) не прошёл"
+    warn "Тоннель может требовать времени для установления"
+    warn "Проверьте: wg show wg0 latest-handshakes"
+fi
+
+# ═══════════════════════════════════
+# SAVE DEPLOY STATE
+# ═══════════════════════════════════
+
+echo "SUCCESS|${TIMESTAMP}|$(date '+%Y-%m-%d_%H:%M:%S')" >> /etc/wireguard/.deploy-history
+
 step "ДЕПЛОЙ ЗАРУБЕЖНОГО СЕРВЕРА ЗАВЕРШЁН"
 
 echo -e "${GREEN}"
@@ -114,6 +203,7 @@ cat <<EOF
   │                                                  │
   │   WG Config: ${WG_CONFIG_FILE}
   │   Peers:     ${PEER_COUNT}
+  │   Tunnel:    $([[ "${PING_OK}" == "true" ]] && echo "OK" || echo "PENDING")
   │                                                  │
   └──────────────────────────────────────────────────┘
 EOF

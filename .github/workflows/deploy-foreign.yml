@@ -11,6 +11,10 @@ on:
         description: 'Проверить тоннель после деплоя'
         type: boolean
         default: true
+      deploy_config:
+        description: 'Обновить конфиг WireGuard'
+        type: boolean
+        default: true
 
 concurrency:
   group: deploy-foreign
@@ -36,7 +40,30 @@ jobs:
           echo "${{ secrets.FOREIGN_SSH_HOST_KEY }}" > ~/.ssh/known_hosts 2>/dev/null || \
             ssh-keyscan -H "${{ secrets.FOREIGN_SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
+      - name: Pre-flight checks
+        timeout-minutes: 2
+        env:
+          FH: ${{ secrets.FOREIGN_SERVER_HOST }}
+          FU: ${{ secrets.FOREIGN_SERVER_USER }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${FU}@${FH}"
+
+          echo "=== Проверка подключения ==="
+          $SSH "echo SSH_OK"
+
+          echo "=== Проверка WireGuard установлен ==="
+          $SSH "which wg-quick || (echo 'WireGuard не установлен!' && exit 1)"
+
+          echo "=== Свободное место ==="
+          FREE_GB=$($SSH "df -BG /etc/wireguard | tail -1 | awk '{print \$4}' | tr -d 'G'")
+          echo "Свободно: ${FREE_GB} GB"
+          if [[ "${FREE_GB}" -lt 1 ]]; then
+            echo "ERROR: Мало свободного места на диске"
+            exit 1
+          fi
+
       - name: Generate WireGuard config from secrets
+        if: github.event.inputs.deploy_config == 'true'
         env:
           WG_PRIVATE_KEY: ${{ secrets.FOREIGN_WG_PRIVATE_KEY }}
           WG_ADDRESS: ${{ secrets.FOREIGN_WG_ADDRESS }}
@@ -66,23 +93,41 @@ jobs:
           EOF
           echo "WireGuard config generated"
 
-      - name: Backup current config and deploy
+          echo "=== Валидация конфига ==="
+          if grep -q '<.*>' /tmp/wg0.conf; then
+            echo "ERROR: Конфиг содержит незаполненные плейсхолдеры"
+            cat /tmp/wg0.conf | sed 's/=.*/=***/' || true
+            exit 1
+          fi
+          echo "Конфиг валиден"
+
+      - name: Backup current config
+        if: github.event.inputs.deploy_config == 'true'
+        env:
+          FH: ${{ secrets.FOREIGN_SERVER_HOST }}
+          FU: ${{ secrets.FOREIGN_SERVER_USER }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${FU}@${FH}"
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+          $SSH "mkdir -p /etc/wireguard/backups"
+          $SSH "cp /etc/wireguard/wg0.conf /etc/wireguard/backups/wg0_${TIMESTAMP}.conf.bak 2>/dev/null || true"
+          $SSH "ls -1t /etc/wireguard/backups/wg0_*.conf.bak 2>/dev/null | tail -n +6 | xargs -r rm -f"
+          echo "Бэкап создан: wg0_${TIMESTAMP}.conf.bak"
+
+      - name: Deploy WireGuard config
+        if: github.event.inputs.deploy_config == 'true'
         env:
           FH: ${{ secrets.FOREIGN_SERVER_HOST }}
           FU: ${{ secrets.FOREIGN_SERVER_USER }}
         run: |
           SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${FU}@${FH}"
 
-          echo "=== Бэкап текущего конфига WireGuard ==="
-          $SSH "cp /etc/wireguard/wg0.conf /etc/wireguard/wg0.conf.bak.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true"
-
-          echo "=== Загрузка нового конфига ==="
           scp -i ~/.ssh/deploy_key /tmp/wg0.conf ${FU}@${FH}:/etc/wireguard/wg0.conf
-
-          echo "=== Установка прав ==="
           $SSH "chmod 600 /etc/wireguard/wg0.conf"
+          echo "Конфиг загружен"
 
-      - name: Restart WireGuard
+      - name: Restart WireGuard (blue-green)
         if: github.event.inputs.restart_wireguard == 'true'
         env:
           FH: ${{ secrets.FOREIGN_SERVER_HOST }}
@@ -90,35 +135,83 @@ jobs:
         run: |
           SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${FU}@${FH}"
 
-          echo "=== Перезапуск WireGuard ==="
+          echo "=== Остановка WireGuard ==="
           $SSH "wg-quick down wg0 2>/dev/null || true"
-          $SSH "wg-quick up wg0"
-          echo "WireGuard запущен"
+
+          echo "=== Запуск WireGuard ==="
+          if $SSH "wg-quick up wg0"; then
+            echo "WireGuard запущен успешно"
+          else
+            echo "ERROR: Не удалось запустить WireGuard. Откат..."
+            LATEST_BACKUP=$($SSH "ls -1t /etc/wireguard/backups/wg0_*.conf.bak 2>/dev/null | head -1" || true)
+            if [[ -n "${LATEST_BACKUP}" ]]; then
+              echo "Восстанавливаю: ${LATEST_BACKUP}"
+              $SSH "cp ${LATEST_BACKUP} /etc/wireguard/wg0.conf"
+              $SSH "wg-quick up wg0" || true
+              echo "Откат выполнен"
+            fi
+            exit 1
+          fi
 
           echo "=== Статус WireGuard ==="
           $SSH "wg show wg0"
 
       - name: Verify tunnel connectivity
         if: github.event.inputs.verify_tunnel == 'true'
+        timeout-minutes: 3
         env:
           FH: ${{ secrets.FOREIGN_SERVER_HOST }}
           FU: ${{ secrets.FOREIGN_SERVER_USER }}
           RU_TUNNEL_IP: ${{ secrets.RU_TUNNEL_IP }}
         run: |
           SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${FU}@${FH}"
+          TARGET_IP="${RU_TUNNEL_IP:-10.20.0.1}"
 
-          echo "=== Проверка тоннеля ==="
-          if $SSH "ping -c 3 -W 2 ${RU_TUNNEL_IP:-10.20.0.1}" 2>/dev/null; then
-            echo "Тоннель работает: пинг до ${RU_TUNNEL_IP:-10.20.0.1} успешен"
-          else
-            echo "WARNING: пинг до РФ-сервера через тоннель не прошёл"
+          echo "=== Ожидание установления тоннеля ==="
+          sleep 3
+
+          echo "=== Проверка тоннеля: ping ${TARGET_IP} ==="
+          TUNNEL_OK=false
+          for i in 1 2 3 4 5; do
+            if $SSH "ping -c 1 -W 2 ${TARGET_IP}" 2>/dev/null; then
+              TUNNEL_OK=true
+              echo "Тоннель работает (попытка ${i})"
+              break
+            else
+              echo "Попытка ${i}/5 — нет ответа"
+              sleep 2
+            fi
+          done
+
+          if [[ "${TUNNEL_OK}" != "true" ]]; then
+            echo "WARNING: Пинг до РФ-сервера через тоннель не прошёл"
             echo "Проверьте конфигурацию на обоих серверах"
+            echo ""
+            echo "WireGuard статус:"
+            $SSH "wg show wg0" || true
           fi
 
           echo "=== Трансфер статистика ==="
-          $SSH "wg show wg0 transfer"
+          $SSH "wg show wg0 transfer" || true
+
+          echo "=== Последние handshake ==="
+          $SSH "wg show wg0 latest-handshakes" || true
 
       - name: Cleanup
         if: always()
         run: |
           rm -f ~/.ssh/deploy_key /tmp/wg0.conf
+
+  notify:
+    name: Deploy Summary
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Result
+        run: |
+          if [[ "${{ needs.deploy.result }}" == "success" ]]; then
+            echo "::notice::FOREIGN DEPLOY SUCCESS"
+          else
+            echo "::error::FOREIGN DEPLOY FAILED — check logs"
+          fi

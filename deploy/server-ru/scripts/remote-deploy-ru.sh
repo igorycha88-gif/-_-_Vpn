@@ -6,8 +6,10 @@ COMPOSE_FILE="deploy/server-ru/docker-compose.prod.yml"
 HEALTH_URL="${HEALTH_URL:-http://localhost:8080/health}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-15}"
 HEALTH_INTERVAL="${HEALTH_INTERVAL:-5}"
+CANARY_WAIT="${CANARY_WAIT:-30}"
 BACKUP_KEEP="${BACKUP_KEEP:-5}"
 SKIP_HEALTH_CHECK="${SKIP_HEALTH_CHECK:-false}"
+SKIP_SMOKE="${SKIP_SMOKE:-false}"
 LOCK_FILE="/tmp/smarttraffic-deploy.lock"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 TAG="deploy_${TIMESTAMP}"
@@ -57,13 +59,17 @@ rollback_and_exit() {
     docker compose -f "${COMPOSE_FILE}" build --no-cache 2>&1 | tail -5
     docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans 2>&1
 
-    sleep 5
+    sleep 10
     HTTP=$(curl -sf -o /dev/null -w '%{http_code}' "${HEALTH_URL}" 2>/dev/null || echo "000")
     if [[ "${HTTP}" == "200" ]]; then
         warn "Откат выполнен. Сервисы работают из предыдущей версии."
     else
         err "ОТКАТ ТАКЖЕ ПРОВАЛЕН! Требуется ручное вмешательство!"
+        err "Логи:"
+        docker compose -f "${COMPOSE_FILE}" logs --tail=50 2>&1 || true
     fi
+
+    echo "ROLLBACK_FAILED|${TAG}|$(date +%Y%m%d_%H%M%S)" >> "${DEPLOY_PATH}/.deploy-history"
 
     cleanup_lock
     exit 1
@@ -91,6 +97,35 @@ cd "${DEPLOY_PATH}"
 COMMIT_SHA=$(git rev-parse --short HEAD)
 COMMIT_MSG=$(git log -1 --format='%s')
 log "Коммит: ${COMMIT_SHA} — ${COMMIT_MSG}"
+
+# ═══════════════════════════════════
+# STEP 1: PRE-FLIGHT
+# ═══════════════════════════════════
+
+step "ШАГ 0: Pre-flight проверки"
+
+FREE_GB=$(df -BG "${DEPLOY_PATH}" | tail -1 | awk '{print $4}' | tr -d 'G')
+log "Свободное место: ${FREE_GB} GB"
+if [[ "${FREE_GB}" -lt 2 ]]; then
+    err "Мало свободного места (< 2 GB). Деплой отменён."
+    cleanup_lock
+    exit 1
+fi
+ok "Свободное место: ${FREE_GB} GB"
+
+if ! command -v docker &>/dev/null; then
+    err "Docker не установлен"
+    cleanup_lock
+    exit 1
+fi
+ok "Docker доступен"
+
+if ! command -v docker compose &>/dev/null && ! docker compose version &>/dev/null; then
+    err "Docker Compose не доступен"
+    cleanup_lock
+    exit 1
+fi
+ok "Docker Compose доступен"
 
 # ═══════════════════════════════════
 # STEP 1: BACKUP
@@ -122,7 +157,10 @@ ok "Старые бэкапы очищены (оставляю ${BACKUP_KEEP})"
 step "ШАГ 2: Сборка Docker-образов"
 
 log "Собираю образы (no-cache)..."
-docker compose -f "${COMPOSE_FILE}" build --no-cache 2>&1 | tail -20
+if ! docker compose -f "${COMPOSE_FILE}" build --no-cache 2>&1 | tail -20; then
+    err "Ошибка сборки Docker-образов!"
+    rollback_and_exit
+fi
 ok "Образы собраны"
 
 # ═══════════════════════════════════
@@ -131,12 +169,16 @@ ok "Образы собраны"
 
 step "ШАГ 3: Развёртывание"
 
-log "Останавливаю текущие сервисы..."
+log "Останавливаю текущие сервисы (timeout 30s)..."
 docker compose -f "${COMPOSE_FILE}" down --timeout 30 2>/dev/null || true
 ok "Сервисы остановлены"
 
 log "Запускаю новые сервисы..."
-docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans 2>&1
+if ! docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans 2>&1; then
+    err "Ошибка запуска контейнеров!"
+    docker compose -f "${COMPOSE_FILE}" logs --tail=30 2>&1 || true
+    rollback_and_exit
+fi
 ok "Сервисы запущены"
 
 # ═══════════════════════════════════
@@ -170,35 +212,70 @@ else
 fi
 
 # ═══════════════════════════════════
-# STEP 5: SMOKE TESTS
+# STEP 5: CANARY OBSERVATION
 # ═══════════════════════════════════
 
-step "ШАГ 5: Smoke-тесты"
+step "ШАГ 5: Canary-наблюдение (${CANARY_WAIT} сек)"
 
-CONTAINERS=$(docker compose -f "${COMPOSE_FILE}" ps --format '{{.Name}} {{.Status}}' 2>/dev/null || true)
-log "Контейнеры:"
-echo "${CONTAINERS}" | while IFS= read -r line; do
-    if [[ -n "${line}" ]]; then
-        if echo "${line}" | grep -q "Up"; then
-            ok "${line}"
-        else
-            warn "${line}"
+log "Ожидаю ${CANARY_WAIT} сек для проверки стабильности..."
+sleep "${CANARY_WAIT}"
+
+RESTART_COUNT=$(docker compose -f "${COMPOSE_FILE}" ps --format '{{.Name}} {{.Status}}' 2>/dev/null | grep -c 'Restarting' || echo "0")
+if [[ "${RESTART_COUNT}" -gt 0 ]]; then
+    err "Обнаружены рестартующиеся контейнеры: ${RESTART_COUNT}"
+    docker compose -f "${COMPOSE_FILE}" ps --format '{{.Name}} {{.Status}}' 2>&1 || true
+    rollback_and_exit
+fi
+ok "Нет рестартующихся контейнеров"
+
+HTTP=$(curl -sf -o /dev/null -w '%{http_code}' "${HEALTH_URL}" 2>/dev/null || echo "000")
+if [[ "${HTTP}" != "200" ]]; then
+    err "Health check после canary: HTTP ${HTTP}"
+    rollback_and_exit
+fi
+ok "Health check после canary: HTTP ${HTTP}"
+
+# ═══════════════════════════════════
+# STEP 6: SMOKE TESTS
+# ═══════════════════════════════════
+
+if [[ "${SKIP_SMOKE}" != "true" ]]; then
+    step "ШАГ 6: Smoke-тесты"
+
+    CONTAINERS=$(docker compose -f "${COMPOSE_FILE}" ps --format '{{.Name}} {{.Status}}' 2>/dev/null || true)
+    log "Контейнеры:"
+    echo "${CONTAINERS}" | while IFS= read -r line; do
+        if [[ -n "${line}" ]]; then
+            if echo "${line}" | grep -q "Up"; then
+                ok "${line}"
+            else
+                warn "${line}"
+            fi
         fi
-    fi
-done
+    done
 
-ERR_COUNT=$(docker compose -f "${COMPOSE_FILE}" logs --tail=50 2>&1 | grep -ci 'error\|fatal\|panic' || echo "0")
-if [[ "${ERR_COUNT}" -gt 0 ]]; then
-    warn "Найдено ${ERR_COUNT} строк с error/fatal/panic в логах"
+    ERR_COUNT=$(docker compose -f "${COMPOSE_FILE}" logs --tail=50 2>&1 | grep -ci 'error\|fatal\|panic' || echo "0")
+    if [[ "${ERR_COUNT}" -gt 0 ]]; then
+        warn "Найдено ${ERR_COUNT} строк с error/fatal/panic в логах"
+    else
+        ok "Критических ошибок в логах нет"
+    fi
+
+    TOTAL_CONTAINERS=$(docker compose -f "${COMPOSE_FILE}" ps --format '{{.Name}}' 2>/dev/null | wc -l || echo "0")
+    UP_CONTAINERS=$(docker compose -f "${COMPOSE_FILE}" ps --format '{{.Status}}' 2>/dev/null | grep -c "Up" || echo "0")
+    if [[ "${TOTAL_CONTAINERS}" -gt 0 && "${UP_CONTAINERS}" -ne "${TOTAL_CONTAINERS}" ]]; then
+        warn "Не все контейнеры запущены: ${UP_CONTAINERS}/${TOTAL_CONTAINERS}"
+    fi
+    ok "Контейнеры: ${UP_CONTAINERS}/${TOTAL_CONTAINERS}"
 else
-    ok "Критических ошибок в логах нет"
+    warn "Smoke-тесты пропущены (SKIP_SMOKE=true)"
 fi
 
 # ═══════════════════════════════════
-# STEP 6: CLEANUP
+# STEP 7: CLEANUP
 # ═══════════════════════════════════
 
-step "ШАГ 6: Очистка"
+step "ШАГ 7: Очистка"
 
 docker image prune -f 2>/dev/null || true
 ok "Неиспользуемые образы удалены"
@@ -210,7 +287,7 @@ ok "Build cache очищен"
 # SAVE DEPLOY STATE
 # ═══════════════════════════════════
 
-echo "${TAG}|${COMMIT_SHA}|${TIMESTAMP}" >> "${DEPLOY_PATH}/.deploy-history"
+echo "SUCCESS|${TAG}|${COMMIT_SHA}|${TIMESTAMP}" >> "${DEPLOY_PATH}/.deploy-history"
 echo "${TAG}" > "${DEPLOY_PATH}/.deploy-current-tag"
 
 # ═══════════════════════════════════
