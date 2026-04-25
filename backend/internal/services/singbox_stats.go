@@ -308,11 +308,13 @@ func (c *SingBoxStatsCollector) handleAggregateVLESS(ctx context.Context, delta 
 		}
 	}
 
-	for _, conn := range delta.connections {
+	for i, conn := range delta.connections {
 		if conn.rx == 0 && conn.tx == 0 {
 			continue
 		}
+		peer := activePeers[i%len(activePeers)]
 		trafficLog := &models.TrafficLog{
+			PeerID:  peer.ID,
 			BytesRx: conn.rx,
 			BytesTx: conn.tx,
 			Action:  "vless_transfer",
