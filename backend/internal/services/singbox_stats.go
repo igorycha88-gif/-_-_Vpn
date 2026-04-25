@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -50,15 +51,15 @@ type clashConnection struct {
 }
 
 type clashMetadata struct {
-	User           string `json:"user"`
-	Host           string `json:"host"`
-	Destination    string `json:"destination"`
-	DestinationIP  string `json:"destinationIP"`
-	DstPort        int    `json:"destinationPort"`
-	Network        string `json:"network"`
-	SourceIP       string `json:"sourceIP"`
-	SourcePort     string `json:"sourcePort"`
-	Type           string `json:"type"`
+	User          string `json:"user"`
+	Host          string `json:"host"`
+	Destination   string `json:"destination"`
+	DestinationIP string `json:"destinationIP"`
+	DstPort       string `json:"destinationPort"`
+	Network       string `json:"network"`
+	SourceIP      string `json:"sourceIP"`
+	SourcePort    string `json:"sourcePort"`
+	Type          string `json:"type"`
 }
 
 type userDelta struct {
@@ -70,7 +71,7 @@ type userDelta struct {
 type userConnection struct {
 	host        string
 	destination string
-	dstPort     int
+	dstPort     string
 	rx          int64
 	tx          int64
 }
@@ -107,6 +108,12 @@ func (c *SingBoxStatsCollector) addAlert(ctx context.Context, alert *models.Aler
 func (c *SingBoxStatsCollector) Start(ctx context.Context) {
 	c.logger.Info("запуск сборщика статистики VLESS-клиентов", "api", c.apiURL, "interval", c.interval)
 
+	defer func() {
+		if r := recover(); r != nil {
+			c.logger.Error("PANIC в SingBoxStatsCollector", "error", r)
+		}
+	}()
+
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
 
@@ -126,8 +133,8 @@ func (c *SingBoxStatsCollector) Start(ctx context.Context) {
 func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 	resp, err := c.fetchConnections()
 	if err != nil {
+		c.logger.Error("sing-box Clash API ошибка", "api", c.apiURL, "error", err, "was_reachable", c.apiReachable)
 		if c.apiReachable {
-			c.logger.Error("sing-box Clash API недоступен", "api", c.apiURL, "error", err)
 			c.addAlert(ctx, &models.Alert{
 				ID:        fmt.Sprintf("clash-api-down-%d", time.Now().Unix()),
 				Type:      "system",
@@ -198,8 +205,10 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 			} else if conn.destination != "" {
 				trafficLog.DestIP = conn.destination
 			}
-			if conn.dstPort > 0 {
-				trafficLog.DestPort = conn.dstPort
+			if conn.dstPort != "" {
+				if p, err := strconv.Atoi(conn.dstPort); err == nil {
+					trafficLog.DestPort = p
+				}
 			}
 			if err := c.trafficRepo.Log(ctx, trafficLog); err != nil {
 				c.logger.Error("ошибка логирования трафика клиента в traffic_logs", "uuid", uuid, "error", err)
@@ -313,8 +322,10 @@ func (c *SingBoxStatsCollector) handleAggregateVLESS(ctx context.Context, delta 
 		} else if conn.destination != "" {
 			trafficLog.DestIP = conn.destination
 		}
-		if conn.dstPort > 0 {
-			trafficLog.DestPort = conn.dstPort
+		if conn.dstPort != "" {
+			if p, err := strconv.Atoi(conn.dstPort); err == nil {
+				trafficLog.DestPort = p
+			}
 		}
 		if err := c.trafficRepo.Log(ctx, trafficLog); err != nil {
 			c.logger.Error("ошибка логирования агрегатного трафика", "error", err)
