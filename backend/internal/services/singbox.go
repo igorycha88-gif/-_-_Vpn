@@ -1,12 +1,15 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/exec"
+	"time"
 
 	"smarttraffic/internal/config"
 	"smarttraffic/internal/models"
@@ -263,15 +266,41 @@ func (s *SingBoxService) WriteConfig(ctx context.Context) error {
 }
 
 func (s *SingBoxService) Reload() error {
-	cmd := exec.Command("docker", "kill", "-s", "SIGHUP", "smarttraffic-singbox")
-	if err := cmd.Run(); err != nil {
-		s.logger.Warn("не удалось отправить SIGHUP sing-box, попытка restart")
-		cmd = exec.Command("docker", "restart", "smarttraffic-singbox")
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("service.singbox.Reload: %w", err)
-		}
+	if err := s.reloadViaClashAPI(); err == nil {
+		s.logger.Info("sing-box перезагружен через Clash API")
+		return nil
 	}
-	s.logger.Info("sing-box перезагружен")
+
+	s.logger.Warn("Clash API reload не удался, fallback на docker restart")
+	cmd := exec.Command("docker", "restart", "smarttraffic-singbox")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("service.singbox.Reload docker restart: %w", err)
+	}
+	s.logger.Info("sing-box перезагружен через docker restart")
+	return nil
+}
+
+func (s *SingBoxService) reloadViaClashAPI() error {
+	body := fmt.Sprintf(`{"path":"%s"}`, s.cfg.ConfigPath)
+	req, err := http.NewRequest(http.MethodPut, "http://"+s.cfg.ClashAPIAddr+"/configs", bytes.NewReader([]byte(body)))
+	if err != nil {
+		return fmt.Errorf("создание запроса: %w", err)
+	}
+	if s.cfg.ClashAPISecret != "" {
+		req.Header.Set("Authorization", "Bearer "+s.cfg.ClashAPISecret)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("выполнение запроса: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("статус %d от Clash API /configs", resp.StatusCode)
+	}
 	return nil
 }
 
@@ -280,11 +309,10 @@ func (s *SingBoxService) WriteConfigAndReload(ctx context.Context) error {
 		return err
 	}
 
-	go func() {
-		if err := s.Reload(); err != nil {
-			s.logger.Error("ошибка hot-reload sing-box", "error", err)
-		}
-	}()
+	if err := s.Reload(); err != nil {
+		s.logger.Error("ошибка перезагрузки sing-box", "error", err)
+		return err
+	}
 
 	return nil
 }

@@ -156,6 +156,7 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 
 		peer, err := c.peerRepo.GetByPublicKey(ctx, uuid)
 		if err != nil {
+			c.logger.Warn("UUID из Clash API не найден в БД", "uuid", uuid, "error", err)
 			continue
 		}
 

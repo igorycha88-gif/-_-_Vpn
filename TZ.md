@@ -99,14 +99,15 @@
 
 **Задачи**:
 - [ ] 6.1 Скрипт первоначальной настройки РФ-сервера (`scripts/setup-ru.sh`): Docker, WireGuard, iptables, sysctl
-- [ ] 6.2 Скрипт настройки зарубежного сервера (`scripts/setup-foreign.sh`): WireGuard, NAT, фаервол
-- [ ] 6.3 Конфиг WireGuard wg0 (клиентский VPN) для РФ-сервера
-- [ ] 6.4 Конфиг WireGuard wg1 (межсерверный тоннель) для обоих серверов
-- [ ] 6.5 Скрипт iptables-правил для РФ-сервера (transparent proxy → sing-box)
-- [ ] 6.6 Конфиг Nginx: reverse proxy, SSL, маршрутизация `/`, `/api`, `/admin`
-- [ ] 6.7 Настройка certbot / Let's Encrypt (автообновление)
-- [ ] 6.8 Production `docker-compose.yml` для РФ-сервера
-- [ ] 6.9 Скрипт генерации ключей WireGuard (`scripts/generate-keys.sh`)
+- [ ] 6.2 Скрипт настройки зарубежного сервера (`scripts/setup-foreign.sh`): WireGuard, sing-box (SOCKS5-прокси), NAT, фаервол
+- [ ] 6.3 Конфиг sing-box для зарубежного сервера (SOCKS5 на 10.20.0.2:1080, DNS-резолвер, outbound: direct)
+- [ ] 6.4 Конфиг WireGuard wg0 (клиентский VPN) для РФ-сервера
+- [ ] 6.5 Конфиг WireGuard wg1 (межсерверный тоннель) для обоих серверов
+- [ ] 6.6 Скрипт iptables-правил для РФ-сервера (transparent proxy → sing-box)
+- [ ] 6.7 Конфиг Nginx: reverse proxy, SSL, маршрутизация `/`, `/api`, `/admin`
+- [ ] 6.8 Настройка certbot / Let's Encrypt (автообновление)
+- [ ] 6.9 Production `docker-compose.yml` для РФ-сервера
+- [ ] 6.10 Скрипт генерации ключей WireGuard (`scripts/generate-keys.sh`)
 
 ---
 
