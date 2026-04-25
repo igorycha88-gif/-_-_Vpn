@@ -41,8 +41,8 @@ export default function Dashboard() {
           <Col xs={24} sm={12} lg={6}>
             <Card>
               <Statistic
-                title="Активных клиентов"
-                value={stats?.active_peers ?? 0}
+                title="Онлайн клиентов"
+                value={stats?.online_peers ?? 0}
                 prefix={<CheckCircleOutlined />}
                 valueStyle={{ color: '#52c41a' }}
               />

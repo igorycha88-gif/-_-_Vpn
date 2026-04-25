@@ -793,8 +793,18 @@ func TestSingBoxStatsCollector_ComputeDeltas_ZeroDelta(t *testing.T) {
 
 	deltas := collector.computeDeltas(connections)
 
-	if len(deltas) != 0 {
-		t.Errorf("expected 0 deltas for zero change, got %d", len(deltas))
+	d, ok := deltas["uuid-1"]
+	if !ok {
+		t.Fatal("expected delta entry for uuid-1 even with zero change")
+	}
+	if d.rx != 0 {
+		t.Errorf("rx = %d, want 0", d.rx)
+	}
+	if d.tx != 0 {
+		t.Errorf("tx = %d, want 0", d.tx)
+	}
+	if len(d.connections) != 0 {
+		t.Errorf("expected 0 connections for zero delta, got %d", len(d.connections))
 	}
 }
 

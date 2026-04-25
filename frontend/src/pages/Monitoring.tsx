@@ -206,7 +206,7 @@ export default function Monitoring() {
         <Spin spinning={statsLoading}>
           <Card style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-              <Text>Клиентов: <strong>{stats?.active_peers ?? 0}</strong> / {stats?.total_peers ?? 0}</Text>
+              <Text>Клиентов: <strong>{stats?.online_peers ?? 0}</strong> / {stats?.total_peers ?? 0}</Text>
               <Text>Трафик RX: <strong>{formatBytes(stats?.total_rx ?? 0)}</strong></Text>
               <Text>Трафик TX: <strong>{formatBytes(stats?.total_tx ?? 0)}</strong></Text>
               <Text>Правил: <strong>{stats?.rules_count ?? 0}</strong></Text>
