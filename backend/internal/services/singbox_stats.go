@@ -7,12 +7,15 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"smarttraffic/internal/models"
 	"smarttraffic/internal/repository"
 )
+
+const aggregateVLESSKey = "__aggregate_vless__"
 
 type SingBoxStatsCollector struct {
 	peerRepo    repository.PeerRepository
@@ -24,9 +27,9 @@ type SingBoxStatsCollector struct {
 	client      *http.Client
 	interval    time.Duration
 
-	mu          sync.Mutex
-	connState   map[string]*connBytes
-	onlinePeers map[string]bool
+	mu           sync.Mutex
+	connState    map[string]*connBytes
+	onlinePeers  map[string]bool
 	apiReachable bool
 }
 
@@ -47,11 +50,15 @@ type clashConnection struct {
 }
 
 type clashMetadata struct {
-	User        string `json:"user"`
-	Host        string `json:"host"`
-	Destination string `json:"destination"`
-	DstPort     int    `json:"destination_port"`
-	Network     string `json:"network"`
+	User           string `json:"user"`
+	Host           string `json:"host"`
+	Destination    string `json:"destination"`
+	DestinationIP  string `json:"destinationIP"`
+	DstPort        int    `json:"destinationPort"`
+	Network        string `json:"network"`
+	SourceIP       string `json:"sourceIP"`
+	SourcePort     string `json:"sourcePort"`
+	Type           string `json:"type"`
 }
 
 type userDelta struct {
@@ -134,7 +141,7 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 	}
 
 	if !c.apiReachable {
-		c.logger.Info("sing-box Clash API снова доступен", "api", c.apiURL)
+		c.logger.Info("sing-box Clash API снова доступен", "api", c.apiURL, "connections", len(resp.Connections))
 		c.addAlert(ctx, &models.Alert{
 			ID:        fmt.Sprintf("clash-api-up-%d", time.Now().Unix()),
 			Type:      "system",
@@ -145,9 +152,16 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 		c.apiReachable = true
 	}
 
+	c.logger.Debug("получены соединения от Clash API", "count", len(resp.Connections))
+
 	deltas := c.computeDeltas(resp.Connections)
 
 	currentOnline := make(map[string]bool)
+
+	if aggDelta, ok := deltas[aggregateVLESSKey]; ok {
+		delete(deltas, aggregateVLESSKey)
+		c.handleAggregateVLESS(ctx, aggDelta, currentOnline)
+	}
 
 	for uuid, delta := range deltas {
 		peer, err := c.peerRepo.GetByPublicKey(ctx, uuid)
@@ -226,6 +240,94 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 	c.cleanupStaleConnections(resp.Connections)
 }
 
+func (c *SingBoxStatsCollector) handleAggregateVLESS(ctx context.Context, delta *userDelta, currentOnline map[string]bool) {
+	totalRx := delta.rx
+	totalTx := delta.tx
+
+	c.logger.Info("обработка агрегатного VLESS трафика",
+		"total_rx", totalRx, "total_tx", totalTx,
+		"connections", len(delta.connections))
+
+	peers, err := c.peerRepo.List(ctx)
+	if err != nil {
+		c.logger.Error("ошибка получения списка пиров для агрегатного трафика", "error", err)
+		return
+	}
+
+	var activePeers []*models.Peer
+	for _, p := range peers {
+		if p.IsActive {
+			activePeers = append(activePeers, p)
+		}
+	}
+
+	if len(activePeers) == 0 {
+		c.logger.Warn("нет активных клиентов для распределения VLESS трафика")
+		return
+	}
+
+	hasTraffic := totalRx > 0 || totalTx > 0
+
+	if hasTraffic {
+		perPeerRx := totalRx / int64(len(activePeers))
+		perPeerTx := totalTx / int64(len(activePeers))
+		remainderRx := totalRx % int64(len(activePeers))
+		remainderTx := totalTx % int64(len(activePeers))
+
+		for i, peer := range activePeers {
+			rx := perPeerRx
+			tx := perPeerTx
+			if int64(i) < remainderRx {
+				rx++
+			}
+			if int64(i) < remainderTx {
+				tx++
+			}
+
+			if rx > 0 || tx > 0 {
+				if err := c.peerRepo.UpdateTraffic(ctx, peer.ID, rx, tx); err != nil {
+					c.logger.Error("ошибка обновления агрегатного трафика клиента", "id", peer.ID, "error", err)
+				}
+			}
+		}
+	}
+
+	for _, peer := range activePeers {
+		currentOnline[peer.ID] = true
+		if err := c.peerRepo.UpdateLastSeen(ctx, peer.ID); err != nil {
+			c.logger.Error("ошибка обновления last_seen клиента", "id", peer.ID, "error", err)
+		}
+	}
+
+	for _, conn := range delta.connections {
+		if conn.rx == 0 && conn.tx == 0 {
+			continue
+		}
+		trafficLog := &models.TrafficLog{
+			BytesRx: conn.rx,
+			BytesTx: conn.tx,
+			Action:  "vless_transfer",
+		}
+		if conn.host != "" {
+			trafficLog.Domain = conn.host
+		} else if conn.destination != "" {
+			trafficLog.DestIP = conn.destination
+		}
+		if conn.dstPort > 0 {
+			trafficLog.DestPort = conn.dstPort
+		}
+		if err := c.trafficRepo.Log(ctx, trafficLog); err != nil {
+			c.logger.Error("ошибка логирования агрегатного трафика", "error", err)
+		}
+	}
+
+	if hasTraffic {
+		c.logger.Info("агрегатный VLESS трафик распределён",
+			"total_rx", totalRx, "total_tx", totalTx,
+			"active_peers", len(activePeers))
+	}
+}
+
 func (c *SingBoxStatsCollector) computeDeltas(connections []clashConnection) map[string]*userDelta {
 	deltas := make(map[string]*userDelta)
 
@@ -233,11 +335,6 @@ func (c *SingBoxStatsCollector) computeDeltas(connections []clashConnection) map
 	defer c.mu.Unlock()
 
 	for _, conn := range connections {
-		if conn.Metadata.User == "" {
-			c.connState[conn.ID] = &connBytes{upload: conn.Upload, download: conn.Download}
-			continue
-		}
-
 		prev, exists := c.connState[conn.ID]
 
 		var drx, dtx int64
@@ -256,17 +353,31 @@ func (c *SingBoxStatsCollector) computeDeltas(connections []clashConnection) map
 			dtx = 0
 		}
 
-		d, ok := deltas[conn.Metadata.User]
+		userKey := conn.Metadata.User
+		if userKey == "" && isVLESSInbound(conn.Metadata.Type) {
+			userKey = aggregateVLESSKey
+		}
+
+		if userKey == "" {
+			c.connState[conn.ID] = &connBytes{upload: conn.Upload, download: conn.Download}
+			continue
+		}
+
+		d, ok := deltas[userKey]
 		if !ok {
 			d = &userDelta{}
-			deltas[conn.Metadata.User] = d
+			deltas[userKey] = d
 		}
 		d.rx += drx
 		d.tx += dtx
 		if drx > 0 || dtx > 0 {
+			dest := conn.Metadata.DestinationIP
+			if dest == "" {
+				dest = conn.Metadata.Destination
+			}
 			d.connections = append(d.connections, userConnection{
 				host:        conn.Metadata.Host,
-				destination: conn.Metadata.Destination,
+				destination: dest,
 				dstPort:     conn.Metadata.DstPort,
 				rx:          drx,
 				tx:          dtx,
@@ -277,6 +388,10 @@ func (c *SingBoxStatsCollector) computeDeltas(connections []clashConnection) map
 	}
 
 	return deltas
+}
+
+func isVLESSInbound(connType string) bool {
+	return strings.Contains(connType, "vless")
 }
 
 func (c *SingBoxStatsCollector) cleanupStaleConnections(connections []clashConnection) {
