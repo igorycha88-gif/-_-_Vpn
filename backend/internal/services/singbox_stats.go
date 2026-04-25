@@ -91,6 +91,12 @@ func NewSingBoxStatsCollector(
 	}
 }
 
+func (c *SingBoxStatsCollector) addAlert(ctx context.Context, alert *models.Alert) {
+	if c.alertSvc != nil {
+		c.alertSvc.AddAlert(ctx, alert)
+	}
+}
+
 func (c *SingBoxStatsCollector) Start(ctx context.Context) {
 	c.logger.Info("запуск сборщика статистики VLESS-клиентов", "api", c.apiURL, "interval", c.interval)
 
@@ -197,13 +203,13 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 		if !c.onlinePeers[peerID] {
 			peer, err := c.peerRepo.GetByID(ctx, peerID)
 			if err == nil {
-			c.addAlert(ctx, &models.Alert{
-				ID:        fmt.Sprintf("peer-online-%s-%d", peerID, time.Now().Unix()),
-				Type:      "peer",
-				Message:   "Клиент подключился: " + peer.Name,
-				Severity:  "info",
-				Timestamp: time.Now(),
-			})
+				c.addAlert(ctx, &models.Alert{
+					ID:        fmt.Sprintf("peer-online-%s-%d", peerID, time.Now().Unix()),
+					Type:      "peer",
+					Message:   "Клиент подключился: " + peer.Name,
+					Severity:  "info",
+					Timestamp: time.Now(),
+				})
 			}
 		}
 	}
@@ -211,13 +217,13 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 		if !currentOnline[peerID] {
 			peer, err := c.peerRepo.GetByID(ctx, peerID)
 			if err == nil {
-			c.addAlert(ctx, &models.Alert{
-				ID:        fmt.Sprintf("peer-offline-%s-%d", peerID, time.Now().Unix()),
-				Type:      "peer",
-				Message:   "Клиент отключился: " + peer.Name,
-				Severity:  "warning",
-				Timestamp: time.Now(),
-			})
+				c.addAlert(ctx, &models.Alert{
+					ID:        fmt.Sprintf("peer-offline-%s-%d", peerID, time.Now().Unix()),
+					Type:      "peer",
+					Message:   "Клиент отключился: " + peer.Name,
+					Severity:  "warning",
+					Timestamp: time.Now(),
+				})
 			}
 		}
 	}
