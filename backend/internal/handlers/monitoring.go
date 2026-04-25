@@ -128,6 +128,8 @@ func (h *MonitoringHandler) Stats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.logger.Debug("monitoring stats", "online", stats.OnlinePeers, "total", stats.TotalPeers, "rx", stats.TotalRx, "tx", stats.TotalTx)
+
 	JSON(w, http.StatusOK, stats)
 }
 
