@@ -234,7 +234,8 @@ func (s *SingBoxService) populateRouteRuleFields(routeRule map[string]any, rule 
 	case "ip":
 		routeRule["ip_cidr"] = []string{rule.Pattern}
 	case "geoip":
-		routeRule["geoip"] = []string{rule.Pattern}
+		s.logger.Warn("geoip правило пропущено — не поддерживается в sing-box 1.12+", "pattern", rule.Pattern)
+		return
 	case "port":
 		var port int
 		fmt.Sscanf(rule.Pattern, "%d", &port)
