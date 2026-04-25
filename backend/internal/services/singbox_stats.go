@@ -116,12 +116,6 @@ func (c *SingBoxStatsCollector) Start(ctx context.Context) {
 	}
 }
 
-func (c *SingBoxStatsCollector) addAlert(ctx context.Context, alert *models.Alert) {
-	if c.alertSvc != nil {
-		c.alertSvc.AddAlert(ctx, alert)
-	}
-}
-
 func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 	resp, err := c.fetchConnections()
 	if err != nil {
