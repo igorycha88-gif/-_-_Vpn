@@ -109,6 +109,11 @@ func (r *sqliteTrafficRepository) GetTotalStats(ctx context.Context) (*models.To
 		return nil, fmt.Errorf("traffic.GetTotalStats active: %w", err)
 	}
 
+	err = r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM wg_peers WHERE last_seen IS NOT NULL AND last_seen >= datetime('now', '-2 minutes')").Scan(&stats.OnlinePeers)
+	if err != nil {
+		return nil, fmt.Errorf("traffic.GetTotalStats online: %w", err)
+	}
+
 	err = r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM routing_rules").Scan(&stats.RulesCount)
 	if err != nil {
 		return nil, fmt.Errorf("traffic.GetTotalStats rules: %w", err)

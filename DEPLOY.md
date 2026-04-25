@@ -257,9 +257,22 @@ on:
 3. Валидация: формат + нет плейсхолдеров
 4. wg0.conf.new → wg0.conf (atomic replace)
 5. wg-quick down wg0 && wg-quick up wg0
-6. Проверка: ping до RU-сервера через тоннель
-7. FAIL → восстановить wg0.conf.bak → wg-quick up wg0
+6. Перезапуск sing-box (если конфиг изменён)
+7. Проверка: ping до RU-сервера через тоннель
+8. FAIL → восстановить wg0.conf.bak → wg-quick up wg0
 ```
+
+### 5.3. Компоненты зарубежного сервера
+
+На зарубежном сервере работают:
+
+| Компонент | Порт | Назначение |
+|---|---|---|
+| WireGuard (wg0) | 51821/UDP | Приём тоннеля от РФ-сервера |
+| sing-box (SOCKS) | 10.20.0.2:1080/TCP | SOCKS5-прокси для трафика из РФ |
+| sing-box (DNS) | эфемерные UDP | DNS-резолвер (зарубежные upstream) |
+| sing-box (TLS) | 443/TCP | Маскировка (Reality TLS) |
+| sshd | 22/TCP | SSH-доступ |
 
 ---
 
@@ -414,8 +427,9 @@ scripts/
 - [ ] RU: `/opt/smarttraffic` — клонирован репозиторий
 - [ ] RU: `deploy/server-ru/.env` — заполнен
 - [ ] RU: iptables правила настроены
-- [ ] Foreign: установлен WireGuard, `net.ipv4.ip_forward=1`
+- [ ] Foreign: установлен WireGuard, sing-box, `net.ipv4.ip_forward=1`
 - [ ] Foreign: `/etc/wireguard/` — директория существует
+- [ ] Foreign: sing-box настроен (SOCKS5 на 10.20.0.2:1080, DNS-резолвер)
 - [ ] SSH: deploy ключ добавлен в `authorized_keys` на обоих серверах
 
 ### Smoke-тест перед первым автодеплоем

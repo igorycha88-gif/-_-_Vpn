@@ -116,6 +116,12 @@ func (c *SingBoxStatsCollector) Start(ctx context.Context) {
 	}
 }
 
+func (c *SingBoxStatsCollector) addAlert(ctx context.Context, alert *models.Alert) {
+	if c.alertSvc != nil {
+		c.alertSvc.AddAlert(ctx, alert)
+	}
+}
+
 func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 	resp, err := c.fetchConnections()
 	if err != nil {
@@ -150,20 +156,19 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 	currentOnline := make(map[string]bool)
 
 	for uuid, delta := range deltas {
-		if delta.rx == 0 && delta.tx == 0 {
-			continue
-		}
-
 		peer, err := c.peerRepo.GetByPublicKey(ctx, uuid)
 		if err != nil {
+			c.logger.Warn("UUID из Clash API не найден в БД", "uuid", uuid, "error", err)
 			continue
 		}
 
 		currentOnline[peer.ID] = true
 
-		if err := c.peerRepo.UpdateTraffic(ctx, peer.ID, delta.rx, delta.tx); err != nil {
-			c.logger.Error("ошибка обновления трафика клиента", "uuid", uuid, "error", err)
-			continue
+		if delta.rx > 0 || delta.tx > 0 {
+			if err := c.peerRepo.UpdateTraffic(ctx, peer.ID, delta.rx, delta.tx); err != nil {
+				c.logger.Error("ошибка обновления трафика клиента", "uuid", uuid, "error", err)
+				continue
+			}
 		}
 
 		if err := c.peerRepo.UpdateLastSeen(ctx, peer.ID); err != nil {
@@ -257,14 +262,14 @@ func (c *SingBoxStatsCollector) computeDeltas(connections []clashConnection) map
 			dtx = 0
 		}
 
+		d, ok := deltas[conn.Metadata.User]
+		if !ok {
+			d = &userDelta{}
+			deltas[conn.Metadata.User] = d
+		}
+		d.rx += drx
+		d.tx += dtx
 		if drx > 0 || dtx > 0 {
-			d, ok := deltas[conn.Metadata.User]
-			if !ok {
-				d = &userDelta{}
-				deltas[conn.Metadata.User] = d
-			}
-			d.rx += drx
-			d.tx += dtx
 			d.connections = append(d.connections, userConnection{
 				host:        conn.Metadata.Host,
 				destination: conn.Metadata.Destination,

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Tabs, Card, Table, Tag, Select, Spin, Alert, Typography, Row, Col, Badge, Empty, Progress } from 'antd'
 import { CheckCircleOutlined, CloseCircleOutlined, BellOutlined, ExclamationCircleOutlined, BarChartOutlined } from '@ant-design/icons'
-import { useTrafficLogs, useRoutingLogs, useMonitoringStats, useAlerts, usePeerMonitor, usePeersStats } from '../hooks/useMonitoring'
+import { useRoutingLogs, useMonitoringStats, useAlerts, usePeerMonitor, usePeersStats, useTrafficAggregate } from '../hooks/useMonitoring'
 import { usePeers } from '../hooks/usePeers'
 import TrafficChart from '../components/TrafficChart'
 import type { PeerTrafficSummary } from '../types'
@@ -53,24 +53,11 @@ export default function Monitoring() {
   const { data: peersStats, isLoading: peersStatsLoading, error: peersStatsError } = usePeersStats()
   const [selectedPeer, setSelectedPeer] = useState<string | undefined>()
 
-  const { data: trafficLogs, isLoading: trafficLoading, error: trafficError } = useTrafficLogs(selectedPeer)
+  const { data: trafficLogs, isLoading: trafficLoading, error: trafficError } = useTrafficAggregate(selectedPeer)
   const { data: routingLogs, isLoading: logsLoading, error: logsError } = useRoutingLogs(selectedPeer)
   const { data: peerData } = usePeerMonitor(selectedPeer)
 
-  if (statsError) {
-    return (
-      <div>
-        <h2>Мониторинг</h2>
-        <Alert
-          type="error"
-          message="Ошибка загрузки мониторинга"
-          description="Не удалось подключиться к API серверу. Проверьте что бэкенд запущен и доступен."
-          showIcon
-          icon={<ExclamationCircleOutlined />}
-        />
-      </div>
-    )
-  }
+  const hasAnyError = statsError && trafficError && logsError
 
   const peerOptions = (peers ?? []).map((p) => {
     const online = isOnline(p.last_seen)
@@ -194,20 +181,39 @@ export default function Monitoring() {
     },
   ]
 
+  if (hasAnyError) {
+    return (
+      <div>
+        <h2>Мониторинг</h2>
+        <Alert
+          type="error"
+          message="Ошибка загрузки мониторинга"
+          description="Не удалось подключиться к API серверу. Проверьте что бэкенд запущен и доступен."
+          showIcon
+          icon={<ExclamationCircleOutlined />}
+        />
+      </div>
+    )
+  }
+
   return (
     <div>
       <h2>Мониторинг</h2>
 
-      <Spin spinning={statsLoading}>
-        <Card style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-            <Text>Клиентов: <strong>{stats?.active_peers ?? 0}</strong> / {stats?.total_peers ?? 0}</Text>
-            <Text>Трафик RX: <strong>{formatBytes(stats?.total_rx ?? 0)}</strong></Text>
-            <Text>Трафик TX: <strong>{formatBytes(stats?.total_tx ?? 0)}</strong></Text>
-            <Text>Правил: <strong>{stats?.rules_count ?? 0}</strong></Text>
-          </div>
-        </Card>
-      </Spin>
+      {statsError ? (
+        <Alert type="warning" message="Не удалось загрузить статистику" style={{ marginBottom: 16 }} showIcon closable />
+      ) : (
+        <Spin spinning={statsLoading}>
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+              <Text>Клиентов: <strong>{stats?.online_peers ?? 0}</strong> / {stats?.total_peers ?? 0}</Text>
+              <Text>Трафик RX: <strong>{formatBytes(stats?.total_rx ?? 0)}</strong></Text>
+              <Text>Трафик TX: <strong>{formatBytes(stats?.total_tx ?? 0)}</strong></Text>
+              <Text>Правил: <strong>{stats?.rules_count ?? 0}</strong></Text>
+            </div>
+          </Card>
+        </Spin>
+      )}
 
       {(peers ?? []).length > 0 ? (
         <Card title="Клиенты" style={{ marginBottom: 16 }} size="small">

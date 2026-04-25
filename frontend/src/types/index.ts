@@ -129,6 +129,7 @@ export interface TotalStats {
   total_rx: number
   total_tx: number
   active_peers: number
+  online_peers: number
   total_peers: number
   rules_count: number
 }

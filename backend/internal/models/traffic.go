@@ -26,6 +26,7 @@ type TotalStats struct {
 	TotalRx       int64 `json:"total_rx"`
 	TotalTx       int64 `json:"total_tx"`
 	ActivePeers   int   `json:"active_peers"`
+	OnlinePeers   int   `json:"online_peers"`
 	TotalPeers    int   `json:"total_peers"`
 	RulesCount    int   `json:"rules_count"`
 }
