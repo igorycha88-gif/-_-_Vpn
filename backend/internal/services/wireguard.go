@@ -110,6 +110,7 @@ func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
 	baseRules := []any{
 		map[string]any{"inbound": []string{"tun-in"}, "action": "sniff"},
 		map[string]any{"protocol": "dns", "inbound": []string{"tun-in"}, "action": "hijack-dns"},
+		map[string]any{"ip_cidr": []string{s.vlessCfg.ServerEndpoint + "/32"}, "outbound": "direct-out"},
 		map[string]any{"ip_is_private": true, "outbound": "direct-out"},
 		map[string]any{
 			"domain_suffix": []string{".ru", ".su", ".xn--p1ai"},
