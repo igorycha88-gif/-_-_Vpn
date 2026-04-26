@@ -55,7 +55,10 @@ rollback_and_exit() {
 
     log "Откат: подтягиваю предыдущие образы..."
     cd "${DEPLOY_PATH}"
-    docker compose -f "${COMPOSE_FILE}" down --timeout 30 2>/dev/null || true
+    docker compose -f "${COMPOSE_FILE}" down --timeout 30 --remove-orphans 2>/dev/null || true
+    for c in smarttraffic-api smarttraffic-singbox smarttraffic-nginx smarttraffic-frontend smarttraffic-landing smarttraffic-certbot; do
+        docker rm -f "${c}" 2>/dev/null || true
+    done
     docker compose -f "${COMPOSE_FILE}" pull 2>&1 | tail -5
     docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans 2>&1
 
@@ -171,7 +174,10 @@ ok "Образы подтянуты"
 step "ШАГ 3: Развёртывание"
 
 log "Останавливаю текущие сервисы (timeout 30s)..."
-docker compose -f "${COMPOSE_FILE}" down --timeout 30 2>/dev/null || true
+docker compose -f "${COMPOSE_FILE}" down --timeout 30 --remove-orphans 2>&1 || true
+for c in smarttraffic-api smarttraffic-singbox smarttraffic-nginx smarttraffic-frontend smarttraffic-landing smarttraffic-certbot; do
+    docker rm -f "${c}" 2>/dev/null || true
+done
 ok "Сервисы остановлены"
 
 log "Запускаю новые сервисы (IMAGE_TAG=${IMAGE_TAG:-latest})..."
