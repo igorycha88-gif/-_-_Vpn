@@ -48,7 +48,7 @@
           "enabled": true,
           "handshake": {
             "server": "www.microsoft.com",
-            "server_port": 8443
+            "server_port": 443
           },
           "private_key": "",
           "short_id": [
