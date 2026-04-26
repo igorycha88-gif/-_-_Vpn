@@ -111,7 +111,7 @@ func Load() (*Config, error) {
 	cfg.VLESS.PublicKey = getEnv("VLESS_PUBLIC_KEY", "")
 	cfg.VLESS.ShortID = getEnv("VLESS_SHORT_ID", "")
 	cfg.VLESS.ServerName = getEnv("VLESS_SERVER_NAME", "www.microsoft.com")
-	cfg.VLESS.Port = getEnvInt("VLESS_PORT", 443)
+	cfg.VLESS.Port = getEnvInt("VLESS_PORT", 8443)
 	cfg.VLESS.Flow = getEnv("VLESS_FLOW", "xtls-rprx-vision")
 	cfg.VLESS.Fingerprint = getEnv("VLESS_FINGERPRINT", "chrome")
 	cfg.VLESS.ServerEndpoint = getEnv("VLESS_SERVER_ENDPOINT", "")

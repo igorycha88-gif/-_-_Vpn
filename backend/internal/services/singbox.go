@@ -137,7 +137,7 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*singBoxConfig, er
 				"enabled": true,
 				"handshake": map[string]any{
 					"server":      s.vlessCfg.ServerName,
-					"server_port": 443,
+					"server_port": s.vlessCfg.Port,
 				},
 				"private_key": s.vlessCfg.PrivateKey,
 				"short_id":    []string{s.vlessCfg.ShortID},

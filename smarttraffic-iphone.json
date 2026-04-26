@@ -26,7 +26,7 @@
       "type": "vless",
       "tag": "proxy",
       "server": "130.49.129.241",
-      "server_port": 443,
+      "server_port": 8443,
       "uuid": "d187e6de-86d3-40fd-8685-e870a88286fa",
       "flow": "xtls-rprx-vision",
       "tls": {
@@ -46,6 +46,7 @@
     "rules": [
       {"inbound": ["tun-in"], "action": "sniff"},
       {"protocol": "dns", "inbound": ["tun-in"], "action": "hijack-dns"},
+      {"ip_cidr": ["130.49.129.241/32"], "outbound": "direct-out"},
       {"ip_is_private": true, "outbound": "direct-out"},
       {
         "domain_suffix": [".ru", ".su", ".xn--p1ai"],
