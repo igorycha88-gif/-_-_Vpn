@@ -340,10 +340,15 @@ func (s *SingBoxService) buildDNSConfig(settings *models.DNSSettings) *singBoxDN
 	}
 
 	if len(ruTags) > 0 {
-		rules = append(rules, map[string]any{"server": ruTags[0]})
+		rules = append(rules, map[string]any{
+			"domain_suffix": []string{".ru", ".su", ".xn--p1ai"},
+			"server":        ruTags[0],
+		})
 	}
 	if len(foreignTags) > 0 {
-		rules = append(rules, map[string]any{"server": foreignTags[0]})
+		rules = append(rules, map[string]any{
+			"server": foreignTags[0],
+		})
 	}
 
 	finalTag := ""

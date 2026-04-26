@@ -2,13 +2,34 @@
   "log": {"level": "info", "timestamp": true},
   "dns": {
     "servers": [
-      {"tag": "remote", "address": "1.1.1.1"},
-      {"tag": "local", "address": "77.88.8.8", "detour": "direct-out"}
+      {"tag": "dns-foreign", "address": "1.1.1.1", "detour": "proxy"},
+      {"tag": "dns-foreign-alt", "address": "8.8.8.8", "detour": "proxy"},
+      {"tag": "dns-ru", "address": "77.88.8.8", "detour": "direct-out"},
+      {"tag": "dns-ru-alt", "address": "77.88.8.1", "detour": "direct-out"}
     ],
     "rules": [
-      {"inbound": ["tun-in"], "server": "local"}
+      {
+        "domain_suffix": [".ru", ".su", ".xn--p1ai"],
+        "server": "dns-ru"
+      },
+      {
+        "domain_suffix": [
+          "vk.com", "userapi.com", "vk-cdn.net",
+          "yandex.com", "yandex.ru", "yandex.net", "yastatic.net",
+          "ya.ru", "mail.ru", "rambler.ru",
+          "gosuslugi.ru", "sberbank.ru", "tinkoff.ru",
+          "ozon.ru", "wildberries.ru", "avito.ru",
+          "habr.com", "kaspersky.com",
+          "max.ru", "maxpatrol.ru", "positive-techologies.ru"
+        ],
+        "server": "dns-ru"
+      },
+      {
+        "inbound": ["tun-in"],
+        "server": "dns-foreign"
+      }
     ],
-    "final": "remote",
+    "final": "dns-foreign",
     "strategy": "prefer_ipv4"
   },
   "inbounds": [
