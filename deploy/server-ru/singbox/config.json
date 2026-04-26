@@ -1,0 +1,238 @@
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "dns-ru-77.88.8.8",
+        "type": "udp",
+        "server": "77.88.8.8"
+      },
+      {
+        "tag": "dns-ru-77.88.8.1",
+        "type": "udp",
+        "server": "77.88.8.1"
+      },
+      {
+        "tag": "dns-foreign-1.1.1.1",
+        "type": "udp",
+        "server": "1.1.1.1"
+      },
+      {
+        "tag": "dns-foreign-8.8.8.8",
+        "type": "udp",
+        "server": "8.8.8.8"
+      }
+    ],
+    "rules": [
+      {
+        "server": "dns-ru-77.88.8.8"
+      },
+      {
+        "server": "dns-foreign-1.1.1.1"
+      }
+    ],
+    "final": "dns-foreign-1.1.1.1",
+    "strategy": "prefer_ipv4"
+  },
+  "inbounds": [
+    {
+      "listen": "::",
+      "listen_port": 8443,
+      "tag": "vless-in",
+      "tls": {
+        "enabled": true,
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "www.microsoft.com",
+            "server_port": 8443
+          },
+          "private_key": "",
+          "short_id": [
+            ""
+          ]
+        },
+        "server_name": "www.microsoft.com"
+      },
+      "type": "vless",
+      "users": [
+        {
+          "flow": "xtls-rprx-vision",
+          "uuid": "7KjYcCGbiuNwTZ5irnkNgQxOHVLNBY7VxL3XvzMspCA="
+        },
+        {
+          "flow": "xtls-rprx-vision",
+          "uuid": "kdYVh0iZlkLfgJ0IeiqAzJMHVF6Na4EOLXjPO1LeZgo="
+        }
+      ]
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "direct-out",
+      "type": "direct"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "hijack-dns",
+        "protocol": "dns"
+      },
+      {
+        "domain_suffix": [
+          ".ru"
+        ],
+        "outbound": "direct-out"
+      },
+      {
+        "outbound": "direct-out"
+      },
+      {
+        "domain_suffix": [
+          ".su"
+        ],
+        "outbound": "direct-out"
+      },
+      {
+        "domain_suffix": [
+          ".xn--p1ai"
+        ],
+        "outbound": "direct-out"
+      },
+      {
+        "domain_suffix": [
+          "vk.com"
+        ],
+        "outbound": "direct-out"
+      },
+      {
+        "domain_suffix": [
+          "userapi.com"
+        ],
+        "outbound": "direct-out"
+      },
+      {
+        "domain_suffix": [
+          "vk-cdn.net"
+        ],
+        "outbound": "direct-out"
+      },
+      {
+        "domain_suffix": [
+          "yandex.com"
+        ],
+        "outbound": "direct-out"
+      },
+      {
+        "domain_suffix": [
+          "yastatic.net"
+        ],
+        "outbound": "direct-out"
+      },
+      {
+        "domain_suffix": [
+          "habr.com"
+        ],
+        "outbound": "direct-out"
+      },
+      {
+        "domain_suffix": [
+          "kaspersky.com"
+        ],
+        "outbound": "direct-out"
+      },
+      {
+        "domain_suffix": [
+          "youtube.com"
+        ],
+        "outbound": "foreign-out"
+      },
+      {
+        "domain_suffix": [
+          "youtu.be"
+        ],
+        "outbound": "foreign-out"
+      },
+      {
+        "domain_suffix": [
+          "googlevideo.com"
+        ],
+        "outbound": "foreign-out"
+      },
+      {
+        "domain_suffix": [
+          "instagram.com"
+        ],
+        "outbound": "foreign-out"
+      },
+      {
+        "domain_suffix": [
+          "cdninstagram.com"
+        ],
+        "outbound": "foreign-out"
+      },
+      {
+        "domain_suffix": [
+          "facebook.com"
+        ],
+        "outbound": "foreign-out"
+      },
+      {
+        "domain_suffix": [
+          "meta.com"
+        ],
+        "outbound": "foreign-out"
+      },
+      {
+        "domain_suffix": [
+          "telegram.org"
+        ],
+        "outbound": "foreign-out"
+      },
+      {
+        "domain_suffix": [
+          "t.me"
+        ],
+        "outbound": "foreign-out"
+      },
+      {
+        "domain_suffix": [
+          "twitter.com"
+        ],
+        "outbound": "foreign-out"
+      },
+      {
+        "domain_suffix": [
+          "x.com"
+        ],
+        "outbound": "foreign-out"
+      },
+      {
+        "domain_suffix": [
+          "discord.com"
+        ],
+        "outbound": "foreign-out"
+      },
+      {
+        "domain_suffix": [
+          "chatgpt.com"
+        ],
+        "outbound": "foreign-out"
+      }
+    ],
+    "final": "direct-out",
+    "auto_detect_interface": true
+  },
+  "experimental": {
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090"
+    }
+  }
+}
