@@ -6,35 +6,38 @@
   "dns": {
     "servers": [
       {
-        "tag": "dns-ru-77.88.8.8",
+        "tag": "dns-ru",
         "type": "udp",
         "server": "77.88.8.8"
       },
       {
-        "tag": "dns-ru-77.88.8.1",
+        "tag": "dns-ru-alt",
         "type": "udp",
         "server": "77.88.8.1"
       },
       {
-        "tag": "dns-foreign-1.1.1.1",
+        "tag": "dns-foreign",
         "type": "udp",
-        "server": "1.1.1.1"
+        "server": "1.1.1.1",
+        "detour": "foreign-out"
       },
       {
-        "tag": "dns-foreign-8.8.8.8",
+        "tag": "dns-foreign-alt",
         "type": "udp",
-        "server": "8.8.8.8"
+        "server": "8.8.8.8",
+        "detour": "foreign-out"
       }
     ],
     "rules": [
       {
-        "server": "dns-ru-77.88.8.8"
+        "domain_suffix": [".ru", ".su", ".xn--p1ai"],
+        "server": "dns-ru"
       },
       {
-        "server": "dns-foreign-1.1.1.1"
+        "server": "dns-foreign"
       }
     ],
-    "final": "dns-foreign-1.1.1.1",
+    "final": "dns-foreign",
     "strategy": "prefer_ipv4"
   },
   "inbounds": [
@@ -52,7 +55,7 @@
           },
           "private_key": "",
           "short_id": [
-            ""
+            "bb8329663411919b"
           ]
         },
         "server_name": "www.microsoft.com"
@@ -61,11 +64,7 @@
       "users": [
         {
           "flow": "xtls-rprx-vision",
-          "uuid": "7KjYcCGbiuNwTZ5irnkNgQxOHVLNBY7VxL3XvzMspCA="
-        },
-        {
-          "flow": "xtls-rprx-vision",
-          "uuid": "kdYVh0iZlkLfgJ0IeiqAzJMHVF6Na4EOLXjPO1LeZgo="
+          "uuid": "d187e6de-86d3-40fd-8685-e870a88286fa"
         }
       ]
     }
@@ -74,6 +73,22 @@
     {
       "tag": "direct-out",
       "type": "direct"
+    },
+    {
+      "tag": "foreign-out",
+      "type": "wireguard",
+      "system": false,
+      "mtu": 1280,
+      "address": ["10.20.0.1/32"],
+      "private_key": "8GkdBXUPkSz1ruGXCdC2INof3kAhmaVqpNHip4jp92U=",
+      "peers": [
+        {
+          "address": "169.40.5.140",
+          "port": 51821,
+          "public_key": "K/WQ6uFahZ1zfgqL+oad88tCYaA6kOCwelFQwHH0Bhs=",
+          "allowed_ips": ["0.0.0.0/0"]
+        }
+      ]
     }
   ],
   "route": {
@@ -86,148 +101,39 @@
         "protocol": "dns"
       },
       {
-        "domain_suffix": [
-          ".ru"
-        ],
-        "outbound": "direct-out"
-      },
-      {
+        "domain_suffix": [".ru", ".su", ".xn--p1ai"],
         "outbound": "direct-out"
       },
       {
         "domain_suffix": [
-          ".su"
-        ],
-        "outbound": "direct-out"
-      },
-      {
-        "domain_suffix": [
-          ".xn--p1ai"
+          "vk.com", "userapi.com", "vk-cdn.net",
+          "yandex.com", "yandex.ru", "yandex.net", "yastatic.net",
+          "ya.ru", "mail.ru", "rambler.ru",
+          "gosuslugi.ru", "sberbank.ru", "tinkoff.ru",
+          "ozon.ru", "wildberries.ru", "avito.ru",
+          "habr.com", "kaspersky.com",
+          "max.ru", "maxpatrol.ru", "positive-techologies.ru"
         ],
         "outbound": "direct-out"
       },
       {
         "domain_suffix": [
-          "vk.com"
-        ],
-        "outbound": "direct-out"
-      },
-      {
-        "domain_suffix": [
-          "userapi.com"
-        ],
-        "outbound": "direct-out"
-      },
-      {
-        "domain_suffix": [
-          "vk-cdn.net"
-        ],
-        "outbound": "direct-out"
-      },
-      {
-        "domain_suffix": [
-          "yandex.com"
-        ],
-        "outbound": "direct-out"
-      },
-      {
-        "domain_suffix": [
-          "yastatic.net"
-        ],
-        "outbound": "direct-out"
-      },
-      {
-        "domain_suffix": [
-          "habr.com"
-        ],
-        "outbound": "direct-out"
-      },
-      {
-        "domain_suffix": [
-          "kaspersky.com"
-        ],
-        "outbound": "direct-out"
-      },
-      {
-        "domain_suffix": [
-          "youtube.com"
-        ],
-        "outbound": "foreign-out"
-      },
-      {
-        "domain_suffix": [
-          "youtu.be"
-        ],
-        "outbound": "foreign-out"
-      },
-      {
-        "domain_suffix": [
-          "googlevideo.com"
-        ],
-        "outbound": "foreign-out"
-      },
-      {
-        "domain_suffix": [
-          "instagram.com"
-        ],
-        "outbound": "foreign-out"
-      },
-      {
-        "domain_suffix": [
-          "cdninstagram.com"
-        ],
-        "outbound": "foreign-out"
-      },
-      {
-        "domain_suffix": [
-          "facebook.com"
-        ],
-        "outbound": "foreign-out"
-      },
-      {
-        "domain_suffix": [
-          "meta.com"
-        ],
-        "outbound": "foreign-out"
-      },
-      {
-        "domain_suffix": [
-          "telegram.org"
-        ],
-        "outbound": "foreign-out"
-      },
-      {
-        "domain_suffix": [
-          "t.me"
-        ],
-        "outbound": "foreign-out"
-      },
-      {
-        "domain_suffix": [
-          "twitter.com"
-        ],
-        "outbound": "foreign-out"
-      },
-      {
-        "domain_suffix": [
-          "x.com"
-        ],
-        "outbound": "foreign-out"
-      },
-      {
-        "domain_suffix": [
-          "discord.com"
-        ],
-        "outbound": "foreign-out"
-      },
-      {
-        "domain_suffix": [
-          "chatgpt.com"
+          "youtube.com", "youtu.be", "googlevideo.com",
+          "instagram.com", "cdninstagram.com",
+          "facebook.com", "fbcdn.net", "meta.com",
+          "telegram.org", "t.me",
+          "twitter.com", "x.com", "twimg.com",
+          "discord.com", "discordapp.com", "discord.gg",
+          "chatgpt.com", "openai.com",
+          "google.com", "googleapis.com", "gstatic.com",
+          "github.com", "githubusercontent.com",
+          "netflix.com", "nflxvideo.net", "nflximg.net",
+          "tiktok.com", "tiktokcdn.com"
         ],
         "outbound": "foreign-out"
       }
     ],
-    "final": "direct-out",
+    "final": "foreign-out",
     "auto_detect_interface": true
   },
   "experimental": {
