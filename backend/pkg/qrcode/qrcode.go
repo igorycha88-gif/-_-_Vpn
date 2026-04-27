@@ -7,7 +7,7 @@ import (
 )
 
 func GeneratePNG(content string, size int) ([]byte, error) {
-	png, err := qrcode.Encode(content, qrcode.Medium, size)
+	png, err := qrcode.Encode(content, qrcode.Low, size)
 	if err != nil {
 		return nil, fmt.Errorf("qrcode.GeneratePNG: %w", err)
 	}

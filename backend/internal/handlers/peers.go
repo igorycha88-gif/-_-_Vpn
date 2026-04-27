@@ -163,8 +163,14 @@ func (h *PeerHandler) GetQRCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	config := h.wgSvc.GenerateClientConfig(peer)
-	png, err := qrcodepkg.GeneratePNG(config, 256)
+	config, err := h.wgSvc.GenerateClientConfigCompact(peer)
+	if err != nil {
+		h.logger.Error("ошибка генерации конфига для QR", "error", err)
+		ErrorJSON(w, http.StatusInternalServerError, "ошибка генерации конфигурации")
+		return
+	}
+
+	png, err := qrcodepkg.GeneratePNG(config, 512)
 	if err != nil {
 		h.logger.Error("ошибка генерации QR-кода", "error", err)
 		ErrorJSON(w, http.StatusInternalServerError, "ошибка генерации QR-кода")

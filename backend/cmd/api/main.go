@@ -75,7 +75,7 @@ func main() {
 	authRepo := repository.NewAuthRepository(db)
 
 	authSvc := services.NewAuthService(authRepo, &cfg.JWT, logger)
-	wgSvc := services.NewWireGuardService(peerRepo, &cfg.VLESS, logger)
+	wgSvc := services.NewWireGuardService(peerRepo, trafficRepo, &cfg.VLESS, logger)
 	singboxSvc := services.NewSingBoxService(routeRepo, dnsRepo, peerRepo, &cfg.SingBox, &cfg.VLESS, &cfg.WG, &cfg.Server, logger)
 	routingSvc := services.NewRoutingService(routeRepo, presetRepo, logger)
 	dnsSvc := services.NewDNSService(dnsRepo, logger)

@@ -18,6 +18,7 @@ type TrafficRepository interface {
 	InsertAlert(ctx context.Context, alert *models.Alert) error
 	ListAlerts(ctx context.Context, limit int) ([]*models.Alert, error)
 	GetPeerTrafficSummary(ctx context.Context) ([]*models.PeerTrafficSummary, error)
+	DeleteByPeerID(ctx context.Context, peerID string) error
 }
 
 type sqliteTrafficRepository struct {
@@ -229,4 +230,12 @@ func (r *sqliteTrafficRepository) GetPeerTrafficSummary(ctx context.Context) ([]
 		summaries = append(summaries, s)
 	}
 	return summaries, rows.Err()
+}
+
+func (r *sqliteTrafficRepository) DeleteByPeerID(ctx context.Context, peerID string) error {
+	_, err := r.db.ExecContext(ctx, "DELETE FROM traffic_logs WHERE peer_id = ?", peerID)
+	if err != nil {
+		return fmt.Errorf("traffic.DeleteByPeerID: %w", err)
+	}
+	return nil
 }

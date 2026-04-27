@@ -1,0 +1,311 @@
+<mxfile host="app.diagrams.net" modified="2026-04-25T00:00:00.000Z" agent="SmartTraffic" version="24.0.0" type="device">
+  <diagram id="arch" name="Архитектура SmartTraffic">
+    <mxGraphModel dx="2200" dy="1600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="2400" pageHeight="1600" math="0" shadow="1">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- ========== ЗАГОЛОВОК ========== -->
+        <mxCell id="title" value="&lt;b&gt;SmartTraffic — Архитектура системы&lt;/b&gt;&lt;br&gt;Рунет напрямую, остальной мир — через зарубежный прокси" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;" vertex="1" parent="1">
+          <mxGeometry x="500" y="10" width="800" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== КЛИЕНТЫ ========== -->
+        <mxCell id="clients_group" value="КЛИЕНТЫ (sing-box)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=14;fontStyle=1;verticalAlign=top;dashed=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="460" y="90" width="360" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="phone" value="📱 Телефон&lt;br&gt;sing-box" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=data:image/svg+xml,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMiI+PHJlY3QgeD0iNSIgeT0iMiIgd2lkdGg9IjE0IiBoZWlnaHQ9IjIwIiByeD0iMiIvPjxsaW5lIHgxPSIxMiIgeTE9IjE4IiB4Mj0iMTIiIHkyPSIxOCIvPjwvc3ZnPg==;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="490" y="130" width="40" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="pc" value="💻 ПК&lt;br&gt;sing-box" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=data:image/svg+xml,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMiI+PHJlY3QgeD0iMiIgeT0iMyIgd2lkdGg9IjIwIiBoZWlnaHQ9IjE0IiByeD0iMiIvPjxsaW5lIHgxPSI4IiB5MT0iMjEiIHgyPSIxNiIgeTI9IjIxIi8+PGxpbmUgeDE9IjEyIiB5MT0iMTciIHgyPSIxMiIgeTI9IjIxIi8+PC9zdmc+;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="570" y="130" width="40" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="tablet" value="📋 Планшет&lt;br&gt;sing-box" style="shape=image;verticalLabelPosition=bottom;labelBackgroundColor=default;verticalAlign=top;aspect=fixed;imageAspect=0;image=data:image/svg+xml,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMiI+PHJlY3QgeD0iNCIgeT0iMiIgd2lkdGg9IjE2IiBoZWlnaHQ9IjIwIiByeD0iMiIvPjxsaW5lIHgxPSIxMiIgeTE9IjE4IiB4Mj0iMTIiIHkyPSIxOCIvPjwvc3ZnPg==;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="650" y="130" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== СТРЕЛКА: Клиенты → РФ сервер ========== -->
+        <mxCell id="arrow_client_ru" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF6B00;strokeWidth=3;" edge="1" parent="1" source="clients_group" target="ru_server_group">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow_client_ru_label" value="&lt;b&gt;VLESS + XTLS-Reality&lt;/b&gt;&lt;br&gt;TLS 1.3 :443/TCP&lt;br&gt;маскировка под HTTPS" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=11;fillColor=#FFF3E0;rounded=1;arcSize=20;strokeColor=#FF6B00;" vertex="1" connectable="0" parent="arrow_client_ru">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint x="50" as="offset"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ========== РФ СЕРВЕР (большая группа) ========== -->
+        <mxCell id="ru_server_group" value="&lt;b&gt;РОССИЙСКИЙ СЕРВЕР (RU)&lt;/b&gt; — Ubuntu 22.04/24.04 LTS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;strokeWidth=2;fontColor=#0D47A1;fontSize=14;fontStyle=1;verticalAlign=top;arcSize=6;spacingTop=2;" vertex="1" parent="1">
+          <mxGeometry x="180" y="280" width="1120" height="660" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== sing-box (Routing Engine) ===== -->
+        <mxCell id="singbox" value="&lt;b&gt;sing-box (Routing Engine)&lt;/b&gt;&lt;br&gt;container: smarttraffic-singbox&lt;br&gt;network_mode: host" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;strokeWidth=2;fontSize=11;verticalAlign=top;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="420" y="340" width="360" height="200" as="geometry"/>
+        </mxCell>
+
+        <!-- VLESS Inbound -->
+        <mxCell id="vless_in" value="&lt;b&gt;VLESS+Reality Inbound&lt;/b&gt;&lt;br&gt;:443/TCP&lt;br&gt;UUID + Reality TLS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFECB3;strokeColor=#FF8F00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="440" y="385" width="145" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- TProxy Inbound -->
+        <mxCell id="tproxy_in" value="&lt;b&gt;TProxy Inbound&lt;/b&gt;&lt;br&gt;:12345/TCP+UDP&lt;br&gt;(из wg0, transparent)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFECB3;strokeColor=#FF8F00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="615" y="385" width="145" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- Routing Rules -->
+        <mxCell id="routing_rules" value="&lt;b&gt;Маршрутизация:&lt;/b&gt;&lt;br&gt;*.ru, *.su, *.рф, vk.com, yandex,&lt;br&gt;habr.com, kaspersky.com → &lt;b&gt;direct&lt;/b&gt;&lt;hr&gt;youtube, instagram, facebook, telegram,&lt;br&gt;twitter, discord, chatgpt → &lt;b&gt;proxy&lt;/b&gt;&lt;hr&gt;default → &lt;b&gt;direct&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="440" y="450" width="320" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- direct-out -->
+        <mxCell id="direct_out" value="&lt;b&gt;direct-out&lt;/b&gt;&lt;br&gt;→ Рунет напрямую" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;strokeWidth=2;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="260" y="600" width="170" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- foreign-out -->
+        <mxCell id="foreign_out" value="&lt;b&gt;foreign-out&lt;/b&gt;&lt;br&gt;→ Зарубежный прокси" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;strokeWidth=2;fontSize=11;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="780" y="600" width="170" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Стрелки: routing → outbounds -->
+        <mxCell id="arrow_to_direct" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#2E7D32;strokeWidth=2;exitX=0.25;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="singbox" target="direct_out">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow_to_direct_label" value="рунет" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#2E7D32;fontStyle=1;" vertex="1" connectable="0" parent="arrow_to_direct">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="arrow_to_foreign" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#C62828;strokeWidth=2;exitX=0.75;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="singbox" target="foreign_out">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow_to_foreign_label" value="зарубеж" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#C62828;fontStyle=1;" vertex="1" connectable="0" parent="arrow_to_foreign">
+          <mxGeometry x="0.2" relative="1" as="geometry">
+            <mxPoint as="offset"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- DNS sing-box -->
+        <mxCell id="dns_singbox" value="&lt;b&gt;DNS&lt;/b&gt;&lt;br&gt;РУ: 77.88.8.8, 77.88.8.1&lt;br&gt;Мир: 1.1.1.1, 8.8.8.8&lt;br&gt;Clash API: 127.0.0.1:9090" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="340" width="210" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== WireGuard wg0 — клиентский VPN ===== -->
+        <mxCell id="wg0" value="&lt;b&gt;WireGuard wg0 — Клиентский VPN&lt;/b&gt;&lt;br&gt;Порт: 51820/UDP | 10.10.0.0/24 | MTU: 1280&lt;br&gt;TProxy весь трафик → sing-box :12345" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#6A1B9A;strokeWidth=2;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="200" y="340" width="200" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== eth0 → Рунет напрямую ===== -->
+        <mxCell id="eth0_ru" value="&lt;b&gt;eth0 (публичный IP)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;strokeWidth=2;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="260" y="700" width="170" height="35" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow_direct_eth" style="rounded=1;html=1;strokeColor=#2E7D32;strokeWidth=2;" edge="1" parent="1" source="direct_out" target="eth0_ru">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Рунет -->
+        <mxCell id="runet_cloud" value="&lt;b&gt;🌐 РУНЕТ (напрямую)&lt;/b&gt;&lt;br&gt;ya.ru, vk.com, habr.com&lt;br&gt;kaspersky.com, yandex.com&lt;br&gt;&lt;b&gt;БЕЗ прокси, напрямую&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#A5D6A7;strokeColor=#1B5E20;strokeWidth=2;fontSize=11;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="210" y="780" width="270" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow_eth_runet" style="rounded=1;html=1;strokeColor=#2E7D32;strokeWidth=3;" edge="1" parent="1" source="eth0_ru" target="runet_cloud">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow_eth_runet_lbl" value="НАПРЯМУЮ" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=12;fontColor=#1B5E20;fontStyle=1;" vertex="1" connectable="0" parent="arrow_eth_runet">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-30" as="offset"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===== WireGuard wg1 — межсерверный тоннель ===== -->
+        <mxCell id="wg1" value="&lt;b&gt;WireGuard wg1&lt;/b&gt;&lt;br&gt;Межсерверный тоннель&lt;br&gt;10.20.0.1/30&lt;br&gt;:51821/UDP&lt;br&gt;Keepalive: 25с" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#6A1B9A;strokeWidth=2;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="790" y="700" width="150" height="85" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow_foreign_wg1" style="rounded=1;html=1;strokeColor=#C62828;strokeWidth=2;" edge="1" parent="1" source="foreign_out" target="wg1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== Nginx ===== -->
+        <mxCell id="nginx" value="&lt;b&gt;Nginx (reverse proxy + SSL)&lt;/b&gt;&lt;br&gt;container: smarttraffic-nginx" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B3E5FC;strokeColor=#0277BD;strokeWidth=2;fontSize=11;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="500" width="250" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="nginx_http" value="&lt;b&gt;:80/TCP&lt;/b&gt;&lt;br&gt;/.well-known → certbot&lt;br&gt;/health → api:8080&lt;br&gt;/ → landing:80&lt;br&gt;/api/v1/ → api:8080&lt;br&gt;/admin/ → frontend:3000&lt;br&gt;/admin/api/ → api:8080" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1F5FE;strokeColor=#0288D1;fontSize=9;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="545" width="250" height="105" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="nginx_ssl" value="&lt;b&gt;:443/TCP (SSL/TLS 1.2+1.3)&lt;/b&gt;&lt;br&gt;Let's Encrypt + HSTS&lt;br&gt;HTTP → 301 → HTTPS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1F5FE;strokeColor=#0288D1;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="660" width="250" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== Go Backend API ===== -->
+        <mxCell id="api" value="&lt;b&gt;Go Backend API&lt;/b&gt;&lt;br&gt;Chi Router + SQLite&lt;br&gt;:8080/TCP | host network&lt;br&gt;JWT (15m access + 168h refresh)&lt;br&gt;Rate limit: 1/s burst=5&lt;br&gt;WGStats + SingBoxStats collectors" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B3E5FC;strokeColor=#0277BD;strokeWidth=2;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="740" width="250" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== Frontend ===== -->
+        <mxCell id="frontend" value="&lt;b&gt;Frontend (React SPA)&lt;/b&gt;&lt;br&gt;React 18 + TS + Ant Design&lt;br&gt;:3000/TCP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B3E5FC;strokeColor=#0277BD;strokeWidth=1;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="845" width="120" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== Landing ===== -->
+        <mxCell id="landing" value="&lt;b&gt;Landing (заглушка)&lt;/b&gt;&lt;br&gt;Статический HTML&lt;br&gt;:80/TCP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B3E5FC;strokeColor=#0277BD;strokeWidth=1;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1150" y="845" width="120" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== Certbot ===== -->
+        <mxCell id="certbot" value="&lt;b&gt;Certbot&lt;/b&gt;&lt;br&gt;Let's Encrypt&lt;br&gt;автообновление 12ч" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="920" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Стрелки Nginx → сервисы -->
+        <mxCell id="arrow_nginx_api" style="rounded=1;html=1;strokeColor=#0277BD;strokeWidth=1;dashed=1;" edge="1" parent="1" source="nginx" target="api">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow_nginx_fe" style="rounded=1;html=1;strokeColor=#0277BD;strokeWidth=1;dashed=1;" edge="1" parent="1" source="nginx" target="frontend">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- iptables -->
+        <mxCell id="iptables" value="&lt;b&gt;iptables (TProxy режим)&lt;/b&gt;&lt;br&gt;mangle PREROUTING wg0 → SINGBOX → TProxy :12345&lt;br&gt;fwmark 0x1 → table 100 → local default dev lo&lt;br&gt;NAT MASQUERADE: 10.10.0.0/24 → eth0, wg1 → eth0&lt;br&gt;TCPMSS clamping" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#B71C1C;fontSize=9;verticalAlign=top;strokeWidth=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="460" width="200" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow_wg0_iptables" style="rounded=1;html=1;strokeColor=#6A1B9A;strokeWidth=1;dashed=1;" edge="1" parent="1" source="wg0" target="iptables">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== СТРЕЛКА: РФ → Зарубежный (WG тоннель) ========== -->
+        <mxCell id="arrow_ru_foreign" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#6A1B9A;strokeWidth=3;" edge="1" parent="1" source="wg1" target="foreign_group">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow_ru_foreign_label" value="&lt;b&gt;WireGuard wg1 тоннель&lt;/b&gt;&lt;br&gt;10.20.0.0/30&lt;br&gt;:51821/UDP&lt;br&gt;Encrypted" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=11;fillColor=#F3E5F5;rounded=1;arcSize=20;strokeColor=#6A1B9A;" vertex="1" connectable="0" parent="arrow_ru_foreign">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="60" as="offset"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ========== ЗАРУБЕЖНЫЙ СЕРВЕР ========== -->
+        <mxCell id="foreign_group" value="&lt;b&gt;ЗАРУБЕЖНЫЙ СЕРВЕР (Foreign)&lt;/b&gt; — Ubuntu 22.04/24.04 LTS | eth0: 169.40.5.140" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#AD1457;strokeWidth=2;fontColor=#880E4F;fontSize=14;fontStyle=1;verticalAlign=top;arcSize=6;spacingTop=2;" vertex="1" parent="1">
+          <mxGeometry x="700" y="1060" width="560" height="380" as="geometry"/>
+        </mxCell>
+
+        <!-- WG Foreign -->
+        <mxCell id="wg_foreign" value="&lt;b&gt;WireGuard wg0&lt;/b&gt;&lt;br&gt;Приём тоннеля от РФ&lt;br&gt;:51821/UDP (только от IP РФ)&lt;br&gt;Address: 10.20.0.2/30" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#6A1B9A;strokeWidth=2;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="720" y="1110" width="220" height="75" as="geometry"/>
+        </mxCell>
+
+        <!-- sing-box Foreign -->
+        <mxCell id="singbox_foreign" value="&lt;b&gt;sing-box&lt;/b&gt;&lt;br&gt;SOCKS5: 10.20.0.2:1080/TCP&lt;br&gt;DNS: эфемерные UDP&lt;br&gt;(upstream: 1.1.1.1, 8.8.8.8)&lt;br&gt;TLS Reality: :443/TCP&lt;br&gt;Outbound: direct → интернет" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;strokeWidth=2;fontSize=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="720" y="1205" width="220" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow_wg_singbox_f" style="rounded=1;html=1;strokeColor=#6A1B9A;strokeWidth=2;" edge="1" parent="1" source="wg_foreign" target="singbox_foreign">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Глобальный интернет -->
+        <mxCell id="global_inet" value="&lt;b&gt;🌐 ГЛОБАЛЬНЫЙ ИНТЕРНЕТ&lt;/b&gt;&lt;br&gt;youtube.com, google.com&lt;br&gt;instagram.com, chatgpt.com&lt;br&gt;facebook.com, discord.com&lt;br&gt;twitter.com, telegram.org" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#B71C1C;strokeWidth=2;fontSize=11;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="730" y="1330" width="220" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="arrow_singbox_inet" style="rounded=1;html=1;strokeColor=#B71C1C;strokeWidth=3;" edge="1" parent="1" source="singbox_foreign" target="global_inet">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="arrow_singbox_inet_lbl" value="direct" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=11;fontColor=#B71C1C;fontStyle=1;" vertex="1" connectable="0" parent="arrow_singbox_inet">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-20" as="offset"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- NAT Foreign -->
+        <mxCell id="nat_foreign" value="&lt;b&gt;iptables NAT&lt;/b&gt;&lt;br&gt;MASQUERADE 10.20.0.0/30 → eth0&lt;br&gt;MASQUERADE 10.30.0.0/24 → eth0&lt;br&gt;FORWARD wg0 ↔ eth0" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#B71C1C;fontSize=9;verticalAlign=top;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="970" y="1110" width="260" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- UFW Foreign -->
+        <mxCell id="ufw_foreign" value="&lt;b&gt;UFW Firewall&lt;/b&gt;&lt;br&gt;22/TCP — SSH&lt;br&gt;51821/UDP — только от IP РФ&lt;br&gt;default: deny in, allow out" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#B71C1C;fontSize=9;verticalAlign=top;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="970" y="1195" width="260" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- SYSCTL Foreign -->
+        <mxCell id="sysctl_foreign" value="&lt;b&gt;sysctl&lt;/b&gt;&lt;br&gt;net.ipv4.ip_forward = 1&lt;br&gt;net.ipv6.conf.all.forwarding = 1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#B71C1C;fontSize=9;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="970" y="1275" width="260" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== ЛЕГЕНДА ========== -->
+        <mxCell id="legend_group" value="&lt;b&gt;ЛЕГЕНДА&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#999999;strokeWidth=1;fontSize=12;fontStyle=1;verticalAlign=top;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="180" y="1080" width="480" height="350" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg1" value="" style="endArrow=classic;html=1;strokeColor=#FF6B00;strokeWidth=3;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="210" y="1120" as="sourcePoint"/>
+            <mxPoint x="280" y="1120" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg1t" value="VLESS + Reality :443/TCP (клиентские подключения)" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="290" y="1110" width="350" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg2" value="" style="endArrow=classic;html=1;strokeColor=#2E7D32;strokeWidth=3;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="210" y="1150" as="sourcePoint"/>
+            <mxPoint x="280" y="1150" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg2t" value="Рунет напрямую (direct-out → eth0, БЕЗ прокси)" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#2E7D32;" vertex="1" parent="1">
+          <mxGeometry x="290" y="1140" width="340" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg3" value="" style="endArrow=classic;html=1;strokeColor=#C62828;strokeWidth=3;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="210" y="1180" as="sourcePoint"/>
+            <mxPoint x="280" y="1180" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg3t" value="Зарубежный трафик (foreign-out → WG → SOCKS5 → интернет)" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#C62828;" vertex="1" parent="1">
+          <mxGeometry x="290" y="1170" width="360" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg4" value="" style="endArrow=classic;html=1;strokeColor=#6A1B9A;strokeWidth=3;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="210" y="1210" as="sourcePoint"/>
+            <mxPoint x="280" y="1210" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg4t" value="WireGuard тоннель (wg1, зашифрованный, :51821/UDP)" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=10;fontColor=#6A1B9A;" vertex="1" parent="1">
+          <mxGeometry x="290" y="1200" width="340" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- Легенда: порты -->
+        <mxCell id="leg_ports_title" value="&lt;b&gt;Сводная таблица портов (РФ-сервер):&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="200" y="1240" width="260" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg_ports" value="&lt;table border=&quot;1&quot; cellpadding=&quot;4&quot; cellspacing=&quot;0&quot; style=&quot;font-size:10px;border-collapse:collapse;&quot;&gt;&lt;tr style=&quot;background:#E3F2FD;&quot;&gt;&lt;th&gt;Порт&lt;/th&gt;&lt;th&gt;Протокол&lt;/th&gt;&lt;th&gt;Компонент&lt;/th&gt;&lt;th&gt;Назначение&lt;/th&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;443&lt;/b&gt;&lt;/td&gt;&lt;td&gt;TCP&lt;/td&gt;&lt;td&gt;sing-box&lt;/td&gt;&lt;td&gt;VLESS+Reality (клиенты)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;80&lt;/b&gt;&lt;/td&gt;&lt;td&gt;TCP&lt;/td&gt;&lt;td&gt;Nginx&lt;/td&gt;&lt;td&gt;HTTP → landing + API + admin&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;8080&lt;/b&gt;&lt;/td&gt;&lt;td&gt;TCP&lt;/td&gt;&lt;td&gt;Go API&lt;/td&gt;&lt;td&gt;REST API (localhost)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;9090&lt;/b&gt;&lt;/td&gt;&lt;td&gt;TCP&lt;/td&gt;&lt;td;sing-box&lt;/td&gt;&lt;td&gt;Clash API (localhost)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;12345&lt;/b&gt;&lt;/td&gt;&lt;td&gt;TCP+UDP&lt;/td&gt;&lt;td&gt;sing-box&lt;/td&gt;&lt;td&gt;TProxy inbound (из wg0)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;3000&lt;/b&gt;&lt;/td&gt;&lt;td&gt;TCP&lt;/td&gt;&lt;td&gt;Frontend&lt;/td&gt;&lt;td&gt;React SPA (internal)&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;51820&lt;/b&gt;&lt;/td&gt;&lt;td&gt;UDP&lt;/td&gt;&lt;td&gt;WG wg0&lt;/td&gt;&lt;td&gt;Клиентский VPN&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;51821&lt;/b&gt;&lt;/td&gt;&lt;td&gt;UDP&lt;/td&gt;&lt;td&gt;WG wg1&lt;/td&gt;&lt;td&gt;Межсерверный тоннель&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;22&lt;/b&gt;&lt;/td&gt;&lt;td&gt;TCP&lt;/td&gt;&lt;td&gt;sshd&lt;/td&gt;&lt;td&gt;SSH&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;html=1;align=left;verticalAlign=top;overflow=auto;whiteSpace=wrap;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="200" y="1260" width="440" height="155" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== Пояснение потоков ===== -->
+        <mxCell id="flows_title" value="&lt;b&gt;Потоки трафика:&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="180" y="1020" width="120" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="flow1_box" value="&lt;b&gt;① Клиент → Рунет (НАПРЯМУЮ):&lt;/b&gt;&lt;br&gt;Клиент → VLESS :443 → sing-box → direct-out → eth0 → рунет&lt;br&gt;&lt;font color=&quot;#2E7D32&quot;&gt;&lt;b&gt;Трафик НЕ проходит через зарубежный сервер&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;fontSize=9;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="180" y="960" width="520" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="flow2_box" value="&lt;b&gt;② Клиент → Заблокированный (через прокси):&lt;/b&gt;&lt;br&gt;Клиент → VLESS :443 → sing-box → foreign-out → WG wg1 :51821 → Зарубежный SOCKS5 :1080 → интернет" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#C62828;fontSize=9;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="700" y="960" width="560" height="50" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

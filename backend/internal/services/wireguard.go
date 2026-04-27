@@ -15,16 +15,18 @@ import (
 )
 
 type WireGuardService struct {
-	peerRepo repository.PeerRepository
-	vlessCfg *config.VLESSConfig
-	logger   *slog.Logger
+	peerRepo    repository.PeerRepository
+	trafficRepo repository.TrafficRepository
+	vlessCfg    *config.VLESSConfig
+	logger      *slog.Logger
 }
 
-func NewWireGuardService(peerRepo repository.PeerRepository, vlessCfg *config.VLESSConfig, logger *slog.Logger) *WireGuardService {
+func NewWireGuardService(peerRepo repository.PeerRepository, trafficRepo repository.TrafficRepository, vlessCfg *config.VLESSConfig, logger *slog.Logger) *WireGuardService {
 	return &WireGuardService{
-		peerRepo: peerRepo,
-		vlessCfg: vlessCfg,
-		logger:   logger,
+		peerRepo:    peerRepo,
+		trafficRepo: trafficRepo,
+		vlessCfg:    vlessCfg,
+		logger:      logger,
 	}
 }
 
@@ -77,6 +79,10 @@ func (s *WireGuardService) DeletePeer(ctx context.Context, id string) error {
 		return fmt.Errorf("service.wireguard.DeletePeer: %w", err)
 	}
 
+	if err := s.trafficRepo.DeleteByPeerID(ctx, id); err != nil {
+		return fmt.Errorf("service.wireguard.DeletePeer traffic: %w", err)
+	}
+
 	if err := s.peerRepo.Delete(ctx, id); err != nil {
 		return fmt.Errorf("service.wireguard.DeletePeer: %w", err)
 	}
@@ -98,7 +104,7 @@ func (s *WireGuardService) TogglePeer(ctx context.Context, id string, active boo
 	return nil
 }
 
-func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
+func (s *WireGuardService) buildClientConfigMap(peer *models.Peer) map[string]any {
 	deviceType := peer.DeviceType
 	if deviceType == "" {
 		deviceType = models.DeviceTypeIPhone
@@ -121,7 +127,7 @@ func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
 				"vk.com", "userapi.com", "vk-cdn.net",
 				"yandex.com", "yandex.ru", "yandex.net", "yastatic.net",
 				"ya.ru", "mail.ru", "rambler.ru",
-				"gosuslugi.ru", "esia.gosuslugi.ru",
+				"gosuslugi.ru", "esia.gosugugi.ru",
 				"sberbank.ru", "tinkoff.ru",
 				"ozon.ru", "wildberries.ru", "avito.ru",
 				"habr.com", "kaspersky.com",
@@ -243,8 +249,22 @@ func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
 		},
 	}
 
+	return cfg
+}
+
+func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
+	cfg := s.buildClientConfigMap(peer)
 	data, _ := json.MarshalIndent(cfg, "", "  ")
 	return string(data)
+}
+
+func (s *WireGuardService) GenerateClientConfigCompact(peer *models.Peer) (string, error) {
+	cfg := s.buildClientConfigMap(peer)
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return "", fmt.Errorf("service.wireguard.GenerateClientConfigCompact: %w", err)
+	}
+	return string(data), nil
 }
 
 func (s *WireGuardService) GetPeerStats(ctx context.Context, id string) (*models.PeerStats, error) {
