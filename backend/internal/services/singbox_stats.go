@@ -301,13 +301,6 @@ func (c *SingBoxStatsCollector) handleAggregateVLESS(ctx context.Context, delta 
 		}
 	}
 
-	for _, peer := range activePeers {
-		currentOnline[peer.ID] = true
-		if err := c.peerRepo.UpdateLastSeen(ctx, peer.ID); err != nil {
-			c.logger.Error("ошибка обновления last_seen клиента", "id", peer.ID, "error", err)
-		}
-	}
-
 	for i, conn := range delta.connections {
 		if conn.rx == 0 && conn.tx == 0 {
 			continue

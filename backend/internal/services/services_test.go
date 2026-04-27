@@ -157,7 +157,7 @@ func TestWireGuardService_CreatePeer(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
 	defer db.Close()
 
-	svc := NewWireGuardService(repository.NewPeerRepository(db), testVLESSConfig(), testLogger())
+	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
 
 	peer, err := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "Test Peer", DeviceType: models.DeviceTypeIPhone})
 	if err != nil {
@@ -187,7 +187,7 @@ func TestWireGuardService_CreatePeer_ValidationError(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
 	defer db.Close()
 
-	svc := NewWireGuardService(repository.NewPeerRepository(db), testVLESSConfig(), testLogger())
+	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
 
 	_, err := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{})
 	if err == nil {
@@ -199,7 +199,7 @@ func TestWireGuardService_ListPeers(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
 	defer db.Close()
 
-	svc := NewWireGuardService(repository.NewPeerRepository(db), testVLESSConfig(), testLogger())
+	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
 
 	peers, err := svc.ListPeers(context.Background())
 	if err != nil {
@@ -218,7 +218,7 @@ func TestWireGuardService_DeletePeer(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
 	defer db.Close()
 
-	svc := NewWireGuardService(repository.NewPeerRepository(db), testVLESSConfig(), testLogger())
+	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
 
 	peer, _ := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1", DeviceType: models.DeviceTypeIPhone})
 	if err := svc.DeletePeer(context.Background(), peer.ID); err != nil {
@@ -227,7 +227,7 @@ func TestWireGuardService_DeletePeer(t *testing.T) {
 }
 
 func TestWireGuardService_GenerateClientConfig(t *testing.T) {
-	svc := NewWireGuardService(nil, testVLESSConfig(), testLogger())
+	svc := NewWireGuardService(nil, nil, testVLESSConfig(), testLogger())
 
 	peer := &models.Peer{
 		PublicKey:  "7f2105d9-3962-4dd3-80d5-6ac86d271855",
@@ -285,7 +285,7 @@ func TestWireGuardService_GenerateClientConfig(t *testing.T) {
 }
 
 func TestWireGuardService_GenerateClientConfig_Android(t *testing.T) {
-	svc := NewWireGuardService(nil, testVLESSConfig(), testLogger())
+	svc := NewWireGuardService(nil, nil, testVLESSConfig(), testLogger())
 
 	peer := &models.Peer{
 		PublicKey:  "test-uuid-android",
@@ -319,7 +319,7 @@ func TestWireGuardService_GenerateClientConfig_Android(t *testing.T) {
 }
 
 func TestWireGuardService_GenerateClientConfig_DefaultFallback(t *testing.T) {
-	svc := NewWireGuardService(nil, testVLESSConfig(), testLogger())
+	svc := NewWireGuardService(nil, nil, testVLESSConfig(), testLogger())
 
 	peer := &models.Peer{
 		PublicKey:  "test-uuid-empty",
@@ -689,7 +689,7 @@ func TestWireGuardService_TogglePeer(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
 	defer db.Close()
 
-	svc := NewWireGuardService(repository.NewPeerRepository(db), testVLESSConfig(), testLogger())
+	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
 
 	peer, _ := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{
 		Name: "Toggle", DeviceType: models.DeviceTypeIPhone,
@@ -718,7 +718,7 @@ func TestWireGuardService_TogglePeer_NotFound(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
 	defer db.Close()
 
-	svc := NewWireGuardService(repository.NewPeerRepository(db), testVLESSConfig(), testLogger())
+	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
 
 	err := svc.TogglePeer(context.Background(), "nonexistent", true)
 	if err == nil {
@@ -1033,7 +1033,7 @@ func TestWireGuardService_GetPeerStats_OnlineByLastSeen(t *testing.T) {
 	defer db.Close()
 
 	peerRepo := repository.NewPeerRepository(db)
-	svc := NewWireGuardService(peerRepo, testVLESSConfig(), testLogger())
+	svc := NewWireGuardService(peerRepo, repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
 
 	peer, _ := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1", DeviceType: models.DeviceTypeIPhone})
 
