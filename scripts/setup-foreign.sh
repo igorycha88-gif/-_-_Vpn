@@ -50,6 +50,7 @@ ufw --force reset
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow 22/tcp comment 'SSH'
+ufw allow 443/tcp comment 'VLESS+Reality sing-box'
 ufw allow from "$RU_SERVER_IP" to any port 51821 proto udp comment 'WireGuard tunnel from RU server'
 ufw --force enable
 
@@ -69,7 +70,6 @@ COMMIT
 :OUTPUT ACCEPT [0:0]
 :POSTROUTING ACCEPT [0:0]
 -A POSTROUTING -s 10.20.0.0/30 -o eth0 -j MASQUERADE
--A POSTROUTING -s 10.30.0.0/24 -o eth0 -j MASQUERADE
 COMMIT
 IPTABLES
 iptables-restore < /etc/iptables/rules.v4
@@ -80,6 +80,7 @@ echo ""
 echo "Следующие шаги:"
 echo "  1. Скопируйте конфиг WireGuard: deploy/server-foreign/wireguard/wg0.conf -> /etc/wireguard/wg0.conf"
 echo "  2. Заполните ключи в конфиге (используйте scripts/generate-keys.sh)"
-echo "  3. Запустите WireGuard: systemctl enable --now wg-quick@wg0"
+echo "  3. Установите и настройте sing-box (VLESS+Reality на порту 443)"
+echo "  4. Запустите WireGuard: systemctl enable --now wg-quick@wg0"
 echo ""
 echo "ВНИМАНИЕ: убедитесь что публичный IP интерфейс eth0. Если нет — отредактируйте /etc/iptables/rules.v4"

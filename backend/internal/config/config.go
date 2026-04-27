@@ -33,13 +33,10 @@ type JWTConfig struct {
 }
 
 type WGConfig struct {
-	Interface           string
-	Port                int
 	TunnelInterface     string
 	TunnelPrivateKey    string
 	TunnelPeerPublicKey string
 	TunnelLocalAddress  string
-	MTU                 int
 }
 
 type VLESSConfig struct {
@@ -99,12 +96,9 @@ func Load() (*Config, error) {
 	}
 	cfg.JWT.RefreshTTL = refreshTTL
 
-	cfg.WG.Interface = getEnv("WG_INTERFACE", "wg0")
-	cfg.WG.Port = getEnvInt("WG_PORT", 51820)
 	cfg.WG.TunnelPrivateKey = getEnv("FOREIGN_TUNNEL_PRIVATE_KEY", "")
 	cfg.WG.TunnelPeerPublicKey = getEnv("FOREIGN_TUNNEL_PEER_PUBLIC_KEY", "")
 	cfg.WG.TunnelLocalAddress = getEnv("FOREIGN_TUNNEL_LOCAL_ADDRESS", "10.20.0.2/30")
-	cfg.WG.MTU = getEnvInt("WG_MTU", 1280)
 	cfg.WG.TunnelInterface = getEnv("WG_TUNNEL_INTERFACE", "wg1")
 
 	cfg.VLESS.PrivateKey = getEnv("VLESS_PRIVATE_KEY", "")
