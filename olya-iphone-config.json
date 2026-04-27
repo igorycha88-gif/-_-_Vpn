@@ -1,0 +1,110 @@
+{
+  "log": {"level": "info", "timestamp": true},
+  "dns": {
+    "servers": [
+      {"tag": "dns-foreign", "address": "1.1.1.1", "detour": "proxy"},
+      {"tag": "dns-foreign-alt", "address": "8.8.8.8", "detour": "proxy"},
+      {"tag": "dns-ru", "address": "77.88.8.8", "detour": "direct-out"},
+      {"tag": "dns-ru-alt", "address": "77.88.8.1", "detour": "direct-out"}
+    ],
+    "rules": [
+      {
+        "domain_suffix": [".ru", ".su", ".xn--p1ai"],
+        "server": "dns-ru"
+      },
+      {
+        "domain_suffix": [
+          "vk.com", "userapi.com", "vk-cdn.net",
+          "yandex.com", "yandex.ru", "yandex.net", "yastatic.net",
+          "ya.ru", "mail.ru", "rambler.ru",
+          "gosuslugi.ru", "esia.gosuslugi.ru",
+          "sberbank.ru", "tinkoff.ru",
+          "ozon.ru", "wildberries.ru", "avito.ru",
+          "habr.com", "kaspersky.com",
+          "max.ru", "maxpatrol.ru", "positive-technologies.ru"
+        ],
+        "server": "dns-ru"
+      },
+      {
+        "inbound": ["tun-in"],
+        "server": "dns-foreign"
+      }
+    ],
+    "final": "dns-foreign",
+    "strategy": "prefer_ipv4"
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "address": ["172.19.0.1/30"],
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "system"
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "vless",
+      "tag": "proxy",
+      "server": "130.49.129.241",
+      "server_port": 443,
+      "uuid": "98f49b42-5a77-488a-aae2-5021bc3ddaba",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.microsoft.com",
+        "utls": {"enabled": true, "fingerprint": "chrome"},
+        "reality": {
+          "enabled": true,
+          "public_key": "npwx-mboFds68oyFs6pTY8A5IL17VXjOWDMdXqWvvmg",
+          "short_id": "bb8329663411919b"
+        }
+      }
+    },
+    {"type": "direct", "tag": "direct-out"}
+  ],
+  "route": {
+    "rules": [
+      {"inbound": ["tun-in"], "action": "sniff"},
+      {"protocol": "dns", "inbound": ["tun-in"], "action": "hijack-dns"},
+      {"ip_cidr": ["130.49.129.241/32"], "outbound": "direct-out"},
+      {"ip_is_private": true, "outbound": "direct-out"},
+      {
+        "domain_suffix": [".ru", ".su", ".xn--p1ai"],
+        "outbound": "direct-out"
+      },
+      {
+        "domain_suffix": [
+          "vk.com", "userapi.com", "vk-cdn.net",
+          "yandex.com", "yandex.ru", "yandex.net", "yastatic.net",
+          "ya.ru", "mail.ru", "rambler.ru",
+          "gosuslugi.ru", "esia.gosuslugi.ru",
+          "sberbank.ru", "tinkoff.ru",
+          "ozon.ru", "wildberries.ru", "avito.ru",
+          "habr.com", "kaspersky.com",
+          "max.ru", "maxpatrol.ru", "positive-technologies.ru"
+        ],
+        "outbound": "direct-out"
+      },
+      {
+        "domain_suffix": [
+          "youtube.com", "youtu.be", "googlevideo.com",
+          "instagram.com", "cdninstagram.com",
+          "facebook.com", "fbcdn.net", "meta.com",
+          "telegram.org", "t.me",
+          "twitter.com", "x.com", "twimg.com",
+          "discord.com", "discordapp.com", "discord.gg",
+          "chatgpt.com", "openai.com", "ai.com",
+          "google.com", "googleapis.com", "gstatic.com",
+          "github.com", "githubusercontent.com",
+          "netflix.com", "nflxvideo.net", "nflximg.net",
+          "tiktok.com", "tiktokcdn.com"
+        ],
+        "outbound": "proxy"
+      }
+    ],
+    "final": "proxy",
+    "auto_detect_interface": true
+  }
+}

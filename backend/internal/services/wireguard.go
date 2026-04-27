@@ -195,7 +195,7 @@ func (s *WireGuardService) buildClientConfigMap(peer *models.Peer) map[string]an
 						"vk.com", "userapi.com", "vk-cdn.net",
 						"yandex.com", "yandex.ru", "yandex.net", "yastatic.net",
 						"ya.ru", "mail.ru", "rambler.ru",
-						"gosuslugi.ru", "esia.gosugugi.ru",
+						"gosuslugi.ru", "esia.gosuslugi.ru",
 						"sberbank.ru", "tinkoff.ru",
 						"ozon.ru", "wildberries.ru", "avito.ru",
 						"habr.com", "kaspersky.com",
