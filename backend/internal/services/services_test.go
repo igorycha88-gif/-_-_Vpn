@@ -255,8 +255,20 @@ func TestWireGuardService_GenerateClientConfig(t *testing.T) {
 	if contains(config, "package_name") {
 		t.Error("iPhone config should NOT contain package_name rules")
 	}
-	if !contains(config, `"stack": "mixed"`) {
-		t.Error("iPhone config should use stack mixed")
+	if !contains(config, `"stack": "system"`) {
+		t.Error("iPhone config should use stack system")
+	}
+	if !contains(config, `"detour": "proxy"`) {
+		t.Error("iPhone config should have DNS foreign with proxy detour")
+	}
+	if !contains(config, `"detour": "direct-out"`) {
+		t.Error("iPhone config should have DNS RU with direct-out detour")
+	}
+	if !contains(config, "dns-foreign") {
+		t.Error("iPhone config should have dns-foreign server")
+	}
+	if !contains(config, "dns-ru") {
+		t.Error("iPhone config should have dns-ru server")
 	}
 	if !contains(config, "youtube.com") {
 		t.Error("config should contain youtube.com in proxy rules")
@@ -314,8 +326,8 @@ func TestWireGuardService_GenerateClientConfig_DefaultFallback(t *testing.T) {
 		DeviceType: "",
 	}
 	config := svc.GenerateClientConfig(peer)
-	if !contains(config, `"stack": "mixed"`) {
-		t.Error("Empty device_type should fallback to iPhone (stack mixed)")
+	if !contains(config, `"stack": "system"`) {
+		t.Error("Empty device_type should fallback to iPhone (stack system)")
 	}
 }
 
