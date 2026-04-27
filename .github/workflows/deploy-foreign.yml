@@ -70,7 +70,6 @@ jobs:
           WG_LISTEN_PORT: ${{ secrets.FOREIGN_WG_LISTEN_PORT }}
           RU_WG_PUBLIC_KEY: ${{ secrets.RU_WG_PUBLIC_KEY }}
           RU_SERVER_IP: ${{ secrets.RU_SERVER_HOST }}
-          SINGBOX_WG_PUBLIC_KEY: ${{ secrets.SINGBOX_WG_PUBLIC_KEY }}
         run: |
           cat > /tmp/wg0.conf <<EOF
           [Interface]
@@ -78,18 +77,14 @@ jobs:
           Address = ${WG_ADDRESS}
           ListenPort = ${WG_LISTEN_PORT}
 
-          PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -A FORWARD -o wg0 -j ACCEPT; iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT; iptables -t nat -A POSTROUTING -s 10.20.0.0/30 -o eth0 -j MASQUERADE; iptables -t nat -A POSTROUTING -s 10.30.0.0/24 -o eth0 -j MASQUERADE
-          PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -D FORWARD -o wg0 -j ACCEPT; iptables -D FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT; iptables -t nat -D POSTROUTING -s 10.20.0.0/30 -o eth0 -j MASQUERADE; iptables -t nat -D POSTROUTING -s 10.30.0.0/24 -o eth0 -j MASQUERADE
+          PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -A FORWARD -o wg0 -j ACCEPT; iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT; iptables -t nat -A POSTROUTING -s 10.20.0.0/30 -o eth0 -j MASQUERADE
+          PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -D FORWARD -o wg0 -j ACCEPT; iptables -D FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT; iptables -t nat -D POSTROUTING -s 10.20.0.0/30 -o eth0 -j MASQUERADE
 
           [Peer]
           PublicKey = ${RU_WG_PUBLIC_KEY}
           AllowedIPs = 10.20.0.0/30
           Endpoint = ${RU_SERVER_IP}:51821
           PersistentKeepalive = 25
-
-          [Peer]
-          PublicKey = ${SINGBOX_WG_PUBLIC_KEY}
-          AllowedIPs = 10.30.0.2/32
           EOF
           echo "WireGuard config generated"
 

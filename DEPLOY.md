@@ -268,10 +268,9 @@ on:
 
 | Компонент | Порт | Назначение |
 |---|---|---|
-| WireGuard (wg0) | 51821/UDP | Приём тоннеля от РФ-сервера |
-| sing-box (SOCKS) | 10.20.0.2:1080/TCP | SOCKS5-прокси для трафика из РФ |
-| sing-box (DNS) | эфемерные UDP | DNS-резолвер (зарубежные upstream) |
-| sing-box (TLS) | 443/TCP | Маскировка (Reality TLS) |
+| sing-box (systemd) | 443/TCP | VLESS+Reality — приём relay трафика от РФ-сервера |
+| WireGuard (wg0) | 51821/UDP | Резервный межсерверный тоннель от РФ-сервера |
+| xray (systemd) | 8443/TCP | Сторонний сервис (не входит в SmartTraffic) |
 | sshd | 22/TCP | SSH-доступ |
 
 ---
@@ -429,7 +428,7 @@ scripts/
 - [ ] RU: iptables правила настроены
 - [ ] Foreign: установлен WireGuard, sing-box, `net.ipv4.ip_forward=1`
 - [ ] Foreign: `/etc/wireguard/` — директория существует
-- [ ] Foreign: sing-box настроен (SOCKS5 на 10.20.0.2:1080, DNS-резолвер)
+- [ ] Foreign: sing-box настроен (VLESS+Reality на порту 443)
 - [ ] SSH: deploy ключ добавлен в `authorized_keys` на обоих серверах
 
 ### Smoke-тест перед первым автодеплоем

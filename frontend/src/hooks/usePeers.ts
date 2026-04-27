@@ -57,5 +57,8 @@ export function useTogglePeer() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['peers'] })
     },
+    onError: () => {
+      message.error('Ошибка переключения клиента. Возможно, sing-box не перезапущен.')
+    },
   })
 }

@@ -166,6 +166,7 @@ func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
 		routeRules = append(baseRules, packageNameRules...)
 		routeRules = append(routeRules, proxyDomains...)
 	default:
+		stack = "system"
 		routeRules = append(baseRules, proxyDomains...)
 	}
 
@@ -176,11 +177,29 @@ func (s *WireGuardService) GenerateClientConfig(peer *models.Peer) string {
 		},
 		"dns": map[string]any{
 			"servers": []any{
-				map[string]any{"tag": "remote", "address": "1.1.1.1"},
-				map[string]any{"tag": "local", "address": "77.88.8.8", "detour": "direct-out"},
+				map[string]any{"tag": "dns-foreign", "address": "1.1.1.1", "detour": "proxy"},
+				map[string]any{"tag": "dns-foreign-alt", "address": "8.8.8.8", "detour": "proxy"},
+				map[string]any{"tag": "dns-ru", "address": "77.88.8.8", "detour": "direct-out"},
+				map[string]any{"tag": "dns-ru-alt", "address": "77.88.8.1", "detour": "direct-out"},
 			},
-			"rules":    []any{map[string]any{"inbound": []string{"tun-in"}, "server": "local"}},
-			"final":    "remote",
+			"rules": []any{
+				map[string]any{"domain_suffix": []string{".ru", ".su", ".xn--p1ai"}, "server": "dns-ru"},
+				map[string]any{
+					"domain_suffix": []string{
+						"vk.com", "userapi.com", "vk-cdn.net",
+						"yandex.com", "yandex.ru", "yandex.net", "yastatic.net",
+						"ya.ru", "mail.ru", "rambler.ru",
+						"gosuslugi.ru", "esia.gosuslugi.ru",
+						"sberbank.ru", "tinkoff.ru",
+						"ozon.ru", "wildberries.ru", "avito.ru",
+						"habr.com", "kaspersky.com",
+						"max.ru", "maxpatrol.ru", "positive-technologies.ru",
+					},
+					"server": "dns-ru",
+				},
+				map[string]any{"inbound": []string{"tun-in"}, "server": "dns-foreign"},
+			},
+			"final":    "dns-foreign",
 			"strategy": "prefer_ipv4",
 		},
 		"inbounds": []any{

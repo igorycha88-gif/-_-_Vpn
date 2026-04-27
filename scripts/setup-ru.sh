@@ -71,14 +71,12 @@ ufw default allow outgoing
 ufw default allow FORWARD
 ufw allow 22/tcp comment 'SSH'
 ufw allow 80/tcp comment 'HTTP'
-ufw allow 443/tcp comment 'HTTPS'
-ufw allow 51820/udp comment 'WireGuard VPN clients'
+ufw allow 443/tcp comment 'VLESS+Reality'
 ufw allow 51821/udp comment 'WireGuard tunnel to foreign server'
 sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw
 ufw --force enable
 
-echo "[6/7] Запуск WireGuard..."
-systemctl enable wg-quick@wg0 || true
+echo "[6/7] Запуск WireGuard (межсерверный тоннель)..."
 systemctl enable wg-quick@wg1 || true
 
 echo "[7/7] Создание рабочей директории..."
@@ -92,9 +90,8 @@ echo ""
 echo "=== Настройка РФ-сервера завершена ==="
 echo ""
 echo "Следующие шаги:"
-echo "  1. Скопируйте конфиги WireGuard: deploy/server-ru/wireguard/wg0.conf -> /etc/wireguard/wg0.conf"
-echo "  2. Скопируйте конфиги WireGuard: deploy/server-ru/wireguard/wg1.conf -> /etc/wireguard/wg1.conf"
-echo "  3. Заполните ключи в конфигах WireGuard (используйте scripts/generate-keys.sh)"
-echo "  4. Примените iptables правила: bash deploy/server-ru/iptables/rules.sh"
-echo "  5. Получите SSL сертификат: bash deploy/server-ru/scripts/certbot-setup.sh"
-echo "  6. Запустите сервисы: docker compose -f deploy/server-ru/docker-compose.prod.yml up -d"
+echo "  1. Скопируйте конфиг WireGuard: deploy/server-ru/wireguard/wg1.conf -> /etc/wireguard/wg1.conf"
+echo "  2. Заполните ключи в конфиге WireGuard (используйте scripts/generate-keys.sh)"
+echo "  3. Примените iptables правила: bash deploy/server-ru/iptables/rules.sh"
+echo "  4. Получите SSL сертификат: bash deploy/server-ru/scripts/certbot-setup.sh"
+echo "  5. Запустите сервисы: docker compose -f deploy/server-ru/docker-compose.prod.yml up -d"

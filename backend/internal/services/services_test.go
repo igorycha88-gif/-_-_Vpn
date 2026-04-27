@@ -255,8 +255,20 @@ func TestWireGuardService_GenerateClientConfig(t *testing.T) {
 	if contains(config, "package_name") {
 		t.Error("iPhone config should NOT contain package_name rules")
 	}
-	if !contains(config, `"stack": "mixed"`) {
-		t.Error("iPhone config should use stack mixed")
+	if !contains(config, `"stack": "system"`) {
+		t.Error("iPhone config should use stack system")
+	}
+	if !contains(config, `"detour": "proxy"`) {
+		t.Error("iPhone config should have DNS foreign with proxy detour")
+	}
+	if !contains(config, `"detour": "direct-out"`) {
+		t.Error("iPhone config should have DNS RU with direct-out detour")
+	}
+	if !contains(config, "dns-foreign") {
+		t.Error("iPhone config should have dns-foreign server")
+	}
+	if !contains(config, "dns-ru") {
+		t.Error("iPhone config should have dns-ru server")
 	}
 	if !contains(config, "youtube.com") {
 		t.Error("config should contain youtube.com in proxy rules")
@@ -314,8 +326,8 @@ func TestWireGuardService_GenerateClientConfig_DefaultFallback(t *testing.T) {
 		DeviceType: "",
 	}
 	config := svc.GenerateClientConfig(peer)
-	if !contains(config, `"stack": "mixed"`) {
-		t.Error("Empty device_type should fallback to iPhone (stack mixed)")
+	if !contains(config, `"stack": "system"`) {
+		t.Error("Empty device_type should fallback to iPhone (stack system)")
 	}
 }
 
@@ -572,7 +584,7 @@ func newTestSingBoxService(t *testing.T) (*SingBoxService, *sql.DB) {
 	peerRepo := repository.NewPeerRepository(db)
 	sbCfg := &config.SingBoxConfig{ConfigPath: t.TempDir() + "/config.json", ClashAPIAddr: "127.0.0.1:9090"}
 	vlessCfg := testVLESSConfig()
-	wgCfg := &config.WGConfig{MTU: 1280, TunnelLocalAddress: "10.20.0.2/30", TunnelPrivateKey: "testkey", TunnelPeerPublicKey: "testpeerkey"}
+	wgCfg := &config.WGConfig{TunnelLocalAddress: "10.20.0.2/30", TunnelPrivateKey: "testkey", TunnelPeerPublicKey: "testpeerkey"}
 	srvCfg := &config.ServerConfig{ForeignIP: "1.2.3.4", ForeignVLESS: config.ForeignVLESSConfig{UUID: "test-uuid", ServerName: "www.microsoft.com", RealityPublicKey: "test-pk", RealityShortID: "test-sid"}}
 	svc := NewSingBoxService(routeRepo, dnsRepo, peerRepo, sbCfg, vlessCfg, wgCfg, srvCfg, testLogger())
 	return svc, db
@@ -606,7 +618,7 @@ func TestSingBoxService_GenerateConfig_NoForeignIP(t *testing.T) {
 	peerRepo := repository.NewPeerRepository(db)
 	sbCfg := &config.SingBoxConfig{ConfigPath: t.TempDir() + "/config.json", ClashAPIAddr: "127.0.0.1:9090"}
 	vlessCfg := testVLESSConfig()
-	wgCfg := &config.WGConfig{MTU: 1280}
+	wgCfg := &config.WGConfig{}
 	srvCfg := &config.ServerConfig{ForeignIP: ""}
 	svc := NewSingBoxService(routeRepo, dnsRepo, peerRepo, sbCfg, vlessCfg, wgCfg, srvCfg, testLogger())
 
@@ -639,6 +651,78 @@ func TestSingBoxService_WriteConfig(t *testing.T) {
 
 	if err := svc.WriteConfig(context.Background()); err != nil {
 		t.Fatalf("WriteConfig: %v", err)
+	}
+}
+
+func TestSingBoxService_GenerateConfig_OnlyActivePeersInUsers(t *testing.T) {
+	svc, db := newTestSingBoxService(t)
+	peerRepo := repository.NewPeerRepository(db)
+
+	peerRepo.Create(context.Background(), &models.Peer{
+		ID: "p1", Name: "Active", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "uuid-active-1", PrivateKey: "pk", Address: "addr1",
+		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
+	})
+	peerRepo.Create(context.Background(), &models.Peer{
+		ID: "p2", Name: "Inactive", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "uuid-inactive-2", PrivateKey: "pk", Address: "addr2",
+		DNS: "1.1.1.1", MTU: 1280, IsActive: false,
+	})
+
+	cfg, err := svc.GenerateConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateConfig: %v", err)
+	}
+
+	data, _ := json.Marshal(cfg.Inbounds[0])
+	cfgStr := string(data)
+
+	if !contains(cfgStr, "uuid-active-1") {
+		t.Error("active peer UUID should be in inbound users")
+	}
+	if contains(cfgStr, "uuid-inactive-2") {
+		t.Error("inactive peer UUID should NOT be in inbound users")
+	}
+}
+
+func TestWireGuardService_TogglePeer(t *testing.T) {
+	db, _ := repository.InitDB(":memory:", migrations.Files)
+	defer db.Close()
+
+	svc := NewWireGuardService(repository.NewPeerRepository(db), testVLESSConfig(), testLogger())
+
+	peer, _ := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{
+		Name: "Toggle", DeviceType: models.DeviceTypeIPhone,
+	})
+
+	if err := svc.TogglePeer(context.Background(), peer.ID, false); err != nil {
+		t.Fatalf("TogglePeer off: %v", err)
+	}
+
+	updated, _ := svc.GetPeer(context.Background(), peer.ID)
+	if updated.IsActive {
+		t.Error("peer should be inactive after toggle off")
+	}
+
+	if err := svc.TogglePeer(context.Background(), peer.ID, true); err != nil {
+		t.Fatalf("TogglePeer on: %v", err)
+	}
+
+	updated, _ = svc.GetPeer(context.Background(), peer.ID)
+	if !updated.IsActive {
+		t.Error("peer should be active after toggle on")
+	}
+}
+
+func TestWireGuardService_TogglePeer_NotFound(t *testing.T) {
+	db, _ := repository.InitDB(":memory:", migrations.Files)
+	defer db.Close()
+
+	svc := NewWireGuardService(repository.NewPeerRepository(db), testVLESSConfig(), testLogger())
+
+	err := svc.TogglePeer(context.Background(), "nonexistent", true)
+	if err == nil {
+		t.Error("expected error for nonexistent peer")
 	}
 }
 

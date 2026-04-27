@@ -20,6 +20,36 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+func startCleanupCron(ctx context.Context, trafficSvc *services.TrafficService, logger *slog.Logger) {
+	interval := 24 * time.Hour
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	logger.Info("запуск крона очистки старых логов трафика", "interval", interval, "retain_days", 60)
+
+	time.Sleep(30 * time.Second)
+	if _, err := trafficSvc.CleanupOldLogs(ctx, 60); err != nil {
+		logger.Error("ошибка очистки старых логов трафика при запуске", "error", err)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info("остановка крона очистки логов трафика")
+			return
+		case <-ticker.C:
+			deleted, err := trafficSvc.CleanupOldLogs(ctx, 60)
+			if err != nil {
+				logger.Error("ошибка очистки старых логов трафика", "error", err)
+				continue
+			}
+			if deleted > 0 {
+				logger.Info("очищены старые логи трафика", "deleted", deleted)
+			}
+		}
+	}
+}
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
@@ -63,6 +93,7 @@ func main() {
 
 	go collector.Start(ctx)
 	go sbCollector.Start(ctx)
+	go startCleanupCron(ctx, trafficSvc, logger)
 
 	authHandler := handlers.NewAuthHandler(authSvc, logger)
 	peerHandler := handlers.NewPeerHandler(wgSvc, singboxSvc, logger)
