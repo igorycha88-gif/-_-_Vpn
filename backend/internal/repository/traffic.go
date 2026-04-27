@@ -185,20 +185,25 @@ func (r *sqliteTrafficRepository) ListAlerts(ctx context.Context, limit int) ([]
 
 func (r *sqliteTrafficRepository) GetPeerTrafficSummary(ctx context.Context) ([]*models.PeerTrafficSummary, error) {
 	q := `SELECT
-		p.id, p.name, p.total_rx, p.total_tx, p.is_active, p.last_seen,
-		COALESCE(l.conn_count, 0) AS conn_count,
-		l.top_domain
+		p.id, p.name, p.is_active, p.last_seen,
+		COALESCE(a.total_rx, 0) AS total_rx,
+		COALESCE(a.total_tx, 0) AS total_tx,
+		COALESCE(a.conn_count, 0) AS conn_count,
+		a.top_domain
 	FROM wg_peers p
 	LEFT JOIN (
 		SELECT
 			peer_id,
+			SUM(bytes_rx) AS total_rx,
+			SUM(bytes_tx) AS total_tx,
 			COUNT(*) AS conn_count,
-			(SELECT domain FROM traffic_logs t2 WHERE t2.peer_id = t1.peer_id AND t2.domain != '' GROUP BY domain ORDER BY COUNT(*) DESC LIMIT 1) AS top_domain
+			(SELECT domain FROM traffic_logs t2
+			 WHERE t2.peer_id = t1.peer_id AND t2.domain != ''
+			 GROUP BY domain ORDER BY SUM(bytes_rx + bytes_tx) DESC LIMIT 1) AS top_domain
 		FROM traffic_logs t1
-		WHERE timestamp >= datetime('now', '-24 hours')
 		GROUP BY peer_id
-	) l ON p.id = l.peer_id
-	ORDER BY p.total_rx + p.total_tx DESC`
+	) a ON p.id = a.peer_id
+	ORDER BY COALESCE(a.total_rx, 0) + COALESCE(a.total_tx, 0) DESC`
 
 	rows, err := r.db.QueryContext(ctx, q)
 	if err != nil {
@@ -211,7 +216,7 @@ func (r *sqliteTrafficRepository) GetPeerTrafficSummary(ctx context.Context) ([]
 		s := &models.PeerTrafficSummary{}
 		var lastSeen sql.NullTime
 		var topDomain sql.NullString
-		if err := rows.Scan(&s.PeerID, &s.PeerName, &s.TotalRx, &s.TotalTx, &s.IsActive, &lastSeen, &s.ConnCount, &topDomain); err != nil {
+		if err := rows.Scan(&s.PeerID, &s.PeerName, &s.IsActive, &lastSeen, &s.TotalRx, &s.TotalTx, &s.ConnCount, &topDomain); err != nil {
 			return nil, fmt.Errorf("traffic.GetPeerTrafficSummary scan: %w", err)
 		}
 		if lastSeen.Valid {

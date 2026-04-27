@@ -109,9 +109,7 @@ func (h *PeerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.sbSvc.WriteConfigAndRestart(r.Context()); err != nil {
-		h.logger.Error("ошибка перезапуска sing-box после удаления клиента", "id", id, "error", err)
-		ErrorJSON(w, http.StatusInternalServerError, "клиент удалён, но не удалось перезапустить sing-box")
-		return
+		h.logger.Warn("не удалось перезапустить sing-box после удаления клиента", "id", id, "error", err)
 	}
 
 	JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
@@ -230,9 +228,7 @@ func (h *PeerHandler) Toggle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.sbSvc.WriteConfigAndRestart(r.Context()); err != nil {
-		h.logger.Error("ошибка перезапуска sing-box после toggle клиента", "id", id, "error", err)
-		ErrorJSON(w, http.StatusInternalServerError, "статус обновлён, но не удалось перезапустить sing-box")
-		return
+		h.logger.Warn("не удалось перезапустить sing-box после toggle клиента", "id", id, "error", err)
 	}
 
 	JSON(w, http.StatusOK, map[string]string{"status": "updated"})

@@ -114,7 +114,7 @@ export default function Monitoring() {
       key: 'name',
       render: (_: unknown, r: PeerTrafficSummary) => (
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Badge status={r.online ? 'success' : 'default'} />
+          <Badge status={r.online ? 'success' : r.is_active ? 'default' : 'error'} />
           <Text strong>{r.peer_name}</Text>
         </span>
       ),
@@ -122,13 +122,17 @@ export default function Monitoring() {
     {
       title: 'Статус',
       key: 'status',
-      width: 100,
-      render: (_: unknown, r: PeerTrafficSummary) =>
-        r.online ? (
+      width: 130,
+      render: (_: unknown, r: PeerTrafficSummary) => {
+        if (!r.is_active) {
+          return <Tag color="red">Выключен</Tag>
+        }
+        return r.online ? (
           <Tag icon={<CheckCircleOutlined />} color="success">Онлайн</Tag>
         ) : (
           <Tag icon={<CloseCircleOutlined />} color="default">Офлайн</Tag>
-        ),
+        )
+      },
     },
     {
       title: 'RX',
@@ -160,10 +164,10 @@ export default function Monitoring() {
       },
     },
     {
-      title: 'Соединений (24ч)',
+      title: 'Соединений',
       dataIndex: 'conn_count',
       key: 'conn_count',
-      width: 130,
+      width: 120,
       render: (v: number) => v.toLocaleString('ru'),
     },
     {
@@ -206,7 +210,7 @@ export default function Monitoring() {
         <Spin spinning={statsLoading}>
           <Card style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-              <Text>Клиентов: <strong>{stats?.online_peers ?? 0}</strong> / {stats?.total_peers ?? 0}</Text>
+              <Text>Клиентов: <strong>{stats?.online_peers ?? 0}</strong> онлайн / <strong>{stats?.active_peers ?? 0}</strong> активных / {stats?.total_peers ?? 0} всего</Text>
               <Text>Трафик RX: <strong>{formatBytes(stats?.total_rx ?? 0)}</strong></Text>
               <Text>Трафик TX: <strong>{formatBytes(stats?.total_tx ?? 0)}</strong></Text>
               <Text>Правил: <strong>{stats?.rules_count ?? 0}</strong></Text>
@@ -229,15 +233,22 @@ export default function Monitoring() {
                     style={{
                       borderColor: p.id === selectedPeer ? '#1890ff' : undefined,
                       background: p.id === selectedPeer ? '#f0f5ff' : undefined,
+                      opacity: p.is_active ? 1 : 0.6,
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Text strong ellipsis style={{ maxWidth: 120 }}>{p.name}</Text>
-                      {online ? (
-                        <Tag icon={<CheckCircleOutlined />} color="success">Онлайн</Tag>
-                      ) : (
-                        <Tag icon={<CloseCircleOutlined />} color="default">Офлайн</Tag>
-                      )}
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {p.is_active ? (
+                          online ? (
+                            <Tag icon={<CheckCircleOutlined />} color="success">Онлайн</Tag>
+                          ) : (
+                            <Tag icon={<CloseCircleOutlined />} color="default">Офлайн</Tag>
+                          )
+                        ) : (
+                          <Tag color="red">Выключен</Tag>
+                        )}
+                      </div>
                     </div>
                     <div style={{ marginTop: 4 }}>
                       <Text type="secondary" style={{ fontSize: 12 }}>

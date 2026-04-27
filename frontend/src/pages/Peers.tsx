@@ -102,16 +102,29 @@ export default function Peers() {
     {
       title: 'Статус',
       key: 'status',
-      render: (_: unknown, record: Peer) => (
-        <Tag color={record.is_active ? 'green' : 'red'}>
-          {record.is_active ? 'Активен' : 'Отключён'}
-        </Tag>
-      ),
+      render: (_: unknown, record: Peer) => {
+        if (!record.is_active) {
+          return <Tag color="red">Отключён</Tag>
+        }
+        const online = record.last_seen && (Date.now() - new Date(record.last_seen).getTime()) < 120_000
+        return online
+          ? <Tag color="green">Онлайн</Tag>
+          : <Tag color="default">Активен</Tag>
+      },
     },
     {
-      title: 'Трафик (RX/TX)',
+      title: 'Трафик RX ↓ / TX ↑',
       key: 'traffic',
-      render: (_: unknown, record: Peer) => `${formatBytes(record.total_rx)} / ${formatBytes(record.total_tx)}`,
+      render: (_: unknown, record: Peer) => {
+        const total = record.total_rx + record.total_tx
+        return (
+          <div>
+            <div><Text type="secondary" style={{ fontSize: 12 }}>↓ {formatBytes(record.total_rx)}</Text></div>
+            <div><Text type="secondary" style={{ fontSize: 12 }}>↑ {formatBytes(record.total_tx)}</Text></div>
+            <div><Text style={{ fontSize: 11 }}>Σ {formatBytes(total)}</Text></div>
+          </div>
+        )
+      },
     },
     {
       title: 'Последняя активность',
