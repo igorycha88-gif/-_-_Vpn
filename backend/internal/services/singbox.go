@@ -272,11 +272,32 @@ func (s *SingBoxService) Reload() error {
 	}
 
 	s.logger.Warn("Clash API reload не удался, fallback на docker restart")
+	return s.dockerRestart()
+}
+
+func (s *SingBoxService) dockerRestart() error {
 	cmd := exec.Command("docker", "restart", "smarttraffic-singbox")
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("service.singbox.Reload docker restart: %w", err)
+		return fmt.Errorf("service.singbox.dockerRestart: %w", err)
 	}
 	s.logger.Info("sing-box перезагружен через docker restart")
+	return nil
+}
+
+func (s *SingBoxService) Restart() error {
+	return s.dockerRestart()
+}
+
+func (s *SingBoxService) WriteConfigAndRestart(ctx context.Context) error {
+	if err := s.WriteConfig(ctx); err != nil {
+		return err
+	}
+
+	if err := s.Restart(); err != nil {
+		s.logger.Error("ошибка перезапуска sing-box", "error", err)
+		return err
+	}
+
 	return nil
 }
 
