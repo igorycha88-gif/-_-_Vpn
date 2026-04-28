@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"smarttraffic/internal/apperrors"
 	"smarttraffic/internal/config"
 	"smarttraffic/internal/models"
 	"smarttraffic/internal/repository"
@@ -16,10 +17,17 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var (
+	var (
 	ErrInvalidCredentials = errors.New("неверный email или пароль")
 	ErrInvalidToken       = errors.New("неверный или просроченный токен")
 )
+
+func mapRepoError(err error) error {
+	if errors.Is(err, repository.ErrNotFound) {
+		return apperrors.ErrNotFound
+	}
+	return err
+}
 
 type AuthService struct {
 	authRepo repository.AuthRepository
@@ -85,10 +93,21 @@ func (s *AuthService) ValidateAccessToken(tokenStr string) (*models.Claims, erro
 		return nil, ErrInvalidToken
 	}
 
-	c := &models.Claims{
-		UserID: claims["user_id"].(string),
-		Email:  claims["email"].(string),
-		Role:   claims["role"].(string),
+	c := &models.Claims{}
+	if uid, ok := claims["user_id"].(string); ok {
+		c.UserID = uid
+	} else {
+		return nil, ErrInvalidToken
+	}
+	if email, ok := claims["email"].(string); ok {
+		c.Email = email
+	} else {
+		return nil, ErrInvalidToken
+	}
+	if role, ok := claims["role"].(string); ok {
+		c.Role = role
+	} else {
+		return nil, ErrInvalidToken
 	}
 
 	return c, nil
@@ -100,7 +119,9 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*m
 		return nil, ErrInvalidToken
 	}
 
-	_ = s.authRepo.DeleteRefreshToken(ctx, refreshToken)
+	if err := s.authRepo.DeleteRefreshToken(ctx, refreshToken); err != nil {
+		s.logger.Error("ошибка удаления refresh token", "error", err)
+	}
 
 	user, err := s.authRepo.GetUserByID(ctx, userID)
 	if err != nil {
@@ -114,7 +135,10 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*m
 
 	newRefreshToken := uuid.New().String()
 	expiresAt := time.Now().Add(s.cfg.RefreshTTL).Format(time.RFC3339)
-	_ = s.authRepo.StoreRefreshToken(ctx, user.ID, newRefreshToken, expiresAt)
+	if err := s.authRepo.StoreRefreshToken(ctx, user.ID, newRefreshToken, expiresAt); err != nil {
+		s.logger.Error("ошибка сохранения refresh token", "error", err)
+		return nil, fmt.Errorf("service.auth.RefreshToken store: %w", err)
+	}
 
 	return &models.TokenPair{
 		AccessToken:  accessToken,

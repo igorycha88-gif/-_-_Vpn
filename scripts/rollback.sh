@@ -6,7 +6,7 @@ REMOTE_USER="${REMOTE_USER:-root}"
 REMOTE_PATH="${REMOTE_PATH:-/opt/smarttraffic}"
 SSH_KEY="${SSH_KEY:-~/.ssh/id_rsa}"
 SSH_OPTS="-o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -i ${SSH_KEY}"
-HEALTH_URL="${HEALTH_URL:-http://localhost:8080/api/v1/health}"
+HEALTH_URL="${HEALTH_URL:-http://localhost:8080/health}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-12}"
 HEALTH_INTERVAL="${HEALTH_INTERVAL:-5}"
 
@@ -37,7 +37,7 @@ Options:
   --db-only           Rollback only database, not code
   --code-only         Rollback only code, not database
   --list              List available backups and deploy history
-  --health-url URL    Health check URL (default: http://localhost:8080/api/v1/health)
+  --health-url URL    Health check URL (default: http://localhost:8080/health)
   --yes               Skip confirmation prompt
   --dry-run           Show what would be done without executing
   -h, --help          Show this help

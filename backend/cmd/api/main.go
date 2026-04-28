@@ -77,7 +77,8 @@ func main() {
 	authSvc := services.NewAuthService(authRepo, &cfg.JWT, logger)
 	wgSvc := services.NewWireGuardService(peerRepo, trafficRepo, &cfg.VLESS, logger)
 	singboxSvc := services.NewSingBoxService(routeRepo, dnsRepo, peerRepo, &cfg.SingBox, &cfg.VLESS, &cfg.WG, &cfg.Server, logger)
-	routingSvc := services.NewRoutingService(routeRepo, presetRepo, logger)
+	presetSvc := services.NewPresetService(presetRepo, routeRepo, logger)
+	routingSvc := services.NewRoutingService(routeRepo, logger)
 	dnsSvc := services.NewDNSService(dnsRepo, logger)
 	trafficSvc := services.NewTrafficService(trafficRepo, peerRepo, logger)
 
@@ -98,7 +99,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(authSvc, logger)
 	peerHandler := handlers.NewPeerHandler(wgSvc, singboxSvc, logger)
 	routeHandler := handlers.NewRouteHandler(routingSvc, singboxSvc, logger)
-	presetHandler := handlers.NewPresetHandler(routingSvc, singboxSvc, presetRepo, logger)
+	presetHandler := handlers.NewPresetHandler(routingSvc, singboxSvc, presetSvc, logger)
 	dnsHandler := handlers.NewDNSHandler(dnsSvc, logger)
 	serverHandler := handlers.NewServerHandler(trafficSvc, collector, logger)
 	monitoringHandler := handlers.NewMonitoringHandler(trafficSvc, wgSvc, logger)
@@ -107,7 +108,6 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(middleware.CORS(cfg.CORS.AllowedOrigins))
-	r.Use(middleware.Logging)
 
 	r.Get("/health", serverHandler.Health)
 

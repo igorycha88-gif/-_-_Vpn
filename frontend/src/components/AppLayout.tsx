@@ -18,7 +18,7 @@ const { Text } = Typography
 
 const menuItems = [
   { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
-  { key: '/peers', icon: <UserOutlined />, label: 'WireGuard клиенты' },
+  { key: '/peers', icon: <UserOutlined />, label: 'VLESS клиенты' },
   { key: '/routes', icon: <PartitionOutlined />, label: 'Маршрутизация' },
   { key: '/presets', icon: <AppstoreOutlined />, label: 'Пресеты' },
   { key: '/dns', icon: <GlobalOutlined />, label: 'DNS' },

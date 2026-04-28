@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"smarttraffic/internal/apperrors"
 	"smarttraffic/internal/models"
 	"smarttraffic/internal/repository"
 )
@@ -24,6 +25,9 @@ func NewDNSService(dnsRepo repository.DNSRepository, logger *slog.Logger) *DNSSe
 func (s *DNSService) GetSettings(ctx context.Context) (*models.DNSSettings, error) {
 	settings, err := s.dnsRepo.Get(ctx)
 	if err != nil {
+		if repository.IsNotFound(err) {
+			return nil, apperrors.ErrNotFound
+		}
 		return nil, fmt.Errorf("service.dns.GetSettings: %w", err)
 	}
 	return settings, nil
@@ -32,6 +36,9 @@ func (s *DNSService) GetSettings(ctx context.Context) (*models.DNSSettings, erro
 func (s *DNSService) UpdateSettings(ctx context.Context, req *models.DNSSettingsUpdateRequest) (*models.DNSSettings, error) {
 	current, err := s.dnsRepo.Get(ctx)
 	if err != nil {
+		if repository.IsNotFound(err) {
+			return nil, apperrors.ErrNotFound
+		}
 		return nil, fmt.Errorf("service.dns.UpdateSettings get: %w", err)
 	}
 

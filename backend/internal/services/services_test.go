@@ -375,7 +375,6 @@ func TestRoutingService_CreateRule(t *testing.T) {
 
 	svc := NewRoutingService(
 		repository.NewRouteRepository(db),
-		repository.NewPresetRepository(db),
 		testLogger(),
 	)
 
@@ -396,7 +395,6 @@ func TestRoutingService_CreateRule_Validation(t *testing.T) {
 
 	svc := NewRoutingService(
 		repository.NewRouteRepository(db),
-		repository.NewPresetRepository(db),
 		testLogger(),
 	)
 
@@ -412,7 +410,6 @@ func TestRoutingService_UpdateRule(t *testing.T) {
 
 	svc := NewRoutingService(
 		repository.NewRouteRepository(db),
-		repository.NewPresetRepository(db),
 		testLogger(),
 	)
 
@@ -438,7 +435,6 @@ func TestRoutingService_DeleteRule(t *testing.T) {
 
 	svc := NewRoutingService(
 		repository.NewRouteRepository(db),
-		repository.NewPresetRepository(db),
 		testLogger(),
 	)
 
@@ -455,13 +451,13 @@ func TestRoutingService_ApplyPreset(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
 	defer db.Close()
 
-	svc := NewRoutingService(
-		repository.NewRouteRepository(db),
+	presetSvc := NewPresetService(
 		repository.NewPresetRepository(db),
+		repository.NewRouteRepository(db),
 		testLogger(),
 	)
 
-	result, err := svc.ApplyPreset(context.Background(), "preset-all-direct")
+	result, err := presetSvc.ApplyPreset(context.Background(), "preset-all-direct")
 	if err != nil {
 		t.Fatalf("ApplyPreset: %v", err)
 	}

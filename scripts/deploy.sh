@@ -7,7 +7,7 @@ REMOTE_USER="${REMOTE_USER:-root}"
 REMOTE_PATH="${REMOTE_PATH:-/opt/smarttraffic}"
 SSH_KEY="${SSH_KEY:-~/.ssh/id_rsa}"
 SSH_OPTS="-o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -i ${SSH_KEY}"
-HEALTH_URL="${HEALTH_URL:-http://localhost:8080/api/v1/health}"
+HEALTH_URL="${HEALTH_URL:-http://localhost:8080/health}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-12}"
 HEALTH_INTERVAL="${HEALTH_INTERVAL:-5}"
 BACKUP_KEEP="${BACKUP_KEEP:-5}"
@@ -42,7 +42,7 @@ Options:
   --skip-tests        Skip local tests before deploy
   --skip-backup       Skip DB backup before deploy
   --force             Force deploy even if lock exists
-  --health-url URL    Health check URL (default: http://localhost:8080/api/v1/health)
+  --health-url URL    Health check URL (default: http://localhost:8080/health)
   --dry-run           Show what would be done without executing
   -h, --help          Show this help
 
@@ -431,7 +431,7 @@ ok "Статус контейнеров проверен"
 
 log "Проверяю Nginx → Backend связку..."
 if ! $DRY_RUN; then
-    API_STATUS=$(ssh_cmd "curl -sf -o /dev/null -w '%{http_code}' http://localhost/api/v1/health 2>/dev/null" || echo "000")
+    API_STATUS=$(ssh_cmd "curl -sf -o /dev/null -w '%{http_code}' http://localhost/health 2>/dev/null" || echo "000")
     if [[ "${API_STATUS}" == "200" ]]; then
         ok "Nginx → Backend: HTTP ${API_STATUS}"
     else

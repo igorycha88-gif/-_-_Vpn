@@ -134,10 +134,7 @@ func (h *MonitoringHandler) Stats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MonitoringHandler) PeerMonitor(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get(":id")
-	if id == "" {
-		id = r.PathValue("id")
-	}
+	id := getPathID(r)
 	if id == "" {
 		ErrorJSON(w, http.StatusBadRequest, "id не указан")
 		return

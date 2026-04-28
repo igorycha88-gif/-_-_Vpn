@@ -106,7 +106,7 @@ jobs:
     name: Deploy to RU Server
     needs: build-images
     runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/main' && 'production-ru' || 'production-ru' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'production-ru' || 'staging-ru' }}
     timeout-minutes: 30
     if: github.event.inputs.force_rollback != 'true'
     outputs:

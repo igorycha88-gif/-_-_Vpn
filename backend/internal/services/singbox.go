@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"smarttraffic/internal/config"
@@ -344,13 +345,13 @@ func (s *SingBoxService) buildDNSConfig(settings *models.DNSSettings) *singBoxDN
 	var rules []any
 	ruTags := []string{}
 	foreignTags := []string{}
-	for _, addr := range splitList(settings.UpstreamRU) {
+	for _, addr := range splitCommaList(settings.UpstreamRU) {
 		tag := "dns-ru-" + addr
 		servers = append(servers, singBoxDNSServer{Tag: tag, Type: "udp", Server: addr})
 		ruTags = append(ruTags, tag)
 	}
 	hasForeignOut := s.srvConfig.ForeignIP != "" && s.srvConfig.ForeignVLESS.UUID != ""
-	for _, addr := range splitList(settings.UpstreamForeign) {
+	for _, addr := range splitCommaList(settings.UpstreamForeign) {
 		tag := "dns-foreign-" + addr
 		srv := singBoxDNSServer{Tag: tag, Type: "udp", Server: addr}
 		if hasForeignOut {
@@ -397,36 +398,17 @@ func (s *SingBoxService) actionToOutbound(action string) string {
 	return ""
 }
 
-func splitList(s string) []string {
-	var result []string
-	for _, item := range splitComma(s) {
-		result = append(result, item)
-	}
-	return result
-}
-
-func splitComma(s string) []string {
+func splitCommaList(s string) []string {
 	if s == "" {
 		return nil
 	}
-	return splitString(s, ",")
-}
-
-func splitString(s, sep string) []string {
+	parts := strings.Split(s, ",")
 	var result []string
-	start := 0
-	for i := 0; i <= len(s)-len(sep); i++ {
-		if s[i:i+len(sep)] == sep {
-			part := s[start:i]
-			if part != "" {
-				result = append(result, part)
-			}
-			start = i + len(sep)
-			i += len(sep) - 1
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
 		}
-	}
-	if start < len(s) {
-		result = append(result, s[start:])
 	}
 	return result
 }

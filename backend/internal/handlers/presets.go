@@ -5,25 +5,24 @@ import (
 	"log/slog"
 	"net/http"
 
+	"smarttraffic/internal/apperrors"
 	"smarttraffic/internal/models"
-	"smarttraffic/internal/repository"
 	"smarttraffic/internal/services"
 )
 
 type PresetHandler struct {
 	routingSvc *services.RoutingService
-	presetSvc  *services.RoutingService
 	sbSvc      *services.SingBoxService
-	presetRepo repository.PresetRepository
+	presetSvc  *services.PresetService
 	logger     *slog.Logger
 }
 
-func NewPresetHandler(routingSvc *services.RoutingService, sbSvc *services.SingBoxService, presetRepo repository.PresetRepository, logger *slog.Logger) *PresetHandler {
-	return &PresetHandler{routingSvc: routingSvc, presetSvc: routingSvc, sbSvc: sbSvc, presetRepo: presetRepo, logger: logger}
+func NewPresetHandler(routingSvc *services.RoutingService, sbSvc *services.SingBoxService, presetSvc *services.PresetService, logger *slog.Logger) *PresetHandler {
+	return &PresetHandler{routingSvc: routingSvc, sbSvc: sbSvc, presetSvc: presetSvc, logger: logger}
 }
 
 func (h *PresetHandler) List(w http.ResponseWriter, r *http.Request) {
-	presets, err := h.presetRepo.List(r.Context())
+	presets, err := h.presetSvc.List(r.Context())
 	if err != nil {
 		h.logger.Error("ошибка получения списка пресетов", "error", err)
 		ErrorJSON(w, http.StatusInternalServerError, "внутренняя ошибка сервера")
@@ -42,9 +41,9 @@ func (h *PresetHandler) Apply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.routingSvc.ApplyPreset(r.Context(), id)
+	result, err := h.presetSvc.ApplyPreset(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, apperrors.ErrNotFound) {
 			ErrorJSON(w, http.StatusNotFound, "пресет не найден")
 			return
 		}

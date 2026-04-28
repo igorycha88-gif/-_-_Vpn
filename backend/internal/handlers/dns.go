@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"smarttraffic/internal/apperrors"
 	"smarttraffic/internal/models"
-	"smarttraffic/internal/repository"
 	"smarttraffic/internal/services"
 )
 
@@ -22,7 +22,7 @@ func NewDNSHandler(dnsSvc *services.DNSService, logger *slog.Logger) *DNSHandler
 func (h *DNSHandler) Get(w http.ResponseWriter, r *http.Request) {
 	settings, err := h.dnsSvc.GetSettings(r.Context())
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, apperrors.ErrNotFound) {
 			ErrorJSON(w, http.StatusNotFound, "настройки DNS не найдены")
 			return
 		}

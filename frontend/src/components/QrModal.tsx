@@ -1,6 +1,8 @@
 import { Modal, Button, message } from 'antd'
 import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
 import { useEffect, useState } from 'react'
+import { getAccessToken } from '../store/auth'
+import { downloadWithAuth } from '../utils/download'
 
 interface QrModalProps {
   open: boolean
@@ -16,16 +18,8 @@ export default function QrModal({ open, peerId, peerName, onClose }: QrModalProp
 
   useEffect(() => {
     if (open && peerId) {
-      const token = localStorage.getItem('smarttraffic_tokens')
-      let authParam = ''
-      if (token) {
-        try {
-          const parsed = JSON.parse(token)
-          authParam = `?token=${parsed.accessToken}`
-        } catch {
-          // ignore
-        }
-      }
+      const token = getAccessToken()
+      const authParam = token ? `?token=${token}` : ''
       setQrUrl(`/api/v1/wg/peers/${peerId}/qr${authParam}`)
       setLoading(true)
       setError(false)
@@ -33,25 +27,14 @@ export default function QrModal({ open, peerId, peerName, onClose }: QrModalProp
   }, [open, peerId])
 
   const handleDownload = () => {
-    if (!qrUrl) return
-    const link = document.createElement('a')
-    link.href = qrUrl
-    link.download = `${peerName}-qr.png`
-    link.click()
+    if (!peerId) return
+    downloadWithAuth(`/api/v1/wg/peers/${peerId}/qr`, `${peerName}-qr.png`)
     message.success('QR-код скачивается')
   }
 
   const handleReload = () => {
-    const token = localStorage.getItem('smarttraffic_tokens')
-    let authParam = ''
-    if (token) {
-      try {
-        const parsed = JSON.parse(token)
-        authParam = `?token=${parsed.accessToken}`
-      } catch {
-        // ignore
-      }
-    }
+    const token = getAccessToken()
+    const authParam = token ? `?token=${token}` : ''
     const ts = Date.now()
     const separator = authParam ? '&' : '?'
     setQrUrl(`/api/v1/wg/peers/${peerId}/qr${authParam}${separator}_t=${ts}`)
