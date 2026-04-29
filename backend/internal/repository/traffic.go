@@ -25,6 +25,9 @@ type TrafficRepository interface {
 	CreateSession(ctx context.Context, peerID string) (int64, error)
 	CloseSession(ctx context.Context, sessionID int64, rx, tx int64, conns int) error
 	GetActiveSession(ctx context.Context, peerID string) (*models.PeerSession, error)
+	ListSessions(ctx context.Context, peerID string, limit int) ([]*models.PeerSession, error)
+	DeleteAlert(ctx context.Context, id string) error
+	DeleteAllAlerts(ctx context.Context) error
 }
 
 type sqliteTrafficRepository struct {
@@ -343,4 +346,50 @@ func (r *sqliteTrafficRepository) GetActiveSession(ctx context.Context, peerID s
 		return nil, fmt.Errorf("traffic.GetActiveSession: %w", err)
 	}
 	return s, nil
+}
+
+func (r *sqliteTrafficRepository) ListSessions(ctx context.Context, peerID string, limit int) ([]*models.PeerSession, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 50
+	}
+	q := `SELECT id, peer_id, connected_at, disconnected_at, bytes_rx, bytes_tx, connections_count
+	      FROM peer_sessions
+	      WHERE peer_id = ?
+	      ORDER BY connected_at DESC
+	      LIMIT ?`
+	rows, err := r.db.QueryContext(ctx, q, peerID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("traffic.ListSessions: %w", err)
+	}
+	defer rows.Close()
+
+	var sessions []*models.PeerSession
+	for rows.Next() {
+		s := &models.PeerSession{}
+		var disconnectedAt sql.NullTime
+		if err := rows.Scan(&s.ID, &s.PeerID, &s.ConnectedAt, &disconnectedAt, &s.BytesRx, &s.BytesTx, &s.ConnectionsCount); err != nil {
+			return nil, fmt.Errorf("traffic.ListSessions scan: %w", err)
+		}
+		if disconnectedAt.Valid {
+			s.DisconnectedAt = &disconnectedAt.Time
+		}
+		sessions = append(sessions, s)
+	}
+	return sessions, rows.Err()
+}
+
+func (r *sqliteTrafficRepository) DeleteAlert(ctx context.Context, id string) error {
+	_, err := r.db.ExecContext(ctx, "DELETE FROM alerts WHERE id = ?", id)
+	if err != nil {
+		return fmt.Errorf("traffic.DeleteAlert: %w", err)
+	}
+	return nil
+}
+
+func (r *sqliteTrafficRepository) DeleteAllAlerts(ctx context.Context) error {
+	_, err := r.db.ExecContext(ctx, "DELETE FROM alerts")
+	if err != nil {
+		return fmt.Errorf("traffic.DeleteAllAlerts: %w", err)
+	}
+	return nil
 }

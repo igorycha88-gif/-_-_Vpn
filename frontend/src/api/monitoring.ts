@@ -1,5 +1,5 @@
 import client from './client'
-import type { TrafficLog, TotalStats, Alert, Peer, PeerTrafficSummary } from '../types'
+import type { TrafficLog, TotalStats, Alert, Peer, PeerTrafficSummary, PeerSession } from '../types'
 
 export interface TrafficAggregate {
   domain: string
@@ -31,6 +31,14 @@ export async function getAlerts(): Promise<Alert[]> {
   return res.data
 }
 
+export async function deleteAlert(id: string): Promise<void> {
+  await client.delete(`/monitoring/alerts/${id}`)
+}
+
+export async function clearAllAlerts(): Promise<void> {
+  await client.delete('/monitoring/alerts')
+}
+
 export async function getMonitoringStats(): Promise<TotalStats> {
   const res = await client.get<TotalStats>('/monitoring/stats')
   return res.data
@@ -56,5 +64,10 @@ export async function getPeerMonitor(peerId: string): Promise<PeerMonitorRespons
 
 export async function getPeersStats(): Promise<PeerTrafficSummary[]> {
   const res = await client.get<PeerTrafficSummary[]>('/monitoring/peers-stats')
+  return res.data
+}
+
+export async function getPeerSessions(peerId: string, limit = 50): Promise<PeerSession[]> {
+  const res = await client.get<PeerSession[]>(`/monitoring/peer/${peerId}/sessions`, { params: { limit } })
   return res.data
 }

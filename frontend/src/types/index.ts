@@ -160,6 +160,16 @@ export interface PeerTrafficSummary {
   session_tx: number
 }
 
+export interface PeerSession {
+  id: number
+  peer_id: string
+  connected_at: string
+  disconnected_at?: string
+  bytes_rx: number
+  bytes_tx: number
+  connections_count: number
+}
+
 export interface LoginRequest {
   email: string
   password: string

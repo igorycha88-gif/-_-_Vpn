@@ -144,3 +144,42 @@ func (s *TrafficService) GetTrafficAggregate(ctx context.Context, peerID string,
 	}
 	return items, nil
 }
+
+func (s *TrafficService) GetPeerSessions(ctx context.Context, peerID string, limit int) ([]*models.PeerSession, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	sessions, err := s.trafficRepo.ListSessions(ctx, peerID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("service.traffic.GetPeerSessions: %w", err)
+	}
+	if sessions == nil {
+		sessions = []*models.PeerSession{}
+	}
+	return sessions, nil
+}
+
+func (s *TrafficService) DeleteAlert(ctx context.Context, id string) error {
+	if err := s.trafficRepo.DeleteAlert(ctx, id); err != nil {
+		return fmt.Errorf("service.traffic.DeleteAlert: %w", err)
+	}
+	s.mu.Lock()
+	for i, a := range s.alerts {
+		if a.ID == id {
+			s.alerts = append(s.alerts[:i], s.alerts[i+1:]...)
+			break
+		}
+	}
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *TrafficService) ClearAllAlerts(ctx context.Context) error {
+	if err := s.trafficRepo.DeleteAllAlerts(ctx); err != nil {
+		return fmt.Errorf("service.traffic.ClearAllAlerts: %w", err)
+	}
+	s.mu.Lock()
+	s.alerts = s.alerts[:0]
+	s.mu.Unlock()
+	return nil
+}
