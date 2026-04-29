@@ -8,6 +8,7 @@ import * as serversHook from '../hooks/useServers'
 
 vi.mock('../hooks/useMonitoring', () => ({
   useMonitoringStats: vi.fn(),
+  usePeersStats: vi.fn(),
 }))
 
 vi.mock('../hooks/useServers', () => ({
@@ -24,6 +25,12 @@ function renderDashboard() {
 }
 
 describe('Dashboard', () => {
+  function mockPeersStats(overrides: any = {}) {
+    vi.mocked(monitoringHook.usePeersStats).mockReturnValue({
+      data: undefined, isLoading: true, error: null, isError: false, ...overrides,
+    } as any)
+  }
+
   it('renders loading state', () => {
     vi.mocked(monitoringHook.useMonitoringStats).mockReturnValue({
       data: undefined, isLoading: true, error: null, isError: false,
@@ -31,6 +38,7 @@ describe('Dashboard', () => {
     vi.mocked(serversHook.useServersStatus).mockReturnValue({
       data: undefined, isLoading: true, error: null, isError: false,
     } as any)
+    mockPeersStats()
     renderDashboard()
     expect(screen.getByText('Dashboard')).toBeInTheDocument()
   })
@@ -44,6 +52,7 @@ describe('Dashboard', () => {
       data: { ru: { online: true }, foreign: { online: false } },
       isLoading: false, error: null, isError: false,
     } as any)
+    mockPeersStats({ data: [], isLoading: false })
     renderDashboard()
     expect(screen.getByText('10')).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
@@ -57,6 +66,7 @@ describe('Dashboard', () => {
     vi.mocked(serversHook.useServersStatus).mockReturnValue({
       data: undefined, isLoading: false, error: null, isError: false,
     } as any)
+    mockPeersStats()
     renderDashboard()
     expect(screen.getByText(/ошибк/i)).toBeInTheDocument()
   })

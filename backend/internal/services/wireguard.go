@@ -320,10 +320,7 @@ func (s *WireGuardService) GetPeerStats(ctx context.Context, id string) (*models
 		return nil, s.mapErr(fmt.Errorf("service.wireguard.GetPeerStats: %w", err))
 	}
 
-	online := false
-	if peer.LastSeen != nil && time.Since(*peer.LastSeen) < 2*time.Minute {
-		online = true
-	}
+	online := peer.LastSeen != nil && time.Since(*peer.LastSeen) < 2*time.Minute
 
 	return &models.PeerStats{
 		PeerID:  peer.ID,

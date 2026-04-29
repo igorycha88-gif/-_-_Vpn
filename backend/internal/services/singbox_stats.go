@@ -43,8 +43,8 @@ type SingBoxStatsCollector struct {
 type peerSessionInfo struct {
 	sessionID  int64
 	startTime  time.Time
-	sessionRx  int64
-	sessionTx  int64
+	sessionRx  int64 //nolint:unused
+	sessionTx  int64 //nolint:unused
 	connCount  int
 }
 

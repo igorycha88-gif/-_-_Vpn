@@ -84,7 +84,7 @@ func (r *sqliteTrafficRepository) List(ctx context.Context, filter models.Traffi
 	if err != nil {
 		return nil, fmt.Errorf("traffic.List: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var logs []*models.TrafficLog
 	for rows.Next() {
@@ -180,7 +180,7 @@ func (r *sqliteTrafficRepository) ListAlerts(ctx context.Context, limit int) ([]
 	if err != nil {
 		return nil, fmt.Errorf("traffic.ListAlerts: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var alerts []*models.Alert
 	for rows.Next() {
@@ -219,7 +219,7 @@ func (r *sqliteTrafficRepository) GetPeerTrafficSummary(ctx context.Context) ([]
 	if err != nil {
 		return nil, fmt.Errorf("traffic.GetPeerTrafficSummary: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var summaries []*models.PeerTrafficSummary
 	for rows.Next() {
@@ -285,7 +285,7 @@ func (r *sqliteTrafficRepository) GetTrafficAggregate(ctx context.Context, peerI
 	if err != nil {
 		return nil, fmt.Errorf("traffic.GetTrafficAggregate: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var items []*models.TrafficAggregateItem
 	for rows.Next() {
@@ -361,7 +361,7 @@ func (r *sqliteTrafficRepository) ListSessions(ctx context.Context, peerID strin
 	if err != nil {
 		return nil, fmt.Errorf("traffic.ListSessions: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var sessions []*models.PeerSession
 	for rows.Next() {

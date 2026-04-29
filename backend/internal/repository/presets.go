@@ -58,7 +58,7 @@ func (r *sqlitePresetRepository) List(ctx context.Context) ([]*models.Preset, er
 	if err != nil {
 		return nil, fmt.Errorf("presets.List: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var presets []*models.Preset
 	for rows.Next() {
