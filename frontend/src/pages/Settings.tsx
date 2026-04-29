@@ -6,11 +6,11 @@ import { useNavigate } from 'react-router-dom'
 const { Title, Paragraph } = Typography
 
 export default function Settings() {
-  const { logout } = useAuth()
+  const { logoutAll } = useAuth()
   const navigate = useNavigate()
 
   const handleLogoutAll = async () => {
-    await logout()
+    await logoutAll()
     navigate('/login')
     message.success('Все сессии завершены')
   }

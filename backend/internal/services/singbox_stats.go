@@ -18,6 +18,10 @@ import (
 
 const aggregateVLESSKey = "__aggregate_vless__"
 
+type RealtimeStatsProvider interface {
+	GetRealtimeStats() map[string]*models.PeerRealtimeStats
+}
+
 type SingBoxStatsCollector struct {
 	peerRepo    repository.PeerRepository
 	trafficRepo repository.TrafficRepository
@@ -28,10 +32,20 @@ type SingBoxStatsCollector struct {
 	client      *http.Client
 	interval    time.Duration
 
-	mu           sync.Mutex
-	connState    map[string]*connBytes
-	onlinePeers  map[string]bool
-	apiReachable bool
+	mu               sync.Mutex
+	connState        map[string]*connBytes
+	onlinePeers      map[string]bool
+	apiReachable     bool
+	peerRealtime     map[string]*models.PeerRealtimeStats
+	peerSessions     map[string]*peerSessionInfo
+}
+
+type peerSessionInfo struct {
+	sessionID  int64
+	startTime  time.Time
+	sessionRx  int64
+	sessionTx  int64
+	connCount  int
 }
 
 type connBytes struct {
@@ -65,6 +79,7 @@ type clashMetadata struct {
 type userDelta struct {
 	rx          int64
 	tx          int64
+	connCount   int
 	connections []userConnection
 }
 
@@ -95,8 +110,22 @@ func NewSingBoxStatsCollector(
 		interval:     10 * time.Second,
 		connState:    make(map[string]*connBytes),
 		onlinePeers:  make(map[string]bool),
+		peerRealtime: make(map[string]*models.PeerRealtimeStats),
+		peerSessions: make(map[string]*peerSessionInfo),
 		apiReachable: false,
 	}
+}
+
+func (c *SingBoxStatsCollector) GetRealtimeStats() map[string]*models.PeerRealtimeStats {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	result := make(map[string]*models.PeerRealtimeStats, len(c.peerRealtime))
+	for k, v := range c.peerRealtime {
+		cp := *v
+		result[k] = &cp
+	}
+	return result
 }
 
 func (c *SingBoxStatsCollector) addAlert(ctx context.Context, alert *models.Alert) {
@@ -162,13 +191,16 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 	c.logger.Debug("получены соединения от Clash API", "count", len(resp.Connections))
 
 	deltas := c.computeDeltas(resp.Connections)
+	peerConnCounts := c.countConnectionsPerPeer(resp.Connections)
 
 	currentOnline := make(map[string]bool)
 
 	if aggDelta, ok := deltas[aggregateVLESSKey]; ok {
 		delete(deltas, aggregateVLESSKey)
-		c.handleAggregateVLESS(ctx, aggDelta, currentOnline)
+		c.handleAggregateVLESS(ctx, aggDelta, currentOnline, peerConnCounts)
 	}
+
+	intervalSec := c.interval.Seconds()
 
 	for uuid, delta := range deltas {
 		peer, err := c.peerRepo.GetByPublicKey(ctx, uuid)
@@ -214,6 +246,9 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 				c.logger.Error("ошибка логирования трафика клиента в traffic_logs", "uuid", uuid, "error", err)
 			}
 		}
+
+		activeConns := peerConnCounts[peer.ID]
+		c.updatePeerRealtime(peer.ID, delta, activeConns, intervalSec, currentOnline[peer.ID])
 	}
 
 	for peerID := range currentOnline {
@@ -228,6 +263,7 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 					Timestamp: time.Now(),
 				})
 			}
+			c.startSession(ctx, peerID)
 		}
 	}
 	for peerID := range c.onlinePeers {
@@ -242,6 +278,8 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 					Timestamp: time.Now(),
 				})
 			}
+			c.endSession(ctx, peerID)
+			c.clearPeerRealtime(peerID)
 		}
 	}
 	c.onlinePeers = currentOnline
@@ -249,7 +287,106 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 	c.cleanupStaleConnections(resp.Connections)
 }
 
-func (c *SingBoxStatsCollector) handleAggregateVLESS(ctx context.Context, delta *userDelta, currentOnline map[string]bool) {
+func (c *SingBoxStatsCollector) countConnectionsPerPeer(connections []clashConnection) map[string]int {
+	uuidToPeerID := make(map[string]string)
+	counts := make(map[string]int)
+
+	for _, conn := range connections {
+		if conn.Metadata.User == "" {
+			continue
+		}
+		peerID, ok := uuidToPeerID[conn.Metadata.User]
+		if !ok {
+			ctx := context.Background()
+			peer, err := c.peerRepo.GetByPublicKey(ctx, conn.Metadata.User)
+			if err != nil {
+				continue
+			}
+			peerID = peer.ID
+			uuidToPeerID[conn.Metadata.User] = peerID
+		}
+		counts[peerID]++
+	}
+
+	return counts
+}
+
+func (c *SingBoxStatsCollector) updatePeerRealtime(peerID string, delta *userDelta, activeConns int, intervalSec float64, online bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := time.Now()
+	stats, ok := c.peerRealtime[peerID]
+	if !ok {
+		stats = &models.PeerRealtimeStats{}
+		c.peerRealtime[peerID] = stats
+	}
+
+	stats.ActiveConnections = activeConns
+	stats.BandwidthRx = delta.rx
+	stats.BandwidthTx = delta.tx
+	if intervalSec > 0 {
+		stats.BandwidthRateRx = float64(delta.rx) / intervalSec
+		stats.BandwidthRateTx = float64(delta.tx) / intervalSec
+	}
+	stats.SessionRx += delta.rx
+	stats.SessionTx += delta.tx
+
+	sess, ok := c.peerSessions[peerID]
+	if ok && sess != nil {
+		stats.ConnectedAt = &sess.startTime
+	}
+
+	_ = online
+	_ = now
+}
+
+func (c *SingBoxStatsCollector) clearPeerRealtime(peerID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.peerRealtime, peerID)
+}
+
+func (c *SingBoxStatsCollector) startSession(ctx context.Context, peerID string) {
+	sessionID, err := c.trafficRepo.CreateSession(ctx, peerID)
+	if err != nil {
+		c.logger.Error("ошибка создания сессии", "peer_id", peerID, "error", err)
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.peerSessions[peerID] = &peerSessionInfo{
+		sessionID: sessionID,
+		startTime: time.Now(),
+	}
+}
+
+func (c *SingBoxStatsCollector) endSession(ctx context.Context, peerID string) {
+	c.mu.Lock()
+	sess, ok := c.peerSessions[peerID]
+	if ok {
+		delete(c.peerSessions, peerID)
+	}
+	c.mu.Unlock()
+
+	if !ok || sess == nil {
+		return
+	}
+
+	rt, hasRt := c.peerRealtime[peerID]
+	var rx, tx int64
+	if hasRt {
+		rx = rt.SessionRx
+		tx = rt.SessionTx
+	}
+
+	if err := c.trafficRepo.CloseSession(ctx, sess.sessionID, rx, tx, sess.connCount); err != nil {
+		c.logger.Error("ошибка закрытия сессии", "peer_id", peerID, "session_id", sess.sessionID, "error", err)
+	}
+}
+
+func (c *SingBoxStatsCollector) handleAggregateVLESS(ctx context.Context, delta *userDelta, currentOnline map[string]bool, peerConnCounts map[string]int) {
 	totalRx := delta.rx
 	totalTx := delta.tx
 
@@ -334,6 +471,34 @@ func (c *SingBoxStatsCollector) handleAggregateVLESS(ctx context.Context, delta 
 		}
 	}
 
+	intervalSec := c.interval.Seconds()
+	for _, peer := range activePeers {
+		perPeerRx := totalRx / int64(len(activePeers))
+		perPeerTx := totalTx / int64(len(activePeers))
+		activeConns := peerConnCounts[peer.ID]
+
+		c.mu.Lock()
+		stats, ok := c.peerRealtime[peer.ID]
+		if !ok {
+			stats = &models.PeerRealtimeStats{}
+			c.peerRealtime[peer.ID] = stats
+		}
+		stats.ActiveConnections = activeConns
+		stats.BandwidthRx = perPeerRx
+		stats.BandwidthTx = perPeerTx
+		if intervalSec > 0 {
+			stats.BandwidthRateRx = float64(perPeerRx) / intervalSec
+			stats.BandwidthRateTx = float64(perPeerTx) / intervalSec
+		}
+		stats.SessionRx += perPeerRx
+		stats.SessionTx += perPeerTx
+		sess, hasSess := c.peerSessions[peer.ID]
+		if hasSess && sess != nil {
+			stats.ConnectedAt = &sess.startTime
+		}
+		c.mu.Unlock()
+	}
+
 	if hasTraffic {
 		c.logger.Info("агрегатный VLESS трафик распределён",
 			"total_rx", totalRx, "total_tx", totalTx,
@@ -383,6 +548,7 @@ func (c *SingBoxStatsCollector) computeDeltas(connections []clashConnection) map
 		}
 		d.rx += drx
 		d.tx += dtx
+		d.connCount++
 		if drx > 0 || dtx > 0 {
 			dest := conn.Metadata.DestinationIP
 			if dest == "" {

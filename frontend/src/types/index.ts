@@ -152,6 +152,12 @@ export interface PeerTrafficSummary {
   last_seen?: string
   conn_count: number
   top_domain?: string
+  active_conns: number
+  bandwidth_rate_rx: number
+  bandwidth_rate_tx: number
+  connected_at?: string
+  session_rx: number
+  session_tx: number
 }
 
 export interface LoginRequest {

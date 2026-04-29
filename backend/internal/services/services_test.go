@@ -255,8 +255,8 @@ func TestWireGuardService_GenerateClientConfig(t *testing.T) {
 	if contains(config, "package_name") {
 		t.Error("iPhone config should NOT contain package_name rules")
 	}
-	if !contains(config, `"stack": "system"`) {
-		t.Error("iPhone config should use stack system")
+	if !contains(config, `"stack": "mixed"`) {
+		t.Error("iPhone config should use stack mixed")
 	}
 	if !contains(config, `"detour": "proxy"`) {
 		t.Error("iPhone config should have DNS foreign with proxy detour")
@@ -278,6 +278,9 @@ func TestWireGuardService_GenerateClientConfig(t *testing.T) {
 	}
 	if !contains(config, "vk.com") {
 		t.Error("config should contain vk.com in direct rules")
+	}
+	if !contains(config, "sberbank.ru") {
+		t.Error("config should contain sberbank.ru in direct rules")
 	}
 	if !contains(config, ".ru") {
 		t.Error("config should contain .ru domain suffix in direct rules")
@@ -316,6 +319,9 @@ func TestWireGuardService_GenerateClientConfig_Android(t *testing.T) {
 	if !contains(config, "ru.yandex.weather") {
 		t.Error("Android config should contain Yandex Weather package name")
 	}
+	if !contains(config, "ru.sberbankmobile") {
+		t.Error("Android config should contain Sberbank package name")
+	}
 }
 
 func TestWireGuardService_GenerateClientConfig_DefaultFallback(t *testing.T) {
@@ -326,8 +332,8 @@ func TestWireGuardService_GenerateClientConfig_DefaultFallback(t *testing.T) {
 		DeviceType: "",
 	}
 	config := svc.GenerateClientConfig(peer)
-	if !contains(config, `"stack": "system"`) {
-		t.Error("Empty device_type should fallback to iPhone (stack system)")
+	if !contains(config, `"stack": "mixed"`) {
+		t.Error("Empty device_type should fallback to iPhone (stack mixed)")
 	}
 }
 
@@ -375,7 +381,6 @@ func TestRoutingService_CreateRule(t *testing.T) {
 
 	svc := NewRoutingService(
 		repository.NewRouteRepository(db),
-		repository.NewPresetRepository(db),
 		testLogger(),
 	)
 
@@ -396,7 +401,6 @@ func TestRoutingService_CreateRule_Validation(t *testing.T) {
 
 	svc := NewRoutingService(
 		repository.NewRouteRepository(db),
-		repository.NewPresetRepository(db),
 		testLogger(),
 	)
 
@@ -412,7 +416,6 @@ func TestRoutingService_UpdateRule(t *testing.T) {
 
 	svc := NewRoutingService(
 		repository.NewRouteRepository(db),
-		repository.NewPresetRepository(db),
 		testLogger(),
 	)
 
@@ -438,7 +441,6 @@ func TestRoutingService_DeleteRule(t *testing.T) {
 
 	svc := NewRoutingService(
 		repository.NewRouteRepository(db),
-		repository.NewPresetRepository(db),
 		testLogger(),
 	)
 
@@ -455,13 +457,13 @@ func TestRoutingService_ApplyPreset(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
 	defer db.Close()
 
-	svc := NewRoutingService(
-		repository.NewRouteRepository(db),
+	presetSvc := NewPresetService(
 		repository.NewPresetRepository(db),
+		repository.NewRouteRepository(db),
 		testLogger(),
 	)
 
-	result, err := svc.ApplyPreset(context.Background(), "preset-all-direct")
+	result, err := presetSvc.ApplyPreset(context.Background(), "preset-all-direct")
 	if err != nil {
 		t.Fatalf("ApplyPreset: %v", err)
 	}

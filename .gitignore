@@ -36,8 +36,6 @@ frontend/.vite/
 # === Landing ===
 landing/node_modules/
 landing/dist/
-landing/.next/
-landing/out/
 
 # === Docker ===
 certbot/www/

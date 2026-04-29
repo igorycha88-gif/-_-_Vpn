@@ -23,16 +23,10 @@ import {
 import { usePeers, useCreatePeer, useDeletePeer, useTogglePeer } from '../hooks/usePeers'
 import QrModal from '../components/QrModal'
 import type { Peer, PeerCreateRequest, DeviceType } from '../types'
+import { formatBytes } from '../utils/format'
+import { downloadWithAuth } from '../utils/download'
 
 const { Text } = Typography
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
-}
 
 export default function Peers() {
   const { data: peers, isLoading, refetch } = usePeers()
@@ -50,20 +44,7 @@ export default function Peers() {
   }
 
   const handleDownloadConfig = (peer: Peer) => {
-    const token = localStorage.getItem('smarttraffic_tokens')
-    let authParam = ''
-    if (token) {
-      try {
-        const parsed = JSON.parse(token)
-        authParam = `?token=${parsed.accessToken}`
-      } catch {
-        // ignore
-      }
-    }
-    const link = document.createElement('a')
-    link.href = `/api/v1/wg/peers/${peer.id}/config${authParam}`
-    link.download = `${peer.name}.json`
-    link.click()
+    downloadWithAuth(`/api/v1/wg/peers/${peer.id}/config`, `${peer.name}.json`)
   }
 
   const handleToggle = async (peer: Peer) => {

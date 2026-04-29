@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -35,26 +36,31 @@ func AuthMiddleware(authSvc *services.AuthService) func(http.Handler) http.Handl
 			}
 
 			if tokenStr == "" {
-				http.Error(w, `{"error":"отсутствует токен авторизации"}`, http.StatusUnauthorized)
+				errorJSON(w, http.StatusUnauthorized, "отсутствует токен авторизации")
 				return
 			}
 
 			claims, err := authSvc.ValidateAccessToken(tokenStr)
 			if err != nil {
 				if errors.Is(err, services.ErrInvalidToken) {
-					http.Error(w, `{"error":"неверный или просроченный токен"}`, http.StatusUnauthorized)
+					errorJSON(w, http.StatusUnauthorized, "неверный или просроченный токен")
 					return
 				}
-				http.Error(w, `{"error":"ошибка авторизации"}`, http.StatusUnauthorized)
+				errorJSON(w, http.StatusUnauthorized, "ошибка авторизации")
 				return
 			}
 
 			ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
 			ctx = context.WithValue(ctx, EmailKey, claims.Email)
 			ctx = context.WithValue(ctx, RoleKey, claims.Role)
-			ctx = context.WithValue(ctx, "user_id", claims.UserID)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func errorJSON(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
 }

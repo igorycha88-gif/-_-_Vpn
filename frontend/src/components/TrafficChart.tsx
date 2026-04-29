@@ -1,16 +1,9 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
 import type { TrafficAggregate } from '../api/monitoring'
+import { formatBytes } from '../utils/format'
 
 interface TrafficChartProps {
   data: TrafficAggregate[]
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
 }
 
 export default function TrafficChart({ data }: TrafficChartProps) {

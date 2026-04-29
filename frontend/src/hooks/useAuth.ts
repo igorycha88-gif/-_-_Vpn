@@ -63,11 +63,18 @@ export function useAuth() {
     await logoutMutation.mutateAsync()
   }
 
+  const handleLogoutAll = async () => {
+    await authApi.logoutAll()
+    clearTokens()
+    logoutMutation.mutate()
+  }
+
   return {
     isAuthenticated: sessionQuery.isSuccess,
     session: sessionQuery.data,
     isLoading: sessionQuery.isLoading,
     login: handleLogin,
     logout: handleLogout,
+    logoutAll: handleLogoutAll,
   }
 }

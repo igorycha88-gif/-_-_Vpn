@@ -39,13 +39,13 @@ func (r *RoutingRuleCreateRequest) Validate() map[string]string {
 	if r.Name == "" {
 		errs["name"] = "обязательное поле"
 	}
-	if !containsString(ValidRuleTypes, r.Type) {
+	if !ContainsString(ValidRuleTypes, r.Type) {
 		errs["type"] = "недопустимый тип"
 	}
 	if r.Pattern == "" {
 		errs["pattern"] = "обязательное поле"
 	}
-	if !containsString(ValidRuleActions, r.Action) {
+	if !ContainsString(ValidRuleActions, r.Action) {
 		errs["action"] = "недопустимое действие"
 	}
 	return errs
@@ -63,7 +63,7 @@ func (r *ReorderRequest) Validate() map[string]string {
 	return errs
 }
 
-func containsString(slice []string, s string) bool {
+func ContainsString(slice []string, s string) bool {
 	for _, v := range slice {
 		if v == s {
 			return true

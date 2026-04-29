@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"smarttraffic/internal/apperrors"
 	"smarttraffic/internal/models"
-	"smarttraffic/internal/repository"
 	"smarttraffic/internal/services"
 )
 
@@ -66,7 +66,7 @@ func (h *RouteHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	rule, err := h.routingSvc.GetRule(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, apperrors.ErrNotFound) {
 			ErrorJSON(w, http.StatusNotFound, "правило не найдено")
 			return
 		}
@@ -92,7 +92,7 @@ func (h *RouteHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	rule, err := h.routingSvc.UpdateRule(r.Context(), id, &req)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, apperrors.ErrNotFound) {
 			ErrorJSON(w, http.StatusNotFound, "правило не найдено")
 			return
 		}
@@ -114,7 +114,7 @@ func (h *RouteHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.routingSvc.DeleteRule(r.Context(), id); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, apperrors.ErrNotFound) {
 			ErrorJSON(w, http.StatusNotFound, "правило не найдено")
 			return
 		}

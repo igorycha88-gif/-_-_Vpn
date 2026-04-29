@@ -11,6 +11,10 @@ import (
 
 var ErrNotFound = errors.New("not found")
 
+func IsNotFound(err error) bool {
+	return errors.Is(err, ErrNotFound)
+}
+
 type RouteRepository interface {
 	Create(ctx context.Context, rule *models.RoutingRule) error
 	GetByID(ctx context.Context, id string) (*models.RoutingRule, error)

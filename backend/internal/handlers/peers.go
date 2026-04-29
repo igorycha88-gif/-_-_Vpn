@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"smarttraffic/internal/apperrors"
 	"smarttraffic/internal/models"
-	"smarttraffic/internal/repository"
 	"smarttraffic/internal/services"
 
 	qrcodepkg "smarttraffic/pkg/qrcode"
@@ -64,10 +64,7 @@ func (h *PeerHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PeerHandler) Get(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get(":id")
-	if id == "" {
-		id = r.PathValue("id")
-	}
+	id := getPathID(r)
 	if id == "" {
 		ErrorJSON(w, http.StatusBadRequest, "id не указан")
 		return
@@ -75,7 +72,7 @@ func (h *PeerHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	peer, err := h.wgSvc.GetPeer(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, apperrors.ErrNotFound) {
 			ErrorJSON(w, http.StatusNotFound, "клиент не найден")
 			return
 		}
@@ -89,17 +86,14 @@ func (h *PeerHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PeerHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get(":id")
-	if id == "" {
-		id = r.PathValue("id")
-	}
+	id := getPathID(r)
 	if id == "" {
 		ErrorJSON(w, http.StatusBadRequest, "id не указан")
 		return
 	}
 
 	if err := h.wgSvc.DeletePeer(r.Context(), id); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, apperrors.ErrNotFound) {
 			ErrorJSON(w, http.StatusNotFound, "клиент не найден")
 			return
 		}
@@ -116,10 +110,7 @@ func (h *PeerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PeerHandler) DownloadConfig(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get(":id")
-	if id == "" {
-		id = r.PathValue("id")
-	}
+	id := getPathID(r)
 	if id == "" {
 		ErrorJSON(w, http.StatusBadRequest, "id не указан")
 		return
@@ -127,7 +118,7 @@ func (h *PeerHandler) DownloadConfig(w http.ResponseWriter, r *http.Request) {
 
 	peer, err := h.wgSvc.GetPeer(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, apperrors.ErrNotFound) {
 			ErrorJSON(w, http.StatusNotFound, "клиент не найден")
 			return
 		}
@@ -144,10 +135,7 @@ func (h *PeerHandler) DownloadConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PeerHandler) GetQRCode(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get(":id")
-	if id == "" {
-		id = r.PathValue("id")
-	}
+	id := getPathID(r)
 	if id == "" {
 		ErrorJSON(w, http.StatusBadRequest, "id не указан")
 		return
@@ -155,7 +143,7 @@ func (h *PeerHandler) GetQRCode(w http.ResponseWriter, r *http.Request) {
 
 	peer, err := h.wgSvc.GetPeer(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, apperrors.ErrNotFound) {
 			ErrorJSON(w, http.StatusNotFound, "клиент не найден")
 			return
 		}
@@ -183,10 +171,7 @@ func (h *PeerHandler) GetQRCode(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PeerHandler) GetStats(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get(":id")
-	if id == "" {
-		id = r.PathValue("id")
-	}
+	id := getPathID(r)
 	if id == "" {
 		ErrorJSON(w, http.StatusBadRequest, "id не указан")
 		return
@@ -194,7 +179,7 @@ func (h *PeerHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 
 	stats, err := h.wgSvc.GetPeerStats(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, apperrors.ErrNotFound) {
 			ErrorJSON(w, http.StatusNotFound, "клиент не найден")
 			return
 		}
@@ -206,10 +191,7 @@ func (h *PeerHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PeerHandler) Toggle(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get(":id")
-	if id == "" {
-		id = r.PathValue("id")
-	}
+	id := getPathID(r)
 	if id == "" {
 		ErrorJSON(w, http.StatusBadRequest, "id не указан")
 		return
@@ -224,7 +206,7 @@ func (h *PeerHandler) Toggle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.wgSvc.TogglePeer(r.Context(), id, req.Active); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		if errors.Is(err, apperrors.ErrNotFound) {
 			ErrorJSON(w, http.StatusNotFound, "клиент не найден")
 			return
 		}

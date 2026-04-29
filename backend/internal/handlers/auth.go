@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"smarttraffic/internal/middleware"
 	"smarttraffic/internal/models"
 	"smarttraffic/internal/services"
 )
@@ -59,7 +60,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) LogoutAll(w http.ResponseWriter, r *http.Request) {
-	userID, _ := r.Context().Value("user_id").(string)
+	userID, _ := r.Context().Value(middleware.UserIDKey).(string)
 	if userID == "" {
 		ErrorJSON(w, http.StatusUnauthorized, "не авторизован")
 		return
@@ -75,7 +76,7 @@ func (h *AuthHandler) LogoutAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Session(w http.ResponseWriter, r *http.Request) {
-	userID, _ := r.Context().Value("user_id").(string)
+	userID, _ := r.Context().Value(middleware.UserIDKey).(string)
 	if userID == "" {
 		ErrorJSON(w, http.StatusUnauthorized, "не авторизован")
 		return

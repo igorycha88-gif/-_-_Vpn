@@ -166,7 +166,7 @@ Protection rules:
   ☐ Required reviewers         — не требуется (автодеплой)
 
 Secrets:
-  (те же что и production-ru, но指向 staging)
+  (те же что и production-ru, но указывают на staging)
 ```
 
 ---
