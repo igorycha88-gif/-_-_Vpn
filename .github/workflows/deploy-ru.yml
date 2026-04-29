@@ -6,7 +6,7 @@ on:
       branch:
         description: 'Ветка для деплоя'
         required: false
-        default: 'dev1'
+        default: 'main'
       skip_smoke:
         description: 'Пропустить smoke-тесты'
         type: boolean
