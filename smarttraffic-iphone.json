@@ -20,7 +20,7 @@
           "gosuslugi.ru", "sberbank.ru", "tinkoff.ru",
           "ozon.ru", "wildberries.ru", "avito.ru",
           "habr.com", "kaspersky.com",
-          "max.ru", "maxpatrol.ru", "positive-techologies.ru"
+          "max.ru", "maxpatrol.ru", "positive-technologies.ru"
         ],
         "server": "dns-ru"
       },
@@ -81,7 +81,7 @@
           "gosuslugi.ru", "sberbank.ru", "tinkoff.ru",
           "ozon.ru", "wildberries.ru", "avito.ru",
           "habr.com", "kaspersky.com",
-          "max.ru", "maxpatrol.ru", "positive-techologies.ru"
+          "max.ru", "maxpatrol.ru", "positive-technologies.ru"
         ],
         "outbound": "direct-out"
       },
