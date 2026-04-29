@@ -342,6 +342,28 @@ func TestWireGuardService_GenerateClientConfig_Android(t *testing.T) {
 	if !contains(config, "ru.sberbankmobile") {
 		t.Error("Android config should contain Sberbank package name")
 	}
+	if !contains(config, `"exclude_package"`) {
+		t.Error("Android config should contain exclude_package in tun inbound")
+	}
+	if !contains(config, "com.google.android.gms") {
+		t.Error("Android config should exclude Google Play Services for Android Auto")
+	}
+	if !contains(config, "com.google.android.apps.auto") {
+		t.Error("Android config should exclude Android Auto companion app")
+	}
+}
+
+func TestWireGuardService_GenerateClientConfig_iPhone_NoExcludePackage(t *testing.T) {
+	svc := NewWireGuardService(nil, nil, testVLESSConfig(), testLogger())
+
+	peer := &models.Peer{
+		PublicKey:  "test-uuid-iphone",
+		DeviceType: models.DeviceTypeIPhone,
+	}
+	config := svc.GenerateClientConfig(peer)
+	if contains(config, `"exclude_package"`) {
+		t.Error("iPhone config should NOT contain exclude_package")
+	}
 }
 
 func TestWireGuardService_GenerateClientConfig_DefaultFallback(t *testing.T) {
