@@ -94,6 +94,10 @@ func (s *WireGuardService) DeletePeer(ctx context.Context, id string) error {
 		return fmt.Errorf("service.wireguard.DeletePeer traffic: %w", err)
 	}
 
+	if err := s.trafficRepo.DeleteSessionsByPeerID(ctx, id); err != nil {
+		return fmt.Errorf("service.wireguard.DeletePeer sessions: %w", err)
+	}
+
 	if err := s.peerRepo.Delete(ctx, id); err != nil {
 		return fmt.Errorf("service.wireguard.DeletePeer: %w", err)
 	}

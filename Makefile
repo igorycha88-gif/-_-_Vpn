@@ -1,4 +1,4 @@
-.PHONY: dev build up down logs ps lint test clean deploy-ru deploy-foreign rollback-ru
+.PHONY: dev build up down logs ps lint test clean verify pipeline help
 
 COMPOSE=docker compose
 BACKEND_DIR=backend
@@ -48,14 +48,34 @@ typecheck-frontend: ## Типизация frontend
 	cd $(FRONTEND_DIR) && npm run typecheck
 
 test-backend: ## Тесты backend
-	cd $(BACKEND_DIR) && go test ./...
+	cd $(BACKEND_DIR) && go test -race -count=1 -coverprofile=coverage.out ./...
+	cd $(BACKEND_DIR) && go tool cover -func=coverage.out | grep total
 
 test-frontend: ## Тесты frontend
-	cd $(FRONTEND_DIR) && npm run test
+	cd $(FRONTEND_DIR) && npm run test -- --coverage --passWithNoTests
 
 lint: lint-backend lint-frontend ## Линтинг всего проекта
 
 test: test-backend test-frontend ## Тесты всего проекта
+
+build-check: ## Проверка сборки
+	cd $(BACKEND_DIR) && go build ./...
+	cd $(FRONTEND_DIR) && npm run build
+
+verify: lint build-check test ## Полная проверка: lint + build + test (ХАРДГЕЙТ конвейера)
+
+pipeline: ## Полный цикл DevOps: пересборка Docker + verify
+	$(COMPOSE) down
+	$(COMPOSE) build --no-cache
+	$(COMPOSE) up -d
+	@echo "Ожидание запуска контейнеров..."
+	sleep 5
+	$(COMPOSE) ps
+	@echo "Запуск verify..."
+	$(MAKE) verify
+	@echo "Проверка логов на ошибки..."
+	$(COMPOSE) logs --tail=50
+	@echo "=== PIPELINE COMPLETE ==="
 
 init-env: ## Создать .env из примера
 	cp -n .env.example .env || true

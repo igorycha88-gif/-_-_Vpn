@@ -218,11 +218,31 @@ func TestWireGuardService_DeletePeer(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
 	defer db.Close()
 
-	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
+	trafficRepo := repository.NewTrafficRepository(db)
+	svc := NewWireGuardService(repository.NewPeerRepository(db), trafficRepo, testVLESSConfig(), testLogger())
 
 	peer, _ := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1", DeviceType: models.DeviceTypeIPhone})
+
+	_, err := trafficRepo.CreateSession(context.Background(), peer.ID)
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+
 	if err := svc.DeletePeer(context.Background(), peer.ID); err != nil {
 		t.Fatalf("DeletePeer: %v", err)
+	}
+
+	_, err = svc.GetPeer(context.Background(), peer.ID)
+	if err == nil {
+		t.Fatal("expected error after delete, got nil")
+	}
+
+	session, err := trafficRepo.GetActiveSession(context.Background(), peer.ID)
+	if err != nil {
+		t.Fatalf("GetActiveSession: %v", err)
+	}
+	if session != nil {
+		t.Fatal("expected nil session after peer delete")
 	}
 }
 
