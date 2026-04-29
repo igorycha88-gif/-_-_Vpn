@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -1098,5 +1099,59 @@ func TestTrafficRepository_DeleteByPeerID(t *testing.T) {
 	}
 	if len(logs) != 0 {
 		t.Errorf("expected 0 logs after delete, got %d", len(logs))
+	}
+}
+
+func TestAuthRepository_DeleteUserRefreshTokens(t *testing.T) {
+	db := initTestDB(t)
+	authRepo := NewAuthRepository(db)
+	ctx := context.Background()
+
+	userID := "user-del-tokens"
+
+	_, _ = db.ExecContext(ctx, "INSERT INTO admin_users (id, email, password_hash) VALUES (?, ?, ?)",
+		userID, "del@test.com", "hash")
+	_, _ = db.ExecContext(ctx, "INSERT INTO admin_users (id, email, password_hash) VALUES (?, ?, ?)",
+		"other-user", "other@test.com", "hash")
+
+	token1 := "token-del-1"
+	token2 := "token-del-2"
+	token3 := "token-del-3"
+
+	if err := authRepo.StoreRefreshToken(ctx, userID, token1, time.Now().Add(1*time.Hour).Format(time.RFC3339)); err != nil {
+		t.Fatalf("StoreRefreshToken token1: %v", err)
+	}
+	if err := authRepo.StoreRefreshToken(ctx, userID, token2, time.Now().Add(2*time.Hour).Format(time.RFC3339)); err != nil {
+		t.Fatalf("StoreRefreshToken token2: %v", err)
+	}
+	if err := authRepo.StoreRefreshToken(ctx, "other-user", token3, time.Now().Add(1*time.Hour).Format(time.RFC3339)); err != nil {
+		t.Fatalf("StoreRefreshToken token3: %v", err)
+	}
+
+	if err := authRepo.DeleteUserRefreshTokens(ctx, userID); err != nil {
+		t.Fatalf("DeleteUserRefreshTokens: %v", err)
+	}
+
+	_, err1 := authRepo.GetRefreshToken(ctx, token1)
+	_, err2 := authRepo.GetRefreshToken(ctx, token2)
+	_, err3 := authRepo.GetRefreshToken(ctx, token3)
+
+	if err1 == nil || err2 == nil {
+		t.Error("expected error for deleted tokens")
+	}
+	if err3 != nil {
+		t.Errorf("expected other user token to exist: %v", err3)
+	}
+}
+
+func TestIsNotFound(t *testing.T) {
+	if !IsNotFound(ErrNotFound) {
+		t.Error("IsNotFound should return true for ErrNotFound")
+	}
+	if IsNotFound(errors.New("other error")) {
+		t.Error("IsNotFound should return false for other errors")
+	}
+	if IsNotFound(nil) {
+		t.Error("IsNotFound should return false for nil")
 	}
 }

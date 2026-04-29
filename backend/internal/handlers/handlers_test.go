@@ -1464,3 +1464,41 @@ func TestDNSHandler_Get_Defaults(t *testing.T) {
 		t.Errorf("DNS Get status = %d, want 200", w.Code)
 	}
 }
+
+func TestMonitoringHandler_Traffic(t *testing.T) {
+	deps := newTestDeps(t)
+	req := deps.authenticatedRequest(http.MethodGet, "/api/monitoring/traffic", "")
+	w := httptest.NewRecorder()
+	deps.monitoringHandler.Traffic(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("Monitoring Traffic status = %d, want 200", w.Code)
+	}
+
+	var resp []models.TrafficLog
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp == nil {
+		t.Error("response should be an array")
+	}
+}
+
+func TestMonitoringHandler_Alerts(t *testing.T) {
+	deps := newTestDeps(t)
+	ctx := context.Background()
+
+	deps.trafficSvc.AddAlert(ctx, &models.Alert{
+		ID: "test-alert-1", Type: "test", Message: "Test alert", Severity: "info", Timestamp: time.Now(),
+	})
+
+	req := deps.authenticatedRequest(http.MethodGet, "/api/monitoring/alerts", "")
+	w := httptest.NewRecorder()
+	deps.monitoringHandler.Alerts(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("Monitoring Alerts status = %d, want 200", w.Code)
+	}
+
+	var resp []models.Alert
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if len(resp) == 0 {
+		t.Error("response should contain alerts")
+	}
+}

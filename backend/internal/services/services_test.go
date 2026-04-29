@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -209,7 +210,7 @@ func TestWireGuardService_ListPeers(t *testing.T) {
 	}
 	initialCount := len(peers)
 
-	svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1", DeviceType: models.DeviceTypeIPhone})
+	_, _ = svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1", DeviceType: models.DeviceTypeIPhone})
 	peers, _ = svc.ListPeers(context.Background())
 	if len(peers) != initialCount+1 {
 		t.Errorf("count = %d, want %d", len(peers), initialCount+1)
@@ -970,7 +971,7 @@ func TestSingBoxStatsCollector_FetchConnections(t *testing.T) {
 				{ID: "c1", Upload: 100, Download: 200, Metadata: clashMetadata{User: "uuid-1"}},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 
 	server := httptest.NewServer(handler)
@@ -998,7 +999,7 @@ func TestSingBoxStatsCollector_FetchConnections_WithSecret(t *testing.T) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		json.NewEncoder(w).Encode(clashConnectionsResponse{})
+		_ = json.NewEncoder(w).Encode(clashConnectionsResponse{})
 	})
 
 	server := httptest.NewServer(handler)
@@ -1047,7 +1048,7 @@ func TestSingBoxStatsCollector_Collect_Integration(t *testing.T) {
 				{ID: "c1", Upload: 1000, Download: 5000, Metadata: clashMetadata{User: "test-uuid-1"}},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 
 	server := httptest.NewServer(handler)
@@ -1264,7 +1265,7 @@ func TestTrafficService_ClearAllAlerts(t *testing.T) {
 		testLogger(),
 	)
 
-	svc.ClearAllAlerts(context.Background())
+	_ = svc.ClearAllAlerts(context.Background())
 
 	svc.AddAlert(context.Background(), &models.Alert{ID: "c1", Type: "system", Message: "A1", Severity: "info", Timestamp: time.Now()})
 	svc.AddAlert(context.Background(), &models.Alert{ID: "c2", Type: "system", Message: "A2", Severity: "warning", Timestamp: time.Now()})
@@ -1293,7 +1294,7 @@ func TestTrafficService_CleanupOldAlerts(t *testing.T) {
 	trafficRepo := repository.NewTrafficRepository(db)
 	svc := NewTrafficService(trafficRepo, repository.NewPeerRepository(db), testLogger())
 
-	svc.ClearAllAlerts(context.Background())
+	_ = svc.ClearAllAlerts(context.Background())
 
 	_, err := db.Exec(`INSERT INTO alerts (id, type, message, severity, timestamp) VALUES ('old-a', 'system', 'Old', 'info', datetime('now', '-60 days'))`)
 	if err != nil {
@@ -1394,9 +1395,9 @@ func TestTrafficService_GetTrafficAggregate(t *testing.T) {
 		testLogger(),
 	)
 
-	svc.LogTraffic(context.Background(), &models.TrafficLog{PeerID: "agg-p1", Domain: "example.com", Action: "test", BytesRx: 1000, BytesTx: 500})
-	svc.LogTraffic(context.Background(), &models.TrafficLog{PeerID: "agg-p1", Domain: "example.com", Action: "test", BytesRx: 200, BytesTx: 100})
-	svc.LogTraffic(context.Background(), &models.TrafficLog{PeerID: "agg-p1", Domain: "other.com", Action: "test", BytesRx: 300, BytesTx: 150})
+	_ = svc.LogTraffic(context.Background(), &models.TrafficLog{PeerID: "agg-p1", Domain: "example.com", Action: "test", BytesRx: 1000, BytesTx: 500})
+	_ = svc.LogTraffic(context.Background(), &models.TrafficLog{PeerID: "agg-p1", Domain: "example.com", Action: "test", BytesRx: 200, BytesTx: 100})
+	_ = svc.LogTraffic(context.Background(), &models.TrafficLog{PeerID: "agg-p1", Domain: "other.com", Action: "test", BytesRx: 300, BytesTx: 150})
 
 	items, err := svc.GetTrafficAggregate(context.Background(), "agg-p1", 10)
 	if err != nil {
@@ -1478,8 +1479,8 @@ func TestTrafficService_GetPeerSessions(t *testing.T) {
 	trafficRepo := repository.NewTrafficRepository(db)
 	svc := NewTrafficService(trafficRepo, peerRepo, testLogger())
 
-	trafficRepo.CreateSession(context.Background(), "sess-peer-1")
-	trafficRepo.CreateSession(context.Background(), "sess-peer-1")
+	_, _ = trafficRepo.CreateSession(context.Background(), "sess-peer-1")
+	_, _ = trafficRepo.CreateSession(context.Background(), "sess-peer-1")
 
 	sessions, err := svc.GetPeerSessions(context.Background(), "sess-peer-1", 10)
 	if err != nil {
@@ -1570,9 +1571,9 @@ func TestRoutingService_ListRules(t *testing.T) {
 	rulesBefore, _ := svc.ListRules(context.Background())
 	initialCount := len(rulesBefore)
 
-	svc.CreateRule(context.Background(), &models.RoutingRuleCreateRequest{Name: "L1", Type: "domain", Pattern: "a.com", Action: "direct"})
-	svc.CreateRule(context.Background(), &models.RoutingRuleCreateRequest{Name: "L2", Type: "domain", Pattern: "b.com", Action: "proxy"})
-	svc.CreateRule(context.Background(), &models.RoutingRuleCreateRequest{Name: "L3", Type: "domain", Pattern: "c.com", Action: "block"})
+	_, _ = svc.CreateRule(context.Background(), &models.RoutingRuleCreateRequest{Name: "L1", Type: "domain", Pattern: "a.com", Action: "direct"})
+	_, _ = svc.CreateRule(context.Background(), &models.RoutingRuleCreateRequest{Name: "L2", Type: "domain", Pattern: "b.com", Action: "proxy"})
+	_, _ = svc.CreateRule(context.Background(), &models.RoutingRuleCreateRequest{Name: "L3", Type: "domain", Pattern: "c.com", Action: "block"})
 
 	rules, err := svc.ListRules(context.Background())
 	if err != nil {
@@ -2565,4 +2566,71 @@ func TestSingBoxStatsCollector_Start_Stop(t *testing.T) {
 	}()
 
 	<-done
+}
+
+func TestWGStatsCollector_runWG(t *testing.T) {
+	db, _ := repository.InitDB(":memory:", migrations.Files)
+	defer db.Close()
+
+	collector := NewWGStatsCollector(nil, nil, nil, "wg0", testLogger())
+
+	t.Run("invalid_interface", func(t *testing.T) {
+		if _, err := exec.LookPath("wg"); err != nil {
+			t.Skip("wg command not available")
+		}
+
+		collector.iface = "nonexistent-wg0"
+		_, err := collector.runWG("transfer")
+		if err == nil {
+			t.Error("expected error for nonexistent interface")
+		}
+	})
+}
+
+func TestWGStatsCollector_collect(t *testing.T) {
+	db, _ := repository.InitDB(":memory:", migrations.Files)
+	defer db.Close()
+
+	peerRepo := repository.NewPeerRepository(db)
+	trafficRepo := repository.NewTrafficRepository(db)
+	alertSvc := NewTrafficService(trafficRepo, peerRepo, testLogger())
+
+	collector := NewWGStatsCollector(peerRepo, trafficRepo, alertSvc, "wg0", testLogger())
+	collector.interval = 50 * time.Millisecond
+
+	t.Run("error_case", func(t *testing.T) {
+		collector.iface = "nonexistent-wg0"
+
+		ctx := context.Background()
+		collector.collect(ctx)
+
+		if collector.IsWGActive() {
+			t.Error("WG should not be active after error")
+		}
+	})
+}
+
+func TestWGStatsCollector_Start(t *testing.T) {
+	db, _ := repository.InitDB(":memory:", migrations.Files)
+	defer db.Close()
+
+	peerRepo := repository.NewPeerRepository(db)
+	trafficRepo := repository.NewTrafficRepository(db)
+	alertSvc := NewTrafficService(trafficRepo, peerRepo, testLogger())
+
+	collector := NewWGStatsCollector(peerRepo, trafficRepo, alertSvc, "wg0", testLogger())
+	collector.interval = 50 * time.Millisecond
+
+	t.Run("start_and_stop", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+		defer cancel()
+
+		done := make(chan struct{})
+		go func() {
+			collector.Start(ctx)
+			close(done)
+		}()
+
+		<-done
+	})
 }

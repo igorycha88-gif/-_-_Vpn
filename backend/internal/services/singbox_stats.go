@@ -604,7 +604,7 @@ func (c *SingBoxStatsCollector) fetchConnections() (*clashConnectionsResponse, e
 	if err != nil {
 		return nil, fmt.Errorf("выполнение запроса: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("статус %d от sing-box Clash API", resp.StatusCode)
