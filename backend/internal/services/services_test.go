@@ -279,6 +279,9 @@ func TestWireGuardService_GenerateClientConfig(t *testing.T) {
 	if !contains(config, "vk.com") {
 		t.Error("config should contain vk.com in direct rules")
 	}
+	if !contains(config, "sberbank.ru") {
+		t.Error("config should contain sberbank.ru in direct rules")
+	}
 	if !contains(config, ".ru") {
 		t.Error("config should contain .ru domain suffix in direct rules")
 	}
@@ -315,6 +318,9 @@ func TestWireGuardService_GenerateClientConfig_Android(t *testing.T) {
 	}
 	if !contains(config, "ru.yandex.weather") {
 		t.Error("Android config should contain Yandex Weather package name")
+	}
+	if !contains(config, "ru.sberbankmobile") {
+		t.Error("Android config should contain Sberbank package name")
 	}
 }
 

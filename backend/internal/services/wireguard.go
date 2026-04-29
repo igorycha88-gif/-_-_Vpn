@@ -207,6 +207,7 @@ func (s *WireGuardService) buildPackageNameRules() []any {
 			"package_name": []string{
 				"com.google.android.projection.gearhead",
 				"ru.yandex.weather",
+				"ru.sberbankmobile",
 			},
 			"outbound": "direct-out",
 		},
