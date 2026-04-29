@@ -73,13 +73,19 @@ export default function Monitoring() {
 
   const hasAnyError = statsError && trafficError && logsError
 
+  const peerVpnStatus = (peerId: string): boolean => {
+    const ps = peersStats?.find(s => s.peer_id === peerId)
+    if (ps) return ps.online
+    return false
+  }
+
   const peerOptions = (peers ?? []).map((p) => {
-    const online = isOnline(p.last_seen)
+    const vpnOnline = peerVpnStatus(p.id)
     return {
       value: p.id,
       label: (
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Badge status={online ? 'success' : 'default'} />
+          <Badge status={vpnOnline ? 'success' : 'default'} />
           {p.name}
           <Text type="secondary" style={{ fontSize: 12 }}>
             ({formatBytes(p.total_rx + p.total_tx)})
@@ -142,7 +148,7 @@ export default function Monitoring() {
           return <Tag color="red">Выключен</Tag>
         }
         return r.online ? (
-          <Tag icon={<CheckCircleOutlined />} color="success">Онлайн</Tag>
+          <Tag icon={<CheckCircleOutlined />} color="success">VPN</Tag>
         ) : (
           <Tag icon={<CloseCircleOutlined />} color="default">Офлайн</Tag>
         )
@@ -272,7 +278,7 @@ export default function Monitoring() {
         <Card title="Клиенты" style={{ marginBottom: 16 }} size="small">
           <Row gutter={[12, 8]}>
             {(peers ?? []).map((p) => {
-              const online = isOnline(p.last_seen)
+              const vpnOnline = peerVpnStatus(p.id)
               const rtPeer = peersStats?.find(s => s.peer_id === p.id)
               return (
                 <Col key={p.id} xs={24} sm={12} md={8} lg={6}>
@@ -290,8 +296,8 @@ export default function Monitoring() {
                       <Text strong ellipsis style={{ maxWidth: 120 }}>{p.name}</Text>
                       <div style={{ display: 'flex', gap: 4 }}>
                         {p.is_active ? (
-                          online ? (
-                            <Tag icon={<CheckCircleOutlined />} color="success">Онлайн</Tag>
+                          vpnOnline ? (
+                            <Tag icon={<CheckCircleOutlined />} color="success">VPN</Tag>
                           ) : (
                             <Tag icon={<CloseCircleOutlined />} color="default">Офлайн</Tag>
                           )
@@ -300,7 +306,7 @@ export default function Monitoring() {
                         )}
                       </div>
                     </div>
-                    {online && rtPeer && (rtPeer.bandwidth_rate_rx > 0 || rtPeer.bandwidth_rate_tx > 0) && (
+                    {vpnOnline && rtPeer && (rtPeer.bandwidth_rate_rx > 0 || rtPeer.bandwidth_rate_tx > 0) && (
                       <div style={{ marginTop: 4 }}>
                         <Text style={{ fontSize: 12, color: '#1890ff' }}>↓ {formatRate(rtPeer.bandwidth_rate_rx)}</Text>
                         {' '}
@@ -312,7 +318,7 @@ export default function Monitoring() {
                         RX: {formatBytes(p.total_rx)} / TX: {formatBytes(p.total_tx)}
                       </Text>
                     </div>
-                    {online && rtPeer?.connected_at && (
+                    {vpnOnline && rtPeer?.connected_at && (
                       <div>
                         <Text type="secondary" style={{ fontSize: 12 }}>
                           Сессия: {sessionDuration(rtPeer.connected_at)}
@@ -373,9 +379,9 @@ export default function Monitoring() {
             )}
             <Text>Последняя активность: <strong>{timeAgo(peerData.peer.last_seen)}</strong></Text>
             {isOnline(peerData.peer.last_seen) ? (
-              <Tag icon={<CheckCircleOutlined />} color="success">Онлайн</Tag>
+              <Tag icon={<CheckCircleOutlined />} color="success">Активен</Tag>
             ) : (
-              <Tag icon={<CloseCircleOutlined />} color="default">Офлайн</Tag>
+              <Tag icon={<CloseCircleOutlined />} color="default">Неактивен</Tag>
             )}
           </div>
         </Card>

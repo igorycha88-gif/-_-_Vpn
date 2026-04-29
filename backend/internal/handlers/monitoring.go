@@ -105,6 +105,11 @@ func (h *MonitoringHandler) Stats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.rtProvider != nil {
+		rtStats := h.rtProvider.GetRealtimeStats()
+		stats.OnlinePeers = len(rtStats)
+	}
+
 	h.logger.Debug("monitoring stats", "online", stats.OnlinePeers, "total", stats.TotalPeers, "rx", stats.TotalRx, "tx", stats.TotalTx)
 
 	JSON(w, http.StatusOK, stats)
@@ -160,12 +165,15 @@ func (h *MonitoringHandler) PeersStats(w http.ResponseWriter, r *http.Request) {
 		rtStats := h.rtProvider.GetRealtimeStats()
 		for _, s := range summaries {
 			if rt, ok := rtStats[s.PeerID]; ok {
+				s.Online = true
 				s.ActiveConns = rt.ActiveConnections
 				s.BandwidthRateRx = rt.BandwidthRateRx
 				s.BandwidthRateTx = rt.BandwidthRateTx
 				s.ConnectedAt = rt.ConnectedAt
 				s.SessionRx = rt.SessionRx
 				s.SessionTx = rt.SessionTx
+			} else {
+				s.Online = false
 			}
 		}
 	}
