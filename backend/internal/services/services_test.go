@@ -218,11 +218,31 @@ func TestWireGuardService_DeletePeer(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
 	defer db.Close()
 
-	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
+	trafficRepo := repository.NewTrafficRepository(db)
+	svc := NewWireGuardService(repository.NewPeerRepository(db), trafficRepo, testVLESSConfig(), testLogger())
 
 	peer, _ := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "P1", DeviceType: models.DeviceTypeIPhone})
+
+	_, err := trafficRepo.CreateSession(context.Background(), peer.ID)
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+
 	if err := svc.DeletePeer(context.Background(), peer.ID); err != nil {
 		t.Fatalf("DeletePeer: %v", err)
+	}
+
+	_, err = svc.GetPeer(context.Background(), peer.ID)
+	if err == nil {
+		t.Fatal("expected error after delete, got nil")
+	}
+
+	session, err := trafficRepo.GetActiveSession(context.Background(), peer.ID)
+	if err != nil {
+		t.Fatalf("GetActiveSession: %v", err)
+	}
+	if session != nil {
+		t.Fatal("expected nil session after peer delete")
 	}
 }
 
@@ -321,6 +341,28 @@ func TestWireGuardService_GenerateClientConfig_Android(t *testing.T) {
 	}
 	if !contains(config, "ru.sberbankmobile") {
 		t.Error("Android config should contain Sberbank package name")
+	}
+	if !contains(config, `"exclude_package"`) {
+		t.Error("Android config should contain exclude_package in tun inbound")
+	}
+	if !contains(config, "com.google.android.gms") {
+		t.Error("Android config should exclude Google Play Services for Android Auto")
+	}
+	if !contains(config, "com.google.android.apps.auto") {
+		t.Error("Android config should exclude Android Auto companion app")
+	}
+}
+
+func TestWireGuardService_GenerateClientConfig_iPhone_NoExcludePackage(t *testing.T) {
+	svc := NewWireGuardService(nil, nil, testVLESSConfig(), testLogger())
+
+	peer := &models.Peer{
+		PublicKey:  "test-uuid-iphone",
+		DeviceType: models.DeviceTypeIPhone,
+	}
+	config := svc.GenerateClientConfig(peer)
+	if contains(config, `"exclude_package"`) {
+		t.Error("iPhone config should NOT contain exclude_package")
 	}
 }
 

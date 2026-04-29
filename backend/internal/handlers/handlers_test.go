@@ -385,6 +385,57 @@ func TestPeerHandler_Delete_Success(t *testing.T) {
 	}
 }
 
+func TestPeerHandler_Delete_WithActiveSession(t *testing.T) {
+	d := newTestDeps(t)
+	peer, _ := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "SessionTest", DeviceType: models.DeviceTypeIPhone})
+
+	trafficRepo := repository.NewTrafficRepository(d.db)
+	_, err := trafficRepo.CreateSession(context.Background(), peer.ID)
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+
+	trafficRepo.Log(context.Background(), &models.TrafficLog{
+		PeerID: peer.ID, Domain: "youtube.com", Action: "proxy", BytesRx: 5000, BytesTx: 3000,
+	})
+
+	req := d.authenticatedRequest(http.MethodDelete, "/api/v1/wg/peers/"+peer.ID, "")
+	req.SetPathValue("id", peer.ID)
+	w := httptest.NewRecorder()
+	d.peerHandler.Delete(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		data := readBody(resp)
+		t.Fatalf("status = %d, want 200, body: %v", resp.StatusCode, data)
+	}
+
+	_, err = d.wgSvc.GetPeer(context.Background(), peer.ID)
+	if err == nil {
+		t.Fatal("expected error after delete, peer should not exist")
+	}
+}
+
+func TestPeerHandler_Delete_WithClosedSession(t *testing.T) {
+	d := newTestDeps(t)
+	peer, _ := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "ClosedSess", DeviceType: models.DeviceTypeIPhone})
+
+	trafficRepo := repository.NewTrafficRepository(d.db)
+	sid, err := trafficRepo.CreateSession(context.Background(), peer.ID)
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	trafficRepo.CloseSession(context.Background(), sid, 1024, 2048, 5)
+
+	req := d.authenticatedRequest(http.MethodDelete, "/api/v1/wg/peers/"+peer.ID, "")
+	req.SetPathValue("id", peer.ID)
+	w := httptest.NewRecorder()
+	d.peerHandler.Delete(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+}
+
 func TestPeerHandler_Delete_NotFound(t *testing.T) {
 	d := newTestDeps(t)
 	req := d.authenticatedRequest(http.MethodDelete, "/api/v1/wg/peers/nonexistent", "")

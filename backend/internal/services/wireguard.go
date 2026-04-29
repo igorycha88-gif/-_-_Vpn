@@ -94,6 +94,10 @@ func (s *WireGuardService) DeletePeer(ctx context.Context, id string) error {
 		return fmt.Errorf("service.wireguard.DeletePeer traffic: %w", err)
 	}
 
+	if err := s.trafficRepo.DeleteSessionsByPeerID(ctx, id); err != nil {
+		return fmt.Errorf("service.wireguard.DeletePeer sessions: %w", err)
+	}
+
 	if err := s.peerRepo.Delete(ctx, id); err != nil {
 		return fmt.Errorf("service.wireguard.DeletePeer: %w", err)
 	}
@@ -115,6 +119,12 @@ func (s *WireGuardService) TogglePeer(ctx context.Context, id string, active boo
 	return nil
 }
 
+var androidAutoExcludePackages = []string{
+	"com.google.android.projection.gearhead",
+	"com.google.android.gms",
+	"com.google.android.apps.auto",
+}
+
 func (s *WireGuardService) buildClientConfigMap(peer *models.Peer) map[string]any {
 	deviceType := peer.DeviceType
 	if deviceType == "" {
@@ -123,6 +133,7 @@ func (s *WireGuardService) buildClientConfigMap(peer *models.Peer) map[string]an
 
 	stack := "mixed"
 	var routeRules []any
+	var excludePackages []string
 
 	baseRules := s.buildBaseRules()
 	proxyDomains := s.buildProxyDomains()
@@ -132,6 +143,7 @@ func (s *WireGuardService) buildClientConfigMap(peer *models.Peer) map[string]an
 		stack = "gvisor"
 		routeRules = append(baseRules, s.buildPackageNameRules()...)
 		routeRules = append(routeRules, proxyDomains...)
+		excludePackages = androidAutoExcludePackages
 	default:
 		routeRules = append(baseRules, proxyDomains...)
 	}
@@ -139,7 +151,7 @@ func (s *WireGuardService) buildClientConfigMap(peer *models.Peer) map[string]an
 	cfg := map[string]any{
 		"log":      map[string]any{"level": "info", "timestamp": true},
 		"dns":      s.buildClientDNSConfig(),
-		"inbounds": []any{s.buildTunInbound(stack)},
+		"inbounds": []any{s.buildTunInbound(stack, excludePackages)},
 		"outbounds": []any{
 			s.buildVlessOutbound(peer),
 			map[string]any{"type": "direct", "tag": "direct-out"},
@@ -244,8 +256,8 @@ func (s *WireGuardService) buildClientDNSConfig() map[string]any {
 	}
 }
 
-func (s *WireGuardService) buildTunInbound(stack string) map[string]any {
-	return map[string]any{
+func (s *WireGuardService) buildTunInbound(stack string, excludePackages []string) map[string]any {
+	inbound := map[string]any{
 		"type":         "tun",
 		"tag":          "tun-in",
 		"address":      []string{"172.19.0.1/30"},
@@ -253,6 +265,10 @@ func (s *WireGuardService) buildTunInbound(stack string) map[string]any {
 		"strict_route": true,
 		"stack":        stack,
 	}
+	if len(excludePackages) > 0 {
+		inbound["exclude_package"] = excludePackages
+	}
+	return inbound
 }
 
 func (s *WireGuardService) buildVlessOutbound(peer *models.Peer) map[string]any {

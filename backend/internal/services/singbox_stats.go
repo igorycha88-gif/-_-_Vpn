@@ -335,6 +335,7 @@ func (c *SingBoxStatsCollector) updatePeerRealtime(peerID string, delta *userDel
 	sess, ok := c.peerSessions[peerID]
 	if ok && sess != nil {
 		stats.ConnectedAt = &sess.startTime
+		sess.connCount = activeConns
 	}
 
 	_ = online

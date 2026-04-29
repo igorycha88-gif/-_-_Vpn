@@ -3,6 +3,7 @@ package handlers
 import (
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"smarttraffic/internal/models"
 	"smarttraffic/internal/services"
@@ -179,4 +180,54 @@ func (h *MonitoringHandler) PeersStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	JSON(w, http.StatusOK, summaries)
+}
+
+func (h *MonitoringHandler) PeerSessions(w http.ResponseWriter, r *http.Request) {
+	id := getPathID(r)
+	if id == "" {
+		ErrorJSON(w, http.StatusBadRequest, "id не указан")
+		return
+	}
+
+	limit := 50
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+
+	sessions, err := h.trafficSvc.GetPeerSessions(r.Context(), id, limit)
+	if err != nil {
+		h.logger.Error("ошибка получения сессий клиента", "id", id, "error", err)
+		ErrorJSON(w, http.StatusInternalServerError, "внутренняя ошибка сервера")
+		return
+	}
+
+	JSON(w, http.StatusOK, sessions)
+}
+
+func (h *MonitoringHandler) DeleteAlert(w http.ResponseWriter, r *http.Request) {
+	id := getPathID(r)
+	if id == "" {
+		ErrorJSON(w, http.StatusBadRequest, "id не указан")
+		return
+	}
+
+	if err := h.trafficSvc.DeleteAlert(r.Context(), id); err != nil {
+		h.logger.Error("ошибка удаления алерта", "id", id, "error", err)
+		ErrorJSON(w, http.StatusInternalServerError, "внутренняя ошибка сервера")
+		return
+	}
+
+	JSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *MonitoringHandler) ClearAlerts(w http.ResponseWriter, r *http.Request) {
+	if err := h.trafficSvc.ClearAllAlerts(r.Context()); err != nil {
+		h.logger.Error("ошибка очистки алертов", "error", err)
+		ErrorJSON(w, http.StatusInternalServerError, "внутренняя ошибка сервера")
+		return
+	}
+
+	JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

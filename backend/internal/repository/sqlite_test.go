@@ -421,3 +421,75 @@ func TestTrafficRepository_Cleanup(t *testing.T) {
 		t.Errorf("deleted = %d, want >= 0", deleted)
 	}
 }
+
+func TestTrafficRepository_DeleteSessionsByPeerID(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "sess-peer", Name: "SP", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "spk1", PrivateKey: "spv1",
+		Address: "10.99.0.9", IsActive: true,
+	})
+
+	sid1, err := trafficRepo.CreateSession(ctx, "sess-peer")
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	sid2, err := trafficRepo.CreateSession(ctx, "sess-peer")
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+
+	trafficRepo.CloseSession(ctx, sid1, 100, 200, 3)
+
+	active, err := trafficRepo.GetActiveSession(ctx, "sess-peer")
+	if err != nil {
+		t.Fatalf("GetActiveSession: %v", err)
+	}
+	if active == nil || active.ID != sid2 {
+		t.Fatal("expected active session to exist")
+	}
+
+	if err := trafficRepo.DeleteSessionsByPeerID(ctx, "sess-peer"); err != nil {
+		t.Fatalf("DeleteSessionsByPeerID: %v", err)
+	}
+
+	active, err = trafficRepo.GetActiveSession(ctx, "sess-peer")
+	if err != nil {
+		t.Fatalf("GetActiveSession after delete: %v", err)
+	}
+	if active != nil {
+		t.Fatal("expected nil session after DeleteSessionsByPeerID")
+	}
+}
+
+func TestTrafficRepository_DeleteByPeerID(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "del-peer", Name: "DP", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "dpk1", PrivateKey: "dpv1",
+		Address: "10.99.0.10", IsActive: true,
+	})
+
+	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "del-peer", Domain: "test.com", Action: "direct", BytesRx: 50, BytesTx: 30})
+	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "del-peer", Domain: "other.com", Action: "proxy", BytesRx: 70, BytesTx: 40})
+
+	if err := trafficRepo.DeleteByPeerID(ctx, "del-peer"); err != nil {
+		t.Fatalf("DeleteByPeerID: %v", err)
+	}
+
+	logs, err := trafficRepo.List(ctx, models.TrafficFilter{PeerID: "del-peer", Limit: 100})
+	if err != nil {
+		t.Fatalf("List after delete: %v", err)
+	}
+	if len(logs) != 0 {
+		t.Errorf("expected 0 logs after delete, got %d", len(logs))
+	}
+}
