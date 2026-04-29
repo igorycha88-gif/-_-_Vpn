@@ -46,6 +46,11 @@ func startCleanupCron(ctx context.Context, trafficSvc *services.TrafficService, 
 			if deleted > 0 {
 				logger.Info("очищены старые логи трафика", "deleted", deleted)
 			}
+			if alertDeleted, err := trafficSvc.CleanupOldAlerts(ctx, 30); err != nil {
+				logger.Error("ошибка очистки старых алертов", "error", err)
+			} else if alertDeleted > 0 {
+				logger.Info("очищены старые алерты", "deleted", alertDeleted)
+			}
 		}
 	}
 }
@@ -102,7 +107,7 @@ func main() {
 	presetHandler := handlers.NewPresetHandler(routingSvc, singboxSvc, presetSvc, logger)
 	dnsHandler := handlers.NewDNSHandler(dnsSvc, logger)
 	serverHandler := handlers.NewServerHandler(trafficSvc, collector, logger)
-	monitoringHandler := handlers.NewMonitoringHandler(trafficSvc, wgSvc, logger)
+	monitoringHandler := handlers.NewMonitoringHandler(trafficSvc, wgSvc, sbCollector, logger)
 
 	rateLimiter := middleware.NewRateLimiter(1, time.Second, 5)
 

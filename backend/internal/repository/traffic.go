@@ -19,6 +19,11 @@ type TrafficRepository interface {
 	ListAlerts(ctx context.Context, limit int) ([]*models.Alert, error)
 	GetPeerTrafficSummary(ctx context.Context) ([]*models.PeerTrafficSummary, error)
 	DeleteByPeerID(ctx context.Context, peerID string) error
+	GetTrafficAggregate(ctx context.Context, peerID string, limit int) ([]*models.TrafficAggregateItem, error)
+	CleanupOldAlerts(ctx context.Context, retainDays int) (int64, error)
+	CreateSession(ctx context.Context, peerID string) (int64, error)
+	CloseSession(ctx context.Context, sessionID int64, rx, tx int64, conns int) error
+	GetActiveSession(ctx context.Context, peerID string) (*models.PeerSession, error)
 }
 
 type sqliteTrafficRepository struct {
@@ -238,4 +243,95 @@ func (r *sqliteTrafficRepository) DeleteByPeerID(ctx context.Context, peerID str
 		return fmt.Errorf("traffic.DeleteByPeerID: %w", err)
 	}
 	return nil
+}
+
+func (r *sqliteTrafficRepository) GetTrafficAggregate(ctx context.Context, peerID string, limit int) ([]*models.TrafficAggregateItem, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 30
+	}
+
+	q := `SELECT
+		COALESCE(NULLIF(domain, ''), dest_ip, 'unknown') AS target,
+		SUM(bytes_rx) AS total_rx,
+		SUM(bytes_tx) AS total_tx,
+		COUNT(*) AS cnt
+	FROM traffic_logs
+	WHERE 1=1`
+	args := []interface{}{}
+
+	if peerID != "" {
+		q += " AND peer_id = ?"
+		args = append(args, peerID)
+	}
+
+	q += ` GROUP BY target
+		ORDER BY (SUM(bytes_rx) + SUM(bytes_tx)) DESC
+		LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := r.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("traffic.GetTrafficAggregate: %w", err)
+	}
+	defer rows.Close()
+
+	var items []*models.TrafficAggregateItem
+	for rows.Next() {
+		item := &models.TrafficAggregateItem{}
+		if err := rows.Scan(&item.Domain, &item.RX, &item.TX, &item.Count); err != nil {
+			return nil, fmt.Errorf("traffic.GetTrafficAggregate scan: %w", err)
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r *sqliteTrafficRepository) CleanupOldAlerts(ctx context.Context, retainDays int) (int64, error) {
+	if retainDays <= 0 {
+		retainDays = 30
+	}
+	q := `DELETE FROM alerts WHERE timestamp < datetime('now', printf('-%d days', ?))`
+	result, err := r.db.ExecContext(ctx, q, retainDays)
+	if err != nil {
+		return 0, fmt.Errorf("traffic.CleanupOldAlerts: %w", err)
+	}
+	n, _ := result.RowsAffected()
+	return n, nil
+}
+
+func (r *sqliteTrafficRepository) CreateSession(ctx context.Context, peerID string) (int64, error) {
+	q := `INSERT INTO peer_sessions (peer_id, connected_at) VALUES (?, ?)`
+	result, err := r.db.ExecContext(ctx, q, peerID, time.Now())
+	if err != nil {
+		return 0, fmt.Errorf("traffic.CreateSession: %w", err)
+	}
+	id, _ := result.LastInsertId()
+	return id, nil
+}
+
+func (r *sqliteTrafficRepository) CloseSession(ctx context.Context, sessionID int64, rx, tx int64, conns int) error {
+	q := `UPDATE peer_sessions SET disconnected_at = ?, bytes_rx = ?, bytes_tx = ?, connections_count = ? WHERE id = ?`
+	_, err := r.db.ExecContext(ctx, q, time.Now(), rx, tx, conns, sessionID)
+	if err != nil {
+		return fmt.Errorf("traffic.CloseSession: %w", err)
+	}
+	return nil
+}
+
+func (r *sqliteTrafficRepository) GetActiveSession(ctx context.Context, peerID string) (*models.PeerSession, error) {
+	q := `SELECT id, peer_id, connected_at, bytes_rx, bytes_tx, connections_count
+	      FROM peer_sessions
+	      WHERE peer_id = ? AND disconnected_at IS NULL
+	      ORDER BY connected_at DESC LIMIT 1`
+	row := r.db.QueryRowContext(ctx, q, peerID)
+
+	s := &models.PeerSession{}
+	err := row.Scan(&s.ID, &s.PeerID, &s.ConnectedAt, &s.BytesRx, &s.BytesTx, &s.ConnectionsCount)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("traffic.GetActiveSession: %w", err)
+	}
+	return s, nil
 }

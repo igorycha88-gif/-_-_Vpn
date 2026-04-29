@@ -76,7 +76,7 @@ func newTestDeps(t *testing.T) *testDeps {
 		routeHandler: NewRouteHandler(routingSvc, sbSvc, logger),
 		dnsHandler: NewDNSHandler(dnsSvc, logger),
 		presetHandler: NewPresetHandler(routingSvc, sbSvc, presetSvc, logger),
-		monitoringHandler: NewMonitoringHandler(trafficSvc, wgSvc, logger),
+		monitoringHandler: NewMonitoringHandler(trafficSvc, wgSvc, nil, logger),
 		serverHandler: NewServerHandler(trafficSvc, collector, logger),
 		sbSvc: sbSvc, wgSvc: wgSvc, trafficSvc: trafficSvc, collector: collector,
 	}

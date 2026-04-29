@@ -80,6 +80,18 @@ func (s *TrafficService) CleanupOldLogs(ctx context.Context, retainDays int) (in
 	return deleted, nil
 }
 
+func (s *TrafficService) CleanupOldAlerts(ctx context.Context, retainDays int) (int64, error) {
+	if retainDays <= 0 {
+		retainDays = 30
+	}
+	deleted, err := s.trafficRepo.CleanupOldAlerts(ctx, retainDays)
+	if err != nil {
+		return 0, fmt.Errorf("service.traffic.CleanupOldAlerts: %w", err)
+	}
+	s.logger.Info("очищены старые алерты", "deleted", deleted, "retain_days", retainDays)
+	return deleted, nil
+}
+
 func (s *TrafficService) AddAlert(ctx context.Context, alert *models.Alert) {
 	s.mu.Lock()
 	s.alerts = append([]*models.Alert{alert}, s.alerts...)
@@ -117,4 +129,18 @@ func (s *TrafficService) GetAllPeerStats(ctx context.Context) ([]*models.PeerTra
 		summaries = []*models.PeerTrafficSummary{}
 	}
 	return summaries, nil
+}
+
+func (s *TrafficService) GetTrafficAggregate(ctx context.Context, peerID string, limit int) ([]*models.TrafficAggregateItem, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 30
+	}
+	items, err := s.trafficRepo.GetTrafficAggregate(ctx, peerID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("service.traffic.GetTrafficAggregate: %w", err)
+	}
+	if items == nil {
+		items = []*models.TrafficAggregateItem{}
+	}
+	return items, nil
 }

@@ -26,6 +26,27 @@ function isOnline(lastSeen?: string): boolean {
   return (Date.now() - new Date(lastSeen).getTime()) < 120_000
 }
 
+function formatRate(bytesPerSec: number): string {
+  if (bytesPerSec <= 0) return '0'
+  const kbps = bytesPerSec / 128
+  if (kbps < 1) return `${(bytesPerSec * 8).toFixed(0)} bps`
+  if (kbps < 1000) return `${kbps.toFixed(1)} Kbps`
+  return `${(kbps / 1000).toFixed(2)} Mbps`
+}
+
+function sessionDuration(connectedAt?: string): string {
+  if (!connectedAt) return '—'
+  const diff = Date.now() - new Date(connectedAt).getTime()
+  const sec = Math.floor(diff / 1000)
+  if (sec < 60) return `${sec} сек`
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min} мин`
+  const hours = Math.floor(min / 60)
+  const remainMin = min % 60
+  if (hours < 24) return `${hours} ч ${remainMin} мин`
+  return `${Math.floor(hours / 24)} дн ${hours % 24} ч`
+}
+
 function renderAction(action: string) {
   const map: Record<string, { label: string; color: string }> = {
     direct: { label: 'Напрямую', color: 'green' },
@@ -128,40 +149,75 @@ export default function Monitoring() {
       },
     },
     {
+      title: 'Скорость',
+      key: 'bandwidth',
+      width: 160,
+      render: (_: unknown, r: PeerTrafficSummary) => {
+        if (!r.online) return <Text type="secondary">—</Text>
+        return (
+          <div>
+            <Text style={{ fontSize: 12, color: '#1890ff' }}>↓ {formatRate(r.bandwidth_rate_rx)}</Text>
+            {' '}
+            <Text style={{ fontSize: 12, color: '#52c41a' }}>↑ {formatRate(r.bandwidth_rate_tx)}</Text>
+          </div>
+        )
+      },
+    },
+    {
+      title: 'Соед.',
+      key: 'active_conns',
+      width: 80,
+      sorter: (a: PeerTrafficSummary, b: PeerTrafficSummary) => a.active_conns - b.active_conns,
+      render: (_: unknown, r: PeerTrafficSummary) => {
+        if (!r.online) return <Text type="secondary">0</Text>
+        return <Tag color={r.active_conns > 0 ? 'blue' : 'default'}>{r.active_conns}</Tag>
+      },
+    },
+    {
+      title: 'Сессия',
+      key: 'session',
+      width: 120,
+      render: (_: unknown, r: PeerTrafficSummary) => {
+        if (!r.connected_at) return <Text type="secondary">—</Text>
+        return (
+          <div>
+            <Text style={{ fontSize: 12 }}>{sessionDuration(r.connected_at)}</Text>
+            <br />
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {formatBytes(r.session_rx + r.session_tx)}
+            </Text>
+          </div>
+        )
+      },
+    },
+    {
       title: 'RX',
       dataIndex: 'total_rx',
       key: 'total_rx',
-      width: 120,
+      width: 100,
       render: (v: number) => formatBytes(v),
     },
     {
       title: 'TX',
       dataIndex: 'total_tx',
       key: 'total_tx',
-      width: 120,
+      width: 100,
       render: (v: number) => formatBytes(v),
     },
     {
-      title: 'Доля трафика',
+      title: 'Доля',
       key: 'share',
-      width: 200,
+      width: 160,
       render: (_: unknown, r: PeerTrafficSummary) => {
         const total = r.total_rx + r.total_tx
         const pct = totalAllTraffic > 0 ? Math.round((total / totalAllTraffic) * 100) : 0
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Progress percent={pct} size="small" style={{ width: 100, marginBottom: 0 }} />
+            <Progress percent={pct} size="small" style={{ width: 80, marginBottom: 0 }} />
             <Text type="secondary" style={{ fontSize: 12 }}>{formatBytes(total)}</Text>
           </div>
         )
       },
-    },
-    {
-      title: 'Соединений',
-      dataIndex: 'conn_count',
-      key: 'conn_count',
-      width: 120,
-      render: (v: number) => v.toLocaleString('ru'),
     },
     {
       title: 'Топ домен',
@@ -170,10 +226,10 @@ export default function Monitoring() {
       render: (v: string) => v ? <Tag>{v}</Tag> : '—',
     },
     {
-      title: 'Последняя активность',
+      title: 'Активность',
       dataIndex: 'last_seen',
       key: 'last_seen',
-      width: 160,
+      width: 140,
       render: (v: string) => timeAgo(v),
     },
   ]
@@ -217,6 +273,7 @@ export default function Monitoring() {
           <Row gutter={[12, 8]}>
             {(peers ?? []).map((p) => {
               const online = isOnline(p.last_seen)
+              const rtPeer = peersStats?.find(s => s.peer_id === p.id)
               return (
                 <Col key={p.id} xs={24} sm={12} md={8} lg={6}>
                   <Card
@@ -243,11 +300,25 @@ export default function Monitoring() {
                         )}
                       </div>
                     </div>
-                    <div style={{ marginTop: 4 }}>
+                    {online && rtPeer && (rtPeer.bandwidth_rate_rx > 0 || rtPeer.bandwidth_rate_tx > 0) && (
+                      <div style={{ marginTop: 4 }}>
+                        <Text style={{ fontSize: 12, color: '#1890ff' }}>↓ {formatRate(rtPeer.bandwidth_rate_rx)}</Text>
+                        {' '}
+                        <Text style={{ fontSize: 12, color: '#52c41a' }}>↑ {formatRate(rtPeer.bandwidth_rate_tx)}</Text>
+                      </div>
+                    )}
+                    <div style={{ marginTop: 2 }}>
                       <Text type="secondary" style={{ fontSize: 12 }}>
                         RX: {formatBytes(p.total_rx)} / TX: {formatBytes(p.total_tx)}
                       </Text>
                     </div>
+                    {online && rtPeer?.connected_at && (
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          Сессия: {sessionDuration(rtPeer.connected_at)}
+                        </Text>
+                      </div>
+                    )}
                     <div>
                       <Text type="secondary" style={{ fontSize: 12 }}>
                         Был: {timeAgo(p.last_seen)}
@@ -291,6 +362,15 @@ export default function Monitoring() {
             <Text>RX: <strong>{formatBytes(peerData.peer.total_rx)}</strong></Text>
             <Text>TX: <strong>{formatBytes(peerData.peer.total_tx)}</strong></Text>
             <Text>Всего: <strong>{formatBytes(peerData.peer.total_rx + peerData.peer.total_tx)}</strong></Text>
+            {peerData.realtime && (
+              <>
+                <Text>Соед.: <strong>{peerData.realtime.active_connections}</strong></Text>
+                <Text>Скорость: <strong style={{ color: '#1890ff' }}>↓ {formatRate(peerData.realtime.bandwidth_rate_rx)}</strong> <strong style={{ color: '#52c41a' }}>↑ {formatRate(peerData.realtime.bandwidth_rate_tx)}</strong></Text>
+                {peerData.realtime.connected_at && (
+                  <Text>Сессия: <strong>{sessionDuration(peerData.realtime.connected_at)}</strong> ({formatBytes(peerData.realtime.session_rx + peerData.realtime.session_tx)})</Text>
+                )}
+              </>
+            )}
             <Text>Последняя активность: <strong>{timeAgo(peerData.peer.last_seen)}</strong></Text>
             {isOnline(peerData.peer.last_seen) ? (
               <Tag icon={<CheckCircleOutlined />} color="success">Онлайн</Tag>
@@ -321,6 +401,7 @@ export default function Monitoring() {
                     rowKey="peer_id"
                     pagination={{ pageSize: 20 }}
                     size="small"
+                    scroll={{ x: 1200 }}
                   />
                 ) : (
                   <Empty description="Нет данных о трафике клиентов" />

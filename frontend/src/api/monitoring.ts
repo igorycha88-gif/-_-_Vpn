@@ -39,6 +39,14 @@ export async function getMonitoringStats(): Promise<TotalStats> {
 export interface PeerMonitorResponse {
   peer: Peer
   traffic_logs: TrafficLog[]
+  realtime?: {
+    active_connections: number
+    bandwidth_rate_rx: number
+    bandwidth_rate_tx: number
+    connected_at?: string
+    session_rx: number
+    session_tx: number
+  }
 }
 
 export async function getPeerMonitor(peerId: string): Promise<PeerMonitorResponse> {
