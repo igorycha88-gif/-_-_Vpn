@@ -294,9 +294,6 @@ func TestPeerHandler_Create_Success(t *testing.T) {
 	resp := w.Result()
 	if resp.StatusCode != http.StatusCreated {
 		data := readBody(resp)
-		if resp.StatusCode == http.StatusInternalServerError && data["error"] == "клиент создан, но не удалось перезапустить sing-box" {
-			t.Skip("sing-box restart unavailable in test environment")
-		}
 		t.Fatalf("status = %d, want 201, body: %v", resp.StatusCode, data)
 	}
 	data := readBody(resp)
@@ -953,17 +950,7 @@ func TestFullAPIWorkflow(t *testing.T) {
 	var peerResp map[string]interface{}
 	json.Unmarshal(createBody, &peerResp)
 
-	if createResp.StatusCode == http.StatusInternalServerError {
-		if peerResp["error"] == "клиент создан, но не удалось перезапустить sing-box" {
-			peer, err := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "Workflow", DeviceType: models.DeviceTypeIPhone})
-			if err != nil {
-				t.Fatalf("CreatePeer via service: %v", err)
-			}
-			peerResp = map[string]interface{}{"id": peer.ID}
-		} else {
-			t.Fatalf("Create peer: %d, body: %s", createResp.StatusCode, string(createBody))
-		}
-	} else if createResp.StatusCode != http.StatusCreated {
+	if createResp.StatusCode != http.StatusCreated {
 		t.Fatalf("Create peer: %d", createResp.StatusCode)
 	}
 	peerID := peerResp["id"].(string)
@@ -1007,4 +994,146 @@ func TestMain(m *testing.M) {
 
 func init() {
 	_ = bytes.NewReader(nil)
+}
+
+func TestMonitoringHandler_ClearAlerts_Error(t *testing.T) {
+	deps := newTestDeps(t)
+	req := deps.authenticatedRequest(http.MethodPost, "/api/monitoring/alerts/clear", "")
+	w := httptest.NewRecorder()
+	deps.monitoringHandler.ClearAlerts(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("ClearAlerts with no alerts: status = %d, want 200", w.Code)
+	}
+}
+
+func TestMonitoringHandler_PeersStats_WithRTProvider(t *testing.T) {
+	deps := newTestDeps(t)
+	peerRepo := repository.NewPeerRepository(deps.db)
+	peerRepo.Create(context.Background(), &models.Peer{
+		ID: "rt-p1", Name: "RT Peer", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "uuid-rt-p1", PrivateKey: "pk", Address: "addr1",
+		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
+	})
+
+	collector := services.NewSingBoxStatsCollector(
+		peerRepo, repository.NewTrafficRepository(deps.db), nil,
+		"127.0.0.1:1", "", slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})),
+	)
+
+	mh := NewMonitoringHandler(deps.trafficSvc, deps.wgSvc, collector, slog.Default())
+
+	req := deps.authenticatedRequest(http.MethodGet, "/api/monitoring/peers-stats", "")
+	w := httptest.NewRecorder()
+	mh.PeersStats(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("PeersStats status = %d, want 200", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "rt-p1") {
+		t.Error("response should contain rt-p1")
+	}
+}
+
+func TestServerHandler_Status_NoRoute(t *testing.T) {
+	deps := newTestDeps(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/server/status", nil)
+	w := httptest.NewRecorder()
+	deps.serverHandler.Status(w, req)
+}
+
+func TestDNSHandler_Get_Defaults(t *testing.T) {
+	deps := newTestDeps(t)
+	req := deps.authenticatedRequest(http.MethodGet, "/api/dns", "")
+	w := httptest.NewRecorder()
+	deps.dnsHandler.Get(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("DNS Get status = %d, want 200", w.Code)
+	}
+}
+
+func TestPeerHandler_Create_Returns201EvenWhenSingBoxUnavailable(t *testing.T) {
+	d := newTestDeps(t)
+	body := toJSON(models.PeerCreateRequest{Name: "ResilientPeer", DeviceType: models.DeviceTypeIPhone})
+	req := d.authenticatedRequest(http.MethodPost, "/api/v1/wg/peers", body)
+	w := httptest.NewRecorder()
+	d.peerHandler.Create(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 even when sing-box is unavailable, got %d", resp.StatusCode)
+	}
+	data := readBody(resp)
+	if data["name"] != "ResilientPeer" {
+		t.Errorf("name = %v, want ResilientPeer", data["name"])
+	}
+	if data["id"] == nil || data["id"] == "" {
+		t.Error("expected non-empty id in response")
+	}
+	if data["public_key"] == nil || data["public_key"] == "" {
+		t.Error("expected non-empty public_key (UUID) in response")
+	}
+}
+
+func TestPeerHandler_Delete_Returns200EvenWhenSingBoxUnavailable(t *testing.T) {
+	d := newTestDeps(t)
+	peer, _ := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "DelResilient", DeviceType: models.DeviceTypeIPhone})
+	req := d.authenticatedRequest(http.MethodDelete, "/api/v1/wg/peers/"+peer.ID, "")
+	req.SetPathValue("id", peer.ID)
+	w := httptest.NewRecorder()
+	d.peerHandler.Delete(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 even when sing-box is unavailable, got %d", resp.StatusCode)
+	}
+}
+
+func TestPeerHandler_Toggle_Returns200EvenWhenSingBoxUnavailable(t *testing.T) {
+	d := newTestDeps(t)
+	peer, _ := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "ToggleResilient", DeviceType: models.DeviceTypeIPhone})
+	body := `{"active":false}`
+	req := d.authenticatedRequest(http.MethodPut, "/api/v1/wg/peers/"+peer.ID+"/toggle", body)
+	req.SetPathValue("id", peer.ID)
+	w := httptest.NewRecorder()
+	d.peerHandler.Toggle(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 even when sing-box is unavailable, got %d", resp.StatusCode)
+	}
+}
+
+func TestMonitoringHandler_Traffic(t *testing.T) {
+	deps := newTestDeps(t)
+	req := deps.authenticatedRequest(http.MethodGet, "/api/monitoring/traffic", "")
+	w := httptest.NewRecorder()
+	deps.monitoringHandler.Traffic(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("Monitoring Traffic status = %d, want 200", w.Code)
+	}
+
+	var resp []models.TrafficLog
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp == nil {
+		t.Error("response should be an array")
+	}
+}
+
+func TestMonitoringHandler_Alerts(t *testing.T) {
+	deps := newTestDeps(t)
+	ctx := context.Background()
+
+	deps.trafficSvc.AddAlert(ctx, &models.Alert{
+		ID: "test-alert-1", Type: "test", Message: "Test alert", Severity: "info", Timestamp: time.Now(),
+	})
+
+	req := deps.authenticatedRequest(http.MethodGet, "/api/monitoring/alerts", "")
+	w := httptest.NewRecorder()
+	deps.monitoringHandler.Alerts(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("Monitoring Alerts status = %d, want 200", w.Code)
+	}
+
+	var resp []models.Alert
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if len(resp) == 0 {
+		t.Error("response should contain alerts")
+	}
 }

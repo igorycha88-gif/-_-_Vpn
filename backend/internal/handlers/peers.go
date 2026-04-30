@@ -54,10 +54,10 @@ func (h *PeerHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.sbSvc.WriteConfigAndRestart(r.Context()); err != nil {
-		h.logger.Error("ошибка перезапуска sing-box после создания клиента", "id", peer.ID, "error", err)
-		ErrorJSON(w, http.StatusInternalServerError, "клиент создан, но не удалось перезапустить sing-box")
-		return
+	if err := h.sbSvc.WriteConfig(r.Context()); err != nil {
+		h.logger.Error("ошибка записи конфига sing-box после создания клиента", "id", peer.ID, "error", err)
+	} else if err := h.sbSvc.Reload(); err != nil {
+		h.logger.Warn("не удалось перезагрузить sing-box после создания клиента", "id", peer.ID, "error", err)
 	}
 
 	JSON(w, http.StatusCreated, peer)
@@ -102,8 +102,10 @@ func (h *PeerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.sbSvc.WriteConfigAndRestart(r.Context()); err != nil {
-		h.logger.Warn("не удалось перезапустить sing-box после удаления клиента", "id", id, "error", err)
+	if err := h.sbSvc.WriteConfig(r.Context()); err != nil {
+		h.logger.Warn("ошибка записи конфига sing-box после удаления клиента", "id", id, "error", err)
+	} else if err := h.sbSvc.Reload(); err != nil {
+		h.logger.Warn("не удалось перезагрузить sing-box после удаления клиента", "id", id, "error", err)
 	}
 
 	JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
@@ -215,8 +217,10 @@ func (h *PeerHandler) Toggle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.sbSvc.WriteConfigAndRestart(r.Context()); err != nil {
-		h.logger.Warn("не удалось перезапустить sing-box после toggle клиента", "id", id, "error", err)
+	if err := h.sbSvc.WriteConfig(r.Context()); err != nil {
+		h.logger.Warn("ошибка записи конфига sing-box после toggle клиента", "id", id, "error", err)
+	} else if err := h.sbSvc.Reload(); err != nil {
+		h.logger.Warn("не удалось перезагрузить sing-box после toggle клиента", "id", id, "error", err)
 	}
 
 	JSON(w, http.StatusOK, map[string]string{"status": "updated"})
