@@ -294,9 +294,6 @@ func TestPeerHandler_Create_Success(t *testing.T) {
 	resp := w.Result()
 	if resp.StatusCode != http.StatusCreated {
 		data := readBody(resp)
-		if resp.StatusCode == http.StatusInternalServerError && data["error"] == "клиент создан, но не удалось перезапустить sing-box" {
-			t.Skip("sing-box restart unavailable in test environment")
-		}
 		t.Fatalf("status = %d, want 201, body: %v", resp.StatusCode, data)
 	}
 	data := readBody(resp)
@@ -953,17 +950,7 @@ func TestFullAPIWorkflow(t *testing.T) {
 	var peerResp map[string]interface{}
 	json.Unmarshal(createBody, &peerResp)
 
-	if createResp.StatusCode == http.StatusInternalServerError {
-		if peerResp["error"] == "клиент создан, но не удалось перезапустить sing-box" {
-			peer, err := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "Workflow", DeviceType: models.DeviceTypeIPhone})
-			if err != nil {
-				t.Fatalf("CreatePeer via service: %v", err)
-			}
-			peerResp = map[string]interface{}{"id": peer.ID}
-		} else {
-			t.Fatalf("Create peer: %d, body: %s", createResp.StatusCode, string(createBody))
-		}
-	} else if createResp.StatusCode != http.StatusCreated {
+	if createResp.StatusCode != http.StatusCreated {
 		t.Fatalf("Create peer: %d", createResp.StatusCode)
 	}
 	peerID := peerResp["id"].(string)
@@ -1464,6 +1451,56 @@ func TestDNSHandler_Get_Defaults(t *testing.T) {
 		t.Errorf("DNS Get status = %d, want 200", w.Code)
 	}
 }
+
+func TestPeerHandler_Create_Returns201EvenWhenSingBoxUnavailable(t *testing.T) {
+	d := newTestDeps(t)
+	body := toJSON(models.PeerCreateRequest{Name: "ResilientPeer", DeviceType: models.DeviceTypeIPhone})
+	req := d.authenticatedRequest(http.MethodPost, "/api/v1/wg/peers", body)
+	w := httptest.NewRecorder()
+	d.peerHandler.Create(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 even when sing-box is unavailable, got %d", resp.StatusCode)
+	}
+	data := readBody(resp)
+	if data["name"] != "ResilientPeer" {
+		t.Errorf("name = %v, want ResilientPeer", data["name"])
+	}
+	if data["id"] == nil || data["id"] == "" {
+		t.Error("expected non-empty id in response")
+	}
+	if data["public_key"] == nil || data["public_key"] == "" {
+		t.Error("expected non-empty public_key (UUID) in response")
+	}
+}
+
+func TestPeerHandler_Delete_Returns200EvenWhenSingBoxUnavailable(t *testing.T) {
+	d := newTestDeps(t)
+	peer, _ := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "DelResilient", DeviceType: models.DeviceTypeIPhone})
+	req := d.authenticatedRequest(http.MethodDelete, "/api/v1/wg/peers/"+peer.ID, "")
+	req.SetPathValue("id", peer.ID)
+	w := httptest.NewRecorder()
+	d.peerHandler.Delete(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 even when sing-box is unavailable, got %d", resp.StatusCode)
+	}
+}
+
+func TestPeerHandler_Toggle_Returns200EvenWhenSingBoxUnavailable(t *testing.T) {
+	d := newTestDeps(t)
+	peer, _ := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "ToggleResilient", DeviceType: models.DeviceTypeIPhone})
+	body := `{"active":false}`
+	req := d.authenticatedRequest(http.MethodPut, "/api/v1/wg/peers/"+peer.ID+"/toggle", body)
+	req.SetPathValue("id", peer.ID)
+	w := httptest.NewRecorder()
+	d.peerHandler.Toggle(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 even when sing-box is unavailable, got %d", resp.StatusCode)
+	}
+}
+
 
 func TestMonitoringHandler_Traffic(t *testing.T) {
 	deps := newTestDeps(t)

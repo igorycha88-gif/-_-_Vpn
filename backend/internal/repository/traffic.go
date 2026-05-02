@@ -41,8 +41,12 @@ func NewTrafficRepository(db *sql.DB) TrafficRepository {
 func (r *sqliteTrafficRepository) Log(ctx context.Context, log *models.TrafficLog) error {
 	q := `INSERT INTO traffic_logs (peer_id, domain, dest_ip, dest_port, action, bytes_rx, bytes_tx)
 	      VALUES (?, ?, ?, ?, ?, ?, ?)`
+	var peerID interface{}
+	if log.PeerID != "" {
+		peerID = log.PeerID
+	}
 	_, err := r.db.ExecContext(ctx, q,
-		log.PeerID, log.Domain, log.DestIP, log.DestPort,
+		peerID, log.Domain, log.DestIP, log.DestPort,
 		log.Action, log.BytesRx, log.BytesTx,
 	)
 	if err != nil {

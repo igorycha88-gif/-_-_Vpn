@@ -38,6 +38,7 @@ type SingBoxStatsCollector struct {
 	apiReachable     bool
 	peerRealtime     map[string]*models.PeerRealtimeStats
 	peerSessions     map[string]*peerSessionInfo
+	sourceIPToPeerID map[string]string
 }
 
 type peerSessionInfo struct {
@@ -84,6 +85,7 @@ type userDelta struct {
 }
 
 type userConnection struct {
+	sourceIP    string
 	host        string
 	destination string
 	dstPort     string
@@ -108,11 +110,12 @@ func NewSingBoxStatsCollector(
 		apiSecret:    apiSecret,
 		client:       &http.Client{Timeout: 5 * time.Second},
 		interval:     10 * time.Second,
-		connState:    make(map[string]*connBytes),
-		onlinePeers:  make(map[string]bool),
-		peerRealtime: make(map[string]*models.PeerRealtimeStats),
-		peerSessions: make(map[string]*peerSessionInfo),
-		apiReachable: false,
+		connState:        make(map[string]*connBytes),
+		onlinePeers:      make(map[string]bool),
+		peerRealtime:     make(map[string]*models.PeerRealtimeStats),
+		peerSessions:     make(map[string]*peerSessionInfo),
+		sourceIPToPeerID: make(map[string]string),
+		apiReachable:     false,
 	}
 }
 
@@ -221,6 +224,14 @@ func (c *SingBoxStatsCollector) collect(ctx context.Context) {
 		if err := c.peerRepo.UpdateLastSeen(ctx, peer.ID); err != nil {
 			c.logger.Error("ошибка обновления last_seen клиента", "uuid", uuid, "error", err)
 		}
+
+		c.mu.Lock()
+		for _, conn := range delta.connections {
+			if conn.sourceIP != "" {
+				c.sourceIPToPeerID[conn.sourceIP] = peer.ID
+			}
+		}
+		c.mu.Unlock()
 
 		for _, conn := range delta.connections {
 			if conn.rx == 0 && conn.tx == 0 {
@@ -395,116 +406,114 @@ func (c *SingBoxStatsCollector) handleAggregateVLESS(ctx context.Context, delta 
 		"total_rx", totalRx, "total_tx", totalTx,
 		"connections", len(delta.connections))
 
-	peers, err := c.peerRepo.List(ctx)
-	if err != nil {
-		c.logger.Error("ошибка получения списка пиров для агрегатного трафика", "error", err)
+	if len(delta.connections) == 0 {
 		return
 	}
 
-	var activePeers []*models.Peer
-	for _, p := range peers {
-		if p.IsActive {
-			activePeers = append(activePeers, p)
+	type connWithPeer struct {
+		conn   userConnection
+		peerID string
+	}
+	var matched []connWithPeer
+	var unmatched []userConnection
+
+	c.mu.Lock()
+	for _, conn := range delta.connections {
+		peerID, known := c.sourceIPToPeerID[conn.sourceIP]
+		if known && peerID != "" {
+			matched = append(matched, connWithPeer{conn: conn, peerID: peerID})
+		} else {
+			unmatched = append(unmatched, conn)
 		}
 	}
+	c.mu.Unlock()
 
-	if len(activePeers) == 0 {
-		c.logger.Warn("нет активных клиентов для распределения VLESS трафика")
-		return
-	}
-
-	hasTraffic := totalRx > 0 || totalTx > 0
-
-	if hasTraffic {
-		perPeerRx := totalRx / int64(len(activePeers))
-		perPeerTx := totalTx / int64(len(activePeers))
-		remainderRx := totalRx % int64(len(activePeers))
-		remainderTx := totalTx % int64(len(activePeers))
-
-		for i, peer := range activePeers {
-			rx := perPeerRx
-			tx := perPeerTx
-			if int64(i) < remainderRx {
-				rx++
-			}
-			if int64(i) < remainderTx {
-				tx++
-			}
-
-			if rx > 0 || tx > 0 {
-				if err := c.peerRepo.UpdateTraffic(ctx, peer.ID, rx, tx); err != nil {
-					c.logger.Error("ошибка обновления агрегатного трафика клиента", "id", peer.ID, "error", err)
-				}
-			}
-		}
-	}
-
-	for _, peer := range activePeers {
-		currentOnline[peer.ID] = true
-		if err := c.peerRepo.UpdateLastSeen(ctx, peer.ID); err != nil {
-			c.logger.Error("ошибка обновления last_seen клиента", "id", peer.ID, "error", err)
-		}
-	}
-
-	for i, conn := range delta.connections {
-		if conn.rx == 0 && conn.tx == 0 {
+	peerDeltas := make(map[string]*userDelta)
+	for _, m := range matched {
+		peer, err := c.peerRepo.GetByID(ctx, m.peerID)
+		if err != nil || !peer.IsActive {
+			unmatched = append(unmatched, m.conn)
+			c.mu.Lock()
+			delete(c.sourceIPToPeerID, m.conn.sourceIP)
+			c.mu.Unlock()
 			continue
 		}
-		peer := activePeers[i%len(activePeers)]
-		trafficLog := &models.TrafficLog{
-			PeerID:  peer.ID,
-			BytesRx: conn.rx,
-			BytesTx: conn.tx,
-			Action:  "vless_transfer",
+
+		d, exists := peerDeltas[m.peerID]
+		if !exists {
+			d = &userDelta{}
+			peerDeltas[m.peerID] = d
 		}
-		if conn.host != "" {
-			trafficLog.Domain = conn.host
-		} else if conn.destination != "" {
-			trafficLog.DestIP = conn.destination
-		}
-		if conn.dstPort != "" {
-			if p, err := strconv.Atoi(conn.dstPort); err == nil {
-				trafficLog.DestPort = p
-			}
-		}
-		if err := c.trafficRepo.Log(ctx, trafficLog); err != nil {
-			c.logger.Error("ошибка логирования агрегатного трафика", "error", err)
-		}
+		d.rx += m.conn.rx
+		d.tx += m.conn.tx
+		d.connCount++
+		d.connections = append(d.connections, m.conn)
 	}
 
 	intervalSec := c.interval.Seconds()
-	for _, peer := range activePeers {
-		perPeerRx := totalRx / int64(len(activePeers))
-		perPeerTx := totalTx / int64(len(activePeers))
-		activeConns := peerConnCounts[peer.ID]
 
-		c.mu.Lock()
-		stats, ok := c.peerRealtime[peer.ID]
-		if !ok {
-			stats = &models.PeerRealtimeStats{}
-			c.peerRealtime[peer.ID] = stats
+	for peerID, peerDelta := range peerDeltas {
+		if peerDelta.rx > 0 || peerDelta.tx > 0 {
+			if err := c.peerRepo.UpdateTraffic(ctx, peerID, peerDelta.rx, peerDelta.tx); err != nil {
+				c.logger.Error("ошибка обновления агрегатного трафика клиента", "id", peerID, "error", err)
+			}
 		}
-		stats.ActiveConnections = activeConns
-		stats.BandwidthRx = perPeerRx
-		stats.BandwidthTx = perPeerTx
-		if intervalSec > 0 {
-			stats.BandwidthRateRx = float64(perPeerRx) / intervalSec
-			stats.BandwidthRateTx = float64(perPeerTx) / intervalSec
+
+		if err := c.peerRepo.UpdateLastSeen(ctx, peerID); err != nil {
+			c.logger.Error("ошибка обновления last_seen клиента", "id", peerID, "error", err)
 		}
-		stats.SessionRx += perPeerRx
-		stats.SessionTx += perPeerTx
-		sess, hasSess := c.peerSessions[peer.ID]
-		if hasSess && sess != nil {
-			stats.ConnectedAt = &sess.startTime
+
+		currentOnline[peerID] = true
+
+		for _, conn := range peerDelta.connections {
+			if conn.rx == 0 && conn.tx == 0 {
+				continue
+			}
+			trafficLog := &models.TrafficLog{
+				PeerID:  peerID,
+				BytesRx: conn.rx,
+				BytesTx: conn.tx,
+				Action:  "vless_transfer",
+			}
+			if conn.host != "" {
+				trafficLog.Domain = conn.host
+			} else if conn.destination != "" {
+				trafficLog.DestIP = conn.destination
+			}
+			if conn.dstPort != "" {
+				if p, err := strconv.Atoi(conn.dstPort); err == nil {
+					trafficLog.DestPort = p
+				}
+			}
+			if err := c.trafficRepo.Log(ctx, trafficLog); err != nil {
+				c.logger.Error("ошибка логирования агрегатного трафика", "error", err)
+			}
 		}
-		c.mu.Unlock()
+
+		activeConns := peerConnCounts[peerID]
+		c.updatePeerRealtime(peerID, peerDelta, activeConns, intervalSec, true)
 	}
 
-	if hasTraffic {
-		c.logger.Info("агрегатный VLESS трафик распределён",
-			"total_rx", totalRx, "total_tx", totalTx,
-			"active_peers", len(activePeers))
+	var unmatchedRx, unmatchedTx int64
+	for _, conn := range unmatched {
+		unmatchedRx += conn.rx
+		unmatchedTx += conn.tx
 	}
+	if unmatchedRx > 0 || unmatchedTx > 0 {
+		trafficLog := &models.TrafficLog{
+			BytesRx: unmatchedRx,
+			BytesTx: unmatchedTx,
+			Action:  "vless_transfer",
+		}
+		if err := c.trafficRepo.Log(ctx, trafficLog); err != nil {
+			c.logger.Error("ошибка логирования неидентифицированного VLESS трафика", "error", err)
+		}
+	}
+
+	c.logger.Info("агрегатный VLESS трафик обработан",
+		"total_rx", totalRx, "total_tx", totalTx,
+		"identified_peers", len(peerDeltas),
+		"unmatched_rx", unmatchedRx, "unmatched_tx", unmatchedTx)
 }
 
 func (c *SingBoxStatsCollector) computeDeltas(connections []clashConnection) map[string]*userDelta {
@@ -556,6 +565,7 @@ func (c *SingBoxStatsCollector) computeDeltas(connections []clashConnection) map
 				dest = conn.Metadata.Destination
 			}
 			d.connections = append(d.connections, userConnection{
+				sourceIP:    conn.Metadata.SourceIP,
 				host:        conn.Metadata.Host,
 				destination: dest,
 				dstPort:     conn.Metadata.DstPort,
