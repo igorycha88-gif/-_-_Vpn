@@ -239,7 +239,7 @@ func (s *SingBoxService) populateRouteRuleFields(routeRule map[string]any, rule 
 		return
 	case "port":
 		var port int
-		fmt.Sscanf(rule.Pattern, "%d", &port)
+		_, _ = fmt.Sscanf(rule.Pattern, "%d", &port)
 		if port > 0 {
 			routeRule["port"] = []int{port}
 		}
@@ -319,7 +319,7 @@ func (s *SingBoxService) reloadViaClashAPI() error {
 	if err != nil {
 		return fmt.Errorf("выполнение запроса: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("статус %d от Clash API /configs", resp.StatusCode)

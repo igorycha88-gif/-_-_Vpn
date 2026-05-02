@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -466,6 +467,613 @@ func TestTrafficRepository_DeleteSessionsByPeerID(t *testing.T) {
 	}
 }
 
+func TestTrafficRepository_GetTotalStats(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "stats-p1", Name: "SP1", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "statspk1", PrivateKey: "statspv1",
+		Address: "10.99.1.1", IsActive: true,
+	})
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "stats-p2", Name: "SP2", DeviceType: models.DeviceTypeAndroid,
+		PublicKey: "statspk2", PrivateKey: "statspv2",
+		Address: "10.99.1.2", IsActive: false,
+	})
+
+	peerRepo.UpdateTraffic(ctx, "stats-p1", 5000, 3000)
+	peerRepo.UpdateTraffic(ctx, "stats-p2", 1000, 2000)
+
+	stats, err := trafficRepo.GetTotalStats(ctx)
+	if err != nil {
+		t.Fatalf("GetTotalStats: %v", err)
+	}
+	if stats.TotalRx < 6000 {
+		t.Errorf("TotalRx = %d, want >= 6000", stats.TotalRx)
+	}
+	if stats.TotalTx < 5000 {
+		t.Errorf("TotalTx = %d, want >= 5000", stats.TotalTx)
+	}
+	if stats.TotalPeers < 2 {
+		t.Errorf("TotalPeers = %d, want >= 2", stats.TotalPeers)
+	}
+	if stats.ActivePeers < 1 {
+		t.Errorf("ActivePeers = %d, want >= 1", stats.ActivePeers)
+	}
+	if stats.RulesCount <= 0 {
+		t.Errorf("RulesCount = %d, want > 0", stats.RulesCount)
+	}
+}
+
+func TestTrafficRepository_GetPeerStats(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "ps-peer", Name: "PS", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "pspk1", PrivateKey: "pspv1",
+		Address: "10.99.2.1", IsActive: true,
+	})
+	peerRepo.UpdateTraffic(ctx, "ps-peer", 1024, 2048)
+
+	stats, err := trafficRepo.GetPeerStats(ctx, "ps-peer")
+	if err != nil {
+		t.Fatalf("GetPeerStats: %v", err)
+	}
+	if stats.TotalRx != 1024 {
+		t.Errorf("TotalRx = %d, want 1024", stats.TotalRx)
+	}
+	if stats.TotalTx != 2048 {
+		t.Errorf("TotalTx = %d, want 2048", stats.TotalTx)
+	}
+	if stats.PeerID != "ps-peer" {
+		t.Errorf("PeerID = %q, want ps-peer", stats.PeerID)
+	}
+}
+
+func TestTrafficRepository_GetPeerStats_NotFound(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	ctx := context.Background()
+
+	_, err := trafficRepo.GetPeerStats(ctx, "nonexistent-peer")
+	if err == nil {
+		t.Fatal("expected error for nonexistent peer")
+	}
+}
+
+func TestTrafficRepository_InsertAlert_ListAlerts(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	ctx := context.Background()
+
+	trafficRepo.DeleteAllAlerts(ctx)
+
+	alert := &models.Alert{
+		ID: "alert-1", Type: "traffic", Message: "High traffic detected",
+		Severity: "warning", Timestamp: time.Now(),
+	}
+	if err := trafficRepo.InsertAlert(ctx, alert); err != nil {
+		t.Fatalf("InsertAlert: %v", err)
+	}
+
+	alert2 := &models.Alert{
+		ID: "alert-2", Type: "security", Message: "Suspicious activity",
+		Severity: "critical", Timestamp: time.Now().Add(-1 * time.Hour),
+	}
+	trafficRepo.InsertAlert(ctx, alert2)
+
+	alerts, err := trafficRepo.ListAlerts(ctx, 10)
+	if err != nil {
+		t.Fatalf("ListAlerts: %v", err)
+	}
+	if len(alerts) != 2 {
+		t.Fatalf("alerts count = %d, want 2", len(alerts))
+	}
+
+	found1, found2 := false, false
+	for _, a := range alerts {
+		if a.ID == "alert-1" {
+			found1 = true
+		}
+		if a.ID == "alert-2" && a.Severity == "critical" {
+			found2 = true
+		}
+	}
+	if !found1 {
+		t.Error("expected to find alert-1 in results")
+	}
+	if !found2 {
+		t.Error("expected alert-2 with severity critical")
+	}
+}
+
+func TestTrafficRepository_ListAlerts_DefaultLimit(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	ctx := context.Background()
+
+	_, err := trafficRepo.ListAlerts(ctx, 0)
+	if err != nil {
+		t.Fatalf("ListAlerts with limit 0: %v", err)
+	}
+
+	_, err = trafficRepo.ListAlerts(ctx, 600)
+	if err != nil {
+		t.Fatalf("ListAlerts with limit 600: %v", err)
+	}
+}
+
+func TestTrafficRepository_DeleteAlert(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	ctx := context.Background()
+
+	trafficRepo.InsertAlert(ctx, &models.Alert{
+		ID: "del-alert-1", Type: "test", Message: "to delete",
+		Severity: "info", Timestamp: time.Now(),
+	})
+	trafficRepo.InsertAlert(ctx, &models.Alert{
+		ID: "del-alert-2", Type: "test", Message: "to keep",
+		Severity: "info", Timestamp: time.Now(),
+	})
+
+	if err := trafficRepo.DeleteAlert(ctx, "del-alert-1"); err != nil {
+		t.Fatalf("DeleteAlert: %v", err)
+	}
+
+	alerts, _ := trafficRepo.ListAlerts(ctx, 100)
+	for _, a := range alerts {
+		if a.ID == "del-alert-1" {
+			t.Error("alert del-alert-1 should be deleted")
+		}
+	}
+	found := false
+	for _, a := range alerts {
+		if a.ID == "del-alert-2" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("alert del-alert-2 should still exist")
+	}
+}
+
+func TestTrafficRepository_DeleteAllAlerts(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	ctx := context.Background()
+
+	trafficRepo.InsertAlert(ctx, &models.Alert{ID: "aa-1", Type: "test", Message: "a", Severity: "info", Timestamp: time.Now()})
+	trafficRepo.InsertAlert(ctx, &models.Alert{ID: "aa-2", Type: "test", Message: "b", Severity: "info", Timestamp: time.Now()})
+	trafficRepo.InsertAlert(ctx, &models.Alert{ID: "aa-3", Type: "test", Message: "c", Severity: "info", Timestamp: time.Now()})
+
+	if err := trafficRepo.DeleteAllAlerts(ctx); err != nil {
+		t.Fatalf("DeleteAllAlerts: %v", err)
+	}
+
+	alerts, err := trafficRepo.ListAlerts(ctx, 100)
+	if err != nil {
+		t.Fatalf("ListAlerts: %v", err)
+	}
+	if len(alerts) != 0 {
+		t.Errorf("alerts count = %d, want 0", len(alerts))
+	}
+}
+
+func TestTrafficRepository_CleanupOldAlerts(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	ctx := context.Background()
+
+	trafficRepo.DeleteAllAlerts(ctx)
+
+	db.Exec("INSERT INTO alerts (id, type, message, severity, timestamp) VALUES (?, ?, ?, ?, datetime('now', '-60 days'))",
+		"old-alert", "test", "old", "info")
+	db.Exec("INSERT INTO alerts (id, type, message, severity, timestamp) VALUES (?, ?, ?, ?, datetime('now'))",
+		"new-alert", "test", "new", "info")
+
+	deleted, err := trafficRepo.CleanupOldAlerts(ctx, 30)
+	if err != nil {
+		t.Fatalf("CleanupOldAlerts: %v", err)
+	}
+	if deleted != 1 {
+		t.Errorf("deleted = %d, want 1", deleted)
+	}
+
+	alerts, _ := trafficRepo.ListAlerts(ctx, 100)
+	if len(alerts) != 1 {
+		t.Fatalf("alerts count = %d, want 1", len(alerts))
+	}
+	if alerts[0].ID != "new-alert" {
+		t.Errorf("expected new-alert, got %q", alerts[0].ID)
+	}
+}
+
+func TestTrafficRepository_CleanupOldAlerts_DefaultRetain(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	ctx := context.Background()
+
+	db.Exec("INSERT INTO alerts (id, type, message, severity, timestamp) VALUES (?, ?, ?, ?, datetime('now'))",
+		"recent", "test", "recent", "info")
+
+	deleted, err := trafficRepo.CleanupOldAlerts(ctx, 0)
+	if err != nil {
+		t.Fatalf("CleanupOldAlerts with 0: %v", err)
+	}
+	if deleted != 0 {
+		t.Errorf("deleted = %d, want 0", deleted)
+	}
+}
+
+func TestTrafficRepository_CreateSession_CloseSession(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "cs-peer", Name: "CS", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "cspk", PrivateKey: "cspv",
+		Address: "10.99.3.1", IsActive: true,
+	})
+
+	sid, err := trafficRepo.CreateSession(ctx, "cs-peer")
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	if sid <= 0 {
+		t.Errorf("session ID = %d, want > 0", sid)
+	}
+
+	if err := trafficRepo.CloseSession(ctx, sid, 500, 300, 7); err != nil {
+		t.Fatalf("CloseSession: %v", err)
+	}
+
+	sessions, err := trafficRepo.ListSessions(ctx, "cs-peer", 10)
+	if err != nil {
+		t.Fatalf("ListSessions: %v", err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("sessions count = %d, want 1", len(sessions))
+	}
+	s := sessions[0]
+	if s.BytesRx != 500 {
+		t.Errorf("BytesRx = %d, want 500", s.BytesRx)
+	}
+	if s.BytesTx != 300 {
+		t.Errorf("BytesTx = %d, want 300", s.BytesTx)
+	}
+	if s.ConnectionsCount != 7 {
+		t.Errorf("ConnectionsCount = %d, want 7", s.ConnectionsCount)
+	}
+	if s.DisconnectedAt == nil {
+		t.Error("DisconnectedAt should not be nil after CloseSession")
+	}
+}
+
+func TestTrafficRepository_GetActiveSession(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "ga-peer", Name: "GA", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "gapk", PrivateKey: "gapv",
+		Address: "10.99.4.1", IsActive: true,
+	})
+
+	active, err := trafficRepo.GetActiveSession(ctx, "ga-peer")
+	if err != nil {
+		t.Fatalf("GetActiveSession no session: %v", err)
+	}
+	if active != nil {
+		t.Error("expected nil when no sessions exist")
+	}
+
+	sid, _ := trafficRepo.CreateSession(ctx, "ga-peer")
+
+	active, err = trafficRepo.GetActiveSession(ctx, "ga-peer")
+	if err != nil {
+		t.Fatalf("GetActiveSession: %v", err)
+	}
+	if active == nil {
+		t.Fatal("expected active session")
+	}
+	if active.ID != sid {
+		t.Errorf("ID = %d, want %d", active.ID, sid)
+	}
+	if active.PeerID != "ga-peer" {
+		t.Errorf("PeerID = %q, want ga-peer", active.PeerID)
+	}
+
+	trafficRepo.CloseSession(ctx, sid, 100, 50, 1)
+
+	active, err = trafficRepo.GetActiveSession(ctx, "ga-peer")
+	if err != nil {
+		t.Fatalf("GetActiveSession after close: %v", err)
+	}
+	if active != nil {
+		t.Error("expected nil after session closed")
+	}
+}
+
+func TestTrafficRepository_ListSessions(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "ls-peer", Name: "LS", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "lspk", PrivateKey: "lspv",
+		Address: "10.99.5.1", IsActive: true,
+	})
+
+	sid1, _ := trafficRepo.CreateSession(ctx, "ls-peer")
+	trafficRepo.CloseSession(ctx, sid1, 100, 200, 2)
+
+	sid2, _ := trafficRepo.CreateSession(ctx, "ls-peer")
+	trafficRepo.CloseSession(ctx, sid2, 300, 400, 5)
+
+	sid3, _ := trafficRepo.CreateSession(ctx, "ls-peer")
+
+	sessions, err := trafficRepo.ListSessions(ctx, "ls-peer", 10)
+	if err != nil {
+		t.Fatalf("ListSessions: %v", err)
+	}
+	if len(sessions) != 3 {
+		t.Fatalf("sessions count = %d, want 3", len(sessions))
+	}
+
+	if sessions[0].ID != sid3 {
+		t.Errorf("first session ID = %d, want %d (most recent)", sessions[0].ID, sid3)
+	}
+
+	if sessions[0].DisconnectedAt != nil {
+		t.Error("most recent session should still be active (nil DisconnectedAt)")
+	}
+	if sessions[1].DisconnectedAt == nil {
+		t.Error("second session should be closed")
+	}
+}
+
+func TestTrafficRepository_ListSessions_DefaultLimit(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "lsl-peer", Name: "LSL", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "lslpk", PrivateKey: "lslpv",
+		Address: "10.99.5.2", IsActive: true,
+	})
+	trafficRepo.CreateSession(ctx, "lsl-peer")
+
+	sessions, err := trafficRepo.ListSessions(ctx, "lsl-peer", 0)
+	if err != nil {
+		t.Fatalf("ListSessions with limit 0: %v", err)
+	}
+	if len(sessions) != 1 {
+		t.Errorf("sessions count = %d, want 1", len(sessions))
+	}
+}
+
+func TestTrafficRepository_GetPeerTrafficSummary(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "pts-p1", Name: "PTS1", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "ptspk1", PrivateKey: "ptspv1",
+		Address: "10.99.6.1", IsActive: true,
+	})
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "pts-p2", Name: "PTS2", DeviceType: models.DeviceTypeAndroid,
+		PublicKey: "ptspk2", PrivateKey: "ptspv2",
+		Address: "10.99.6.2", IsActive: true,
+	})
+
+	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p1", Domain: "google.com", Action: "proxy", BytesRx: 1000, BytesTx: 500})
+	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p1", Domain: "vk.com", Action: "direct", BytesRx: 2000, BytesTx: 1000})
+	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p2", Domain: "youtube.com", Action: "proxy", BytesRx: 5000, BytesTx: 3000})
+
+	summaries, err := trafficRepo.GetPeerTrafficSummary(ctx)
+	if err != nil {
+		t.Fatalf("GetPeerTrafficSummary: %v", err)
+	}
+
+	var s1, s2 *models.PeerTrafficSummary
+	for _, s := range summaries {
+		if s.PeerID == "pts-p1" {
+			s1 = s
+		}
+		if s.PeerID == "pts-p2" {
+			s2 = s
+		}
+	}
+	if s1 == nil || s2 == nil {
+		t.Fatal("expected to find both pts-p1 and pts-p2 in summaries")
+	}
+	if s1.TotalRx != 3000 || s1.TotalTx != 1500 {
+		t.Errorf("pts-p1: Rx=%d Tx=%d, want 3000,1500", s1.TotalRx, s1.TotalTx)
+	}
+	if s1.ConnCount != 2 {
+		t.Errorf("pts-p1 ConnCount = %d, want 2", s1.ConnCount)
+	}
+	if s1.TopDomain != "vk.com" {
+		t.Errorf("pts-p1 TopDomain = %q, want vk.com", s1.TopDomain)
+	}
+	if s2.TotalRx != 5000 || s2.TotalTx != 3000 {
+		t.Errorf("pts-p2: Rx=%d Tx=%d, want 5000,3000", s2.TotalRx, s2.TotalTx)
+	}
+	if s2.ConnCount != 1 {
+		t.Errorf("pts-p2 ConnCount = %d, want 1", s2.ConnCount)
+	}
+	if s2.TopDomain != "youtube.com" {
+		t.Errorf("pts-p2 TopDomain = %q, want youtube.com", s2.TopDomain)
+	}
+}
+
+func TestTrafficRepository_GetPeerTrafficSummary_NoTraffic(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "empty-peer", Name: "Empty", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "empk", PrivateKey: "empv",
+		Address: "10.99.6.3", IsActive: true,
+	})
+
+	summaries, err := trafficRepo.GetPeerTrafficSummary(ctx)
+	if err != nil {
+		t.Fatalf("GetPeerTrafficSummary: %v", err)
+	}
+	var found *models.PeerTrafficSummary
+	for _, s := range summaries {
+		if s.PeerID == "empty-peer" {
+			found = s
+		}
+	}
+	if found == nil {
+		t.Fatal("expected to find empty-peer in summaries")
+	}
+	if found.TotalRx != 0 || found.TotalTx != 0 {
+		t.Errorf("expected zero traffic, got Rx=%d Tx=%d", found.TotalRx, found.TotalTx)
+	}
+	if found.ConnCount != 0 {
+		t.Errorf("ConnCount = %d, want 0", found.ConnCount)
+	}
+}
+
+func TestTrafficRepository_GetTrafficAggregate(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "agg-p0", Name: "A0", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "aggpk0", PrivateKey: "aggpv0",
+		Address: "10.99.7.0", IsActive: true,
+	})
+
+	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p0", Domain: "google.com", Action: "proxy", BytesRx: 1000, BytesTx: 500})
+	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p0", Domain: "google.com", Action: "proxy", BytesRx: 2000, BytesTx: 1000})
+	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p0", Domain: "vk.com", Action: "direct", BytesRx: 500, BytesTx: 200})
+
+	items, err := trafficRepo.GetTrafficAggregate(ctx, "agg-p0", 10)
+	if err != nil {
+		t.Fatalf("GetTrafficAggregate: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("items count = %d, want 2", len(items))
+	}
+
+	if items[0].Domain != "google.com" {
+		t.Errorf("first domain = %q, want google.com", items[0].Domain)
+	}
+	if items[0].RX != 3000 || items[0].TX != 1500 {
+		t.Errorf("google.com: RX=%d TX=%d, want 3000,1500", items[0].RX, items[0].TX)
+	}
+	if items[0].Count != 2 {
+		t.Errorf("google.com Count = %d, want 2", items[0].Count)
+	}
+
+	if items[1].Domain != "vk.com" {
+		t.Errorf("second domain = %q, want vk.com", items[1].Domain)
+	}
+	if items[1].Count != 1 {
+		t.Errorf("vk.com Count = %d, want 1", items[1].Count)
+	}
+}
+
+func TestTrafficRepository_GetTrafficAggregate_ByPeer(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "agg-p1", Name: "A1", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "aggpk1", PrivateKey: "aggpv1",
+		Address: "10.99.7.1", IsActive: true,
+	})
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "agg-p2", Name: "A2", DeviceType: models.DeviceTypeAndroid,
+		PublicKey: "aggpk2", PrivateKey: "aggpv2",
+		Address: "10.99.7.2", IsActive: true,
+	})
+
+	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p1", Domain: "google.com", Action: "proxy", BytesRx: 100, BytesTx: 50})
+	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p2", Domain: "youtube.com", Action: "proxy", BytesRx: 999, BytesTx: 999})
+
+	items, err := trafficRepo.GetTrafficAggregate(ctx, "agg-p1", 10)
+	if err != nil {
+		t.Fatalf("GetTrafficAggregate: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("items count = %d, want 1", len(items))
+	}
+	if items[0].Domain != "google.com" {
+		t.Errorf("domain = %q, want google.com", items[0].Domain)
+	}
+}
+
+func TestTrafficRepository_GetTrafficAggregate_DefaultLimit(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	ctx := context.Background()
+
+	_, err := trafficRepo.GetTrafficAggregate(ctx, "", 0)
+	if err != nil {
+		t.Fatalf("GetTrafficAggregate with limit 0: %v", err)
+	}
+
+	_, err = trafficRepo.GetTrafficAggregate(ctx, "", 600)
+	if err != nil {
+		t.Fatalf("GetTrafficAggregate with limit 600: %v", err)
+	}
+}
+
+func TestTrafficRepository_GetTrafficAggregate_FallbackToIP(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	peerRepo.Create(ctx, &models.Peer{
+		ID: "fb-peer", Name: "FB", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "fbpk", PrivateKey: "fbpv",
+		Address: "10.99.7.3", IsActive: true,
+	})
+
+	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "fb-peer", Domain: "", DestIP: "1.2.3.4", Action: "direct", BytesRx: 100, BytesTx: 50})
+
+	items, err := trafficRepo.GetTrafficAggregate(ctx, "fb-peer", 10)
+	if err != nil {
+		t.Fatalf("GetTrafficAggregate: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("items count = %d, want 1", len(items))
+	}
+	if items[0].Domain != "1.2.3.4" {
+		t.Errorf("domain = %q, want 1.2.3.4 (IP fallback)", items[0].Domain)
+	}
+}
+
 func TestTrafficRepository_DeleteByPeerID(t *testing.T) {
 	db := initTestDB(t)
 	trafficRepo := NewTrafficRepository(db)
@@ -491,5 +1099,59 @@ func TestTrafficRepository_DeleteByPeerID(t *testing.T) {
 	}
 	if len(logs) != 0 {
 		t.Errorf("expected 0 logs after delete, got %d", len(logs))
+	}
+}
+
+func TestAuthRepository_DeleteUserRefreshTokens(t *testing.T) {
+	db := initTestDB(t)
+	authRepo := NewAuthRepository(db)
+	ctx := context.Background()
+
+	userID := "user-del-tokens"
+
+	_, _ = db.ExecContext(ctx, "INSERT INTO admin_users (id, email, password_hash) VALUES (?, ?, ?)",
+		userID, "del@test.com", "hash")
+	_, _ = db.ExecContext(ctx, "INSERT INTO admin_users (id, email, password_hash) VALUES (?, ?, ?)",
+		"other-user", "other@test.com", "hash")
+
+	token1 := "token-del-1"
+	token2 := "token-del-2"
+	token3 := "token-del-3"
+
+	if err := authRepo.StoreRefreshToken(ctx, userID, token1, time.Now().Add(1*time.Hour).Format(time.RFC3339)); err != nil {
+		t.Fatalf("StoreRefreshToken token1: %v", err)
+	}
+	if err := authRepo.StoreRefreshToken(ctx, userID, token2, time.Now().Add(2*time.Hour).Format(time.RFC3339)); err != nil {
+		t.Fatalf("StoreRefreshToken token2: %v", err)
+	}
+	if err := authRepo.StoreRefreshToken(ctx, "other-user", token3, time.Now().Add(1*time.Hour).Format(time.RFC3339)); err != nil {
+		t.Fatalf("StoreRefreshToken token3: %v", err)
+	}
+
+	if err := authRepo.DeleteUserRefreshTokens(ctx, userID); err != nil {
+		t.Fatalf("DeleteUserRefreshTokens: %v", err)
+	}
+
+	_, err1 := authRepo.GetRefreshToken(ctx, token1)
+	_, err2 := authRepo.GetRefreshToken(ctx, token2)
+	_, err3 := authRepo.GetRefreshToken(ctx, token3)
+
+	if err1 == nil || err2 == nil {
+		t.Error("expected error for deleted tokens")
+	}
+	if err3 != nil {
+		t.Errorf("expected other user token to exist: %v", err3)
+	}
+}
+
+func TestIsNotFound(t *testing.T) {
+	if !IsNotFound(ErrNotFound) {
+		t.Error("IsNotFound should return true for ErrNotFound")
+	}
+	if IsNotFound(errors.New("other error")) {
+		t.Error("IsNotFound should return false for other errors")
+	}
+	if IsNotFound(nil) {
+		t.Error("IsNotFound should return false for nil")
 	}
 }

@@ -988,6 +988,407 @@ func TestFullAPIWorkflow(t *testing.T) {
 	}
 }
 
+func TestMonitoringHandler_TrafficAggregate_Success(t *testing.T) {
+	d := newTestDeps(t)
+	peer, _ := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "AggPeer", DeviceType: models.DeviceTypeIPhone})
+	trafficRepo := repository.NewTrafficRepository(d.db)
+	sid, err := trafficRepo.CreateSession(context.Background(), peer.ID)
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "google.com", Action: "proxy", BytesRx: 1000, BytesTx: 500})
+	trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "google.com", Action: "proxy", BytesRx: 2000, BytesTx: 1000})
+	trafficRepo.CloseSession(context.Background(), sid, 3000, 1500, 2)
+
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/traffic-aggregate?peer_id="+peer.ID, "")
+	w := httptest.NewRecorder()
+	d.monitoringHandler.TrafficAggregate(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	var items []interface{}
+	json.Unmarshal(body, &items)
+	if len(items) == 0 {
+		t.Error("expected aggregate items, got empty")
+	}
+}
+
+func TestMonitoringHandler_TrafficAggregate_NoPeer(t *testing.T) {
+	d := newTestDeps(t)
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/traffic-aggregate", "")
+	w := httptest.NewRecorder()
+	d.monitoringHandler.TrafficAggregate(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestMonitoringHandler_Logs_Success(t *testing.T) {
+	d := newTestDeps(t)
+	peer, _ := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "LogPeer", DeviceType: models.DeviceTypeIPhone})
+	trafficRepo := repository.NewTrafficRepository(d.db)
+	trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "example.com", Action: "direct", BytesRx: 500, BytesTx: 200})
+	trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "youtube.com", Action: "proxy", BytesRx: 8000, BytesTx: 3000})
+
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/logs?peer_id="+peer.ID, "")
+	w := httptest.NewRecorder()
+	d.monitoringHandler.Logs(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	var logs []interface{}
+	json.Unmarshal(body, &logs)
+	if len(logs) != 2 {
+		t.Errorf("expected 2 log entries, got %d", len(logs))
+	}
+}
+
+func TestMonitoringHandler_Logs_Empty(t *testing.T) {
+	d := newTestDeps(t)
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/logs", "")
+	w := httptest.NewRecorder()
+	d.monitoringHandler.Logs(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	var logs []interface{}
+	json.Unmarshal(body, &logs)
+	if len(logs) == 0 {
+		t.Error("expected seed log entries, got 0")
+	}
+}
+
+func TestMonitoringHandler_PeerSessions_Success(t *testing.T) {
+	d := newTestDeps(t)
+	peer, _ := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "SessPeer", DeviceType: models.DeviceTypeIPhone})
+	trafficRepo := repository.NewTrafficRepository(d.db)
+	sid, err := trafficRepo.CreateSession(context.Background(), peer.ID)
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	trafficRepo.CloseSession(context.Background(), sid, 4096, 2048, 10)
+
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/peer/"+peer.ID+"/sessions?limit=10", "")
+	req.SetPathValue("id", peer.ID)
+	w := httptest.NewRecorder()
+	d.monitoringHandler.PeerSessions(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	var sessions []interface{}
+	json.Unmarshal(body, &sessions)
+	if len(sessions) == 0 {
+		t.Error("expected at least 1 session, got 0")
+	}
+}
+
+func TestMonitoringHandler_PeerSessions_MissingID(t *testing.T) {
+	d := newTestDeps(t)
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/peer//sessions", "")
+	w := httptest.NewRecorder()
+	d.monitoringHandler.PeerSessions(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestMonitoringHandler_PeerSessions_CustomLimit(t *testing.T) {
+	d := newTestDeps(t)
+	peer, _ := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "LimPeer", DeviceType: models.DeviceTypeIPhone})
+	trafficRepo := repository.NewTrafficRepository(d.db)
+	sid, _ := trafficRepo.CreateSession(context.Background(), peer.ID)
+	trafficRepo.CloseSession(context.Background(), sid, 100, 200, 1)
+
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/peer/"+peer.ID+"/sessions?limit=1", "")
+	req.SetPathValue("id", peer.ID)
+	w := httptest.NewRecorder()
+	d.monitoringHandler.PeerSessions(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestMonitoringHandler_DeleteAlert_Success(t *testing.T) {
+	d := newTestDeps(t)
+	trafficRepo := repository.NewTrafficRepository(d.db)
+	alert := &models.Alert{ID: "alert-1", Type: "traffic", Message: "test alert", Severity: "warning"}
+	trafficRepo.InsertAlert(context.Background(), alert)
+
+	req := d.authenticatedRequest(http.MethodDelete, "/api/v1/monitoring/alerts/alert-1", "")
+	req.SetPathValue("id", "alert-1")
+	w := httptest.NewRecorder()
+	d.monitoringHandler.DeleteAlert(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	data := readBody(resp)
+	if data["status"] != "ok" {
+		t.Errorf("status = %v, want ok", data["status"])
+	}
+}
+
+func TestMonitoringHandler_DeleteAlert_MissingID(t *testing.T) {
+	d := newTestDeps(t)
+	req := d.authenticatedRequest(http.MethodDelete, "/api/v1/monitoring/alerts/", "")
+	w := httptest.NewRecorder()
+	d.monitoringHandler.DeleteAlert(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestMonitoringHandler_ClearAlerts_Success(t *testing.T) {
+	d := newTestDeps(t)
+	trafficRepo := repository.NewTrafficRepository(d.db)
+	trafficRepo.InsertAlert(context.Background(), &models.Alert{ID: "a1", Type: "traffic", Message: "alert 1", Severity: "warning"})
+	trafficRepo.InsertAlert(context.Background(), &models.Alert{ID: "a2", Type: "security", Message: "alert 2", Severity: "critical"})
+
+	req := d.authenticatedRequest(http.MethodDelete, "/api/v1/monitoring/alerts/clear", "")
+	w := httptest.NewRecorder()
+	d.monitoringHandler.ClearAlerts(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	data := readBody(resp)
+	if data["status"] != "ok" {
+		t.Errorf("status = %v, want ok", data["status"])
+	}
+
+	alertsReq := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/alerts", "")
+	w2 := httptest.NewRecorder()
+	d.monitoringHandler.Alerts(w2, alertsReq)
+	body, _ := io.ReadAll(w2.Result().Body)
+	w2.Result().Body.Close()
+	var alerts []interface{}
+	json.Unmarshal(body, &alerts)
+	if len(alerts) != 0 {
+		t.Errorf("expected 0 alerts after clear, got %d", len(alerts))
+	}
+}
+
+func TestPeerHandler_Get_Stats_NotFound(t *testing.T) {
+	d := newTestDeps(t)
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/wg/peers/nonexistent/stats", "")
+	req.SetPathValue("id", "nonexistent")
+	w := httptest.NewRecorder()
+	d.peerHandler.GetStats(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestPeerHandler_DownloadConfig_NotFound(t *testing.T) {
+	d := newTestDeps(t)
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/wg/peers/nonexistent/config", "")
+	req.SetPathValue("id", "nonexistent")
+	w := httptest.NewRecorder()
+	d.peerHandler.DownloadConfig(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestPeerHandler_GetQRCode_NotFound(t *testing.T) {
+	d := newTestDeps(t)
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/wg/peers/nonexistent/qr", "")
+	req.SetPathValue("id", "nonexistent")
+	w := httptest.NewRecorder()
+	d.peerHandler.GetQRCode(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestPeerHandler_Toggle_InvalidJSON(t *testing.T) {
+	d := newTestDeps(t)
+	peer, _ := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "ToggleBadJSON", DeviceType: models.DeviceTypeIPhone})
+	req := d.authenticatedRequest(http.MethodPut, "/api/v1/wg/peers/"+peer.ID+"/toggle", "not json")
+	req.SetPathValue("id", peer.ID)
+	w := httptest.NewRecorder()
+	d.peerHandler.Toggle(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestPeerHandler_Toggle_NotFound(t *testing.T) {
+	d := newTestDeps(t)
+	body := `{"active":true}`
+	req := d.authenticatedRequest(http.MethodPut, "/api/v1/wg/peers/nonexistent/toggle", body)
+	req.SetPathValue("id", "nonexistent")
+	w := httptest.NewRecorder()
+	d.peerHandler.Toggle(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestRouteHandler_Get_NoPathID(t *testing.T) {
+	d := newTestDeps(t)
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/routes/", "")
+	w := httptest.NewRecorder()
+	d.routeHandler.Get(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestRouteHandler_Update_NotFound(t *testing.T) {
+	d := newTestDeps(t)
+	newName := "Updated"
+	body := toJSON(models.RoutingRuleUpdateRequest{Name: &newName})
+	req := d.authenticatedRequest(http.MethodPut, "/api/v1/routes/nonexistent", body)
+	req.SetPathValue("id", "nonexistent")
+	w := httptest.NewRecorder()
+	d.routeHandler.Update(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestRouteHandler_Delete_NotFound(t *testing.T) {
+	d := newTestDeps(t)
+	req := d.authenticatedRequest(http.MethodDelete, "/api/v1/routes/nonexistent", "")
+	req.SetPathValue("id", "nonexistent")
+	w := httptest.NewRecorder()
+	d.routeHandler.Delete(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestMonitoringHandler_PeersStats_FullResponse(t *testing.T) {
+	d := newTestDeps(t)
+	peer, _ := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "StatsPeer", DeviceType: models.DeviceTypeIPhone})
+
+	trafficRepo := repository.NewTrafficRepository(d.db)
+	sid, err := trafficRepo.CreateSession(context.Background(), peer.ID)
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "youtube.com", Action: "proxy", BytesRx: 5000, BytesTx: 3000})
+	trafficRepo.CloseSession(context.Background(), sid, 5000, 3000, 1)
+
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/peers-stats", "")
+	w := httptest.NewRecorder()
+	d.monitoringHandler.PeersStats(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	var summaries []interface{}
+	json.Unmarshal(body, &summaries)
+	if len(summaries) == 0 {
+		t.Error("expected at least 1 peer summary, got 0")
+	}
+}
+
+func TestMonitoringHandler_Alerts_FullResponse(t *testing.T) {
+	d := newTestDeps(t)
+	trafficRepo := repository.NewTrafficRepository(d.db)
+	trafficRepo.InsertAlert(context.Background(), &models.Alert{ID: "alert-full-1", Type: "traffic", Message: "high traffic detected", Severity: "warning"})
+	trafficRepo.InsertAlert(context.Background(), &models.Alert{ID: "alert-full-2", Type: "security", Message: "suspicious activity", Severity: "critical"})
+
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/alerts", "")
+	w := httptest.NewRecorder()
+	d.monitoringHandler.Alerts(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	var alerts []interface{}
+	json.Unmarshal(body, &alerts)
+	if len(alerts) < 2 {
+		t.Errorf("expected at least 2 alerts, got %d", len(alerts))
+	}
+}
+
+func TestAuthHandler_Refresh_MissingBody(t *testing.T) {
+	d := newTestDeps(t)
+	req := d.authenticatedRequest(http.MethodPost, "/api/v1/auth/refresh", "")
+	w := httptest.NewRecorder()
+	d.authHandler.Refresh(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestAuthHandler_Session_NoAuth(t *testing.T) {
+	d := newTestDeps(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/session", nil)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	d.authHandler.Session(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", resp.StatusCode)
+	}
+}
+
+func TestServerHandler_ForeignStats(t *testing.T) {
+	d := newTestDeps(t)
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/servers/foreign/stats", "")
+	w := httptest.NewRecorder()
+	d.serverHandler.ForeignStats(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	data := readBody(resp)
+	if data["online"] == nil {
+		t.Error("expected online in response")
+	}
+	if data["wg_status"] == nil {
+		t.Error("expected wg_status in response")
+	}
+}
+
+func TestDNSHandler_Get_NotFound(t *testing.T) {
+	d := newTestDeps(t)
+	dnsRepo := repository.NewDNSRepository(d.db)
+	dnsSvc := services.NewDNSService(dnsRepo, d.logger)
+	handler := NewDNSHandler(dnsSvc, d.logger)
+
+	req := d.authenticatedRequest(http.MethodGet, "/api/v1/dns/settings", "")
+	w := httptest.NewRecorder()
+	handler.Get(w, req)
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want 200 (should return defaults)", resp.StatusCode)
+	}
+}
+
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
@@ -1099,6 +1500,7 @@ func TestPeerHandler_Toggle_Returns200EvenWhenSingBoxUnavailable(t *testing.T) {
 		t.Fatalf("expected 200 even when sing-box is unavailable, got %d", resp.StatusCode)
 	}
 }
+
 
 func TestMonitoringHandler_Traffic(t *testing.T) {
 	deps := newTestDeps(t)

@@ -77,7 +77,7 @@ func (r *sqlitePeerRepository) List(ctx context.Context) ([]*models.Peer, error)
 	if err != nil {
 		return nil, fmt.Errorf("peers.List: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var peers []*models.Peer
 	for rows.Next() {

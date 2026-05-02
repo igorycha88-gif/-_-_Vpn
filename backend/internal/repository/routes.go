@@ -71,7 +71,7 @@ func (r *sqliteRouteRepository) List(ctx context.Context) ([]*models.RoutingRule
 	if err != nil {
 		return nil, fmt.Errorf("routes.List: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var rules []*models.RoutingRule
 	for rows.Next() {
@@ -121,13 +121,13 @@ func (r *sqliteRouteRepository) Reorder(ctx context.Context, ids []string) error
 	if err != nil {
 		return fmt.Errorf("routes.Reorder: begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.PrepareContext(ctx, "UPDATE routing_rules SET priority=?, updated_at=CURRENT_TIMESTAMP WHERE id=?")
 	if err != nil {
 		return fmt.Errorf("routes.Reorder: prepare: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	for i, id := range ids {
 		_, err := stmt.ExecContext(ctx, i+1, id)

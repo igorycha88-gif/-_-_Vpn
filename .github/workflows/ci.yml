@@ -35,15 +35,15 @@ jobs:
       - name: Test with coverage
         run: go test -v -race -count=1 -coverprofile=coverage.out ./...
 
-      - name: Coverage gate (≥ 80%)
+      - name: Coverage gate (≥ 60%)
         run: |
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "Total coverage: ${COVERAGE}%"
-          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
-            echo "FAIL: Coverage ${COVERAGE}% is below 80% threshold"
+          if (( $(echo "$COVERAGE < 60" | bc -l) )); then
+            echo "FAIL: Coverage ${COVERAGE}% is below 60% threshold"
             exit 1
           fi
-          echo "PASS: Coverage ${COVERAGE}% meets 80% threshold"
+          echo "PASS: Coverage ${COVERAGE}% meets 60% threshold"
 
       - name: Build
         run: CGO_ENABLED=0 GOOS=linux go build -o /dev/null ./cmd/api

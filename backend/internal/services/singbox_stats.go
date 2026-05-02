@@ -44,8 +44,8 @@ type SingBoxStatsCollector struct {
 type peerSessionInfo struct {
 	sessionID  int64
 	startTime  time.Time
-	sessionRx  int64
-	sessionTx  int64
+	sessionRx  int64 //nolint:unused
+	sessionTx  int64 //nolint:unused
 	connCount  int
 }
 
@@ -614,7 +614,7 @@ func (c *SingBoxStatsCollector) fetchConnections() (*clashConnectionsResponse, e
 	if err != nil {
 		return nil, fmt.Errorf("выполнение запроса: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("статус %d от sing-box Clash API", resp.StatusCode)
