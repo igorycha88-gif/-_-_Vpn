@@ -266,6 +266,12 @@ func TestWireGuardService_GenerateClientConfig(t *testing.T) {
 	if !contains(config, "max.ru") {
 		t.Error("config should contain max.ru in direct rules")
 	}
+	if !contains(config, "avito.st") {
+		t.Error("config should contain avito.st in direct rules")
+	}
+	if !contains(config, "avito.com") {
+		t.Error("config should contain avito.com in direct rules")
+	}
 	if !contains(config, "gosuslugi.ru") {
 		t.Error("config should contain gosuslugi.ru in direct rules")
 	}
@@ -1017,6 +1023,129 @@ func TestSingBoxStatsCollector_FetchConnections_ServerDown(t *testing.T) {
 	_, err := collector.fetchConnections()
 	if err == nil {
 		t.Error("expected error when server is down")
+	}
+}
+
+func TestSingBoxStatsCollector_AggregateUsesSourceIP(t *testing.T) {
+	db, err := repository.InitDB(":memory:", migrations.Files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	peerRepo := repository.NewPeerRepository(db)
+	trafficRepo := repository.NewTrafficRepository(db)
+
+	peerRepo.Create(context.Background(), &models.Peer{
+		ID: "peer-1", Name: "Peer 1", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "uuid-1", PrivateKey: "pk", Address: "addr1",
+		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
+	})
+	peerRepo.Create(context.Background(), &models.Peer{
+		ID: "peer-2", Name: "Peer 2", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "uuid-2", PrivateKey: "pk", Address: "addr2",
+		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
+	})
+
+	callCount := 0
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			resp := clashConnectionsResponse{
+				Connections: []clashConnection{
+					{ID: "c1", Upload: 1000, Download: 5000, Metadata: clashMetadata{User: "uuid-1", SourceIP: "10.0.0.1", Type: "vless"}},
+				},
+			}
+			json.NewEncoder(w).Encode(resp)
+		} else {
+			resp := clashConnectionsResponse{
+				Connections: []clashConnection{
+					{ID: "c2", Upload: 2000, Download: 8000, Metadata: clashMetadata{User: "", SourceIP: "10.0.0.1", Type: "vless"}},
+				},
+			}
+			json.NewEncoder(w).Encode(resp)
+		}
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	collector := NewSingBoxStatsCollector(peerRepo, trafficRepo, nil, addr, "", testLogger())
+	collector.connState = make(map[string]*connBytes)
+
+	collector.collect(context.Background())
+
+	p1, _ := peerRepo.GetByID(context.Background(), "peer-1")
+	p2, _ := peerRepo.GetByID(context.Background(), "peer-2")
+
+	if p1.TotalRx != 5000 {
+		t.Errorf("peer-1 TotalRx after first collect = %d, want 5000", p1.TotalRx)
+	}
+	if p2.TotalRx != 0 {
+		t.Errorf("peer-2 TotalRx after first collect = %d, want 0", p2.TotalRx)
+	}
+
+	collector.collect(context.Background())
+
+	p1, _ = peerRepo.GetByID(context.Background(), "peer-1")
+	p2, _ = peerRepo.GetByID(context.Background(), "peer-2")
+
+	if p2.TotalRx != 0 {
+		t.Errorf("peer-2 TotalRx should be 0, got %d — aggregate was incorrectly distributed", p2.TotalRx)
+	}
+	if p1.TotalRx != 13000 {
+		t.Errorf("peer-1 TotalRx = %d, want 13000 (5000 first + 8000 aggregate)", p1.TotalRx)
+	}
+}
+
+func TestSingBoxStatsCollector_AggregateNoDistributionWithoutMapping(t *testing.T) {
+	db, err := repository.InitDB(":memory:", migrations.Files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	peerRepo := repository.NewPeerRepository(db)
+	trafficRepo := repository.NewTrafficRepository(db)
+
+	peerRepo.Create(context.Background(), &models.Peer{
+		ID: "peer-a", Name: "Peer A", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "uuid-a", PrivateKey: "pk", Address: "addr-a",
+		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
+	})
+	peerRepo.Create(context.Background(), &models.Peer{
+		ID: "peer-b", Name: "Peer B", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "uuid-b", PrivateKey: "pk", Address: "addr-b",
+		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
+	})
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := clashConnectionsResponse{
+			Connections: []clashConnection{
+				{ID: "c1", Upload: 1000, Download: 5000, Metadata: clashMetadata{User: "", SourceIP: "10.0.0.99", Type: "vless"}},
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	collector := NewSingBoxStatsCollector(peerRepo, trafficRepo, nil, addr, "", testLogger())
+	collector.connState = make(map[string]*connBytes)
+
+	collector.collect(context.Background())
+
+	pA, _ := peerRepo.GetByID(context.Background(), "peer-a")
+	pB, _ := peerRepo.GetByID(context.Background(), "peer-b")
+
+	if pA.TotalRx != 0 {
+		t.Errorf("peer-a TotalRx should be 0 when no source IP mapping exists, got %d", pA.TotalRx)
+	}
+	if pB.TotalRx != 0 {
+		t.Errorf("peer-b TotalRx should be 0 when no source IP mapping exists, got %d", pB.TotalRx)
 	}
 }
 

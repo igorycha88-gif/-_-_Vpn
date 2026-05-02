@@ -183,11 +183,11 @@ func (s *WireGuardService) buildBaseRules() []any {
 				"ya.ru", "mail.ru", "rambler.ru",
 				"gosuslugi.ru", "esia.gosuslugi.ru",
 				"sberbank.ru", "tinkoff.ru",
-				"ozon.ru", "wildberries.ru", "avito.ru",
+			"ozon.ru", "wildberries.ru", "avito.ru", "avito.st", "avito.com",
 				"habr.com", "kaspersky.com",
 				"max.ru", "maxpatrol.ru", "positive-technologies.ru",
 			},
-			"outbound": "direct-out",
+			"outbound":      "direct-out",
 		},
 	}
 }
@@ -243,7 +243,7 @@ func (s *WireGuardService) buildClientDNSConfig() map[string]any {
 					"ya.ru", "mail.ru", "rambler.ru",
 					"gosuslugi.ru", "esia.gosuslugi.ru",
 					"sberbank.ru", "tinkoff.ru",
-					"ozon.ru", "wildberries.ru", "avito.ru",
+					"ozon.ru", "wildberries.ru", "avito.ru", "avito.st", "avito.com",
 					"habr.com", "kaspersky.com",
 					"max.ru", "maxpatrol.ru", "positive-technologies.ru",
 				},
