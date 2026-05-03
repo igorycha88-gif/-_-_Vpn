@@ -70,7 +70,7 @@ func main() {
 		logger.Error("ошибка инициализации БД", "error", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
 	routeRepo := repository.NewRouteRepository(db)
@@ -192,7 +192,7 @@ func main() {
 		cancel()
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()
-		srv.Shutdown(shutdownCtx)
+		_ = srv.Shutdown(shutdownCtx)
 	}()
 
 	logger.Info("запуск API сервера", "addr", addr)

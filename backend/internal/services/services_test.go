@@ -54,7 +54,7 @@ func TestAuthService_Login_Success(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewAuthService(repository.NewAuthRepository(db), testJWTConfig(), testLogger())
 
@@ -72,7 +72,7 @@ func TestAuthService_Login_Success(t *testing.T) {
 
 func TestAuthService_Login_WrongPassword(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewAuthService(repository.NewAuthRepository(db), testJWTConfig(), testLogger())
 
@@ -84,7 +84,7 @@ func TestAuthService_Login_WrongPassword(t *testing.T) {
 
 func TestAuthService_Login_WrongEmail(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewAuthService(repository.NewAuthRepository(db), testJWTConfig(), testLogger())
 
@@ -96,7 +96,7 @@ func TestAuthService_Login_WrongEmail(t *testing.T) {
 
 func TestAuthService_ValidateAccessToken(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewAuthService(repository.NewAuthRepository(db), testJWTConfig(), testLogger())
 	tokens, err := svc.Login(context.Background(), "admin@smarttraffic.local", "admin123")
@@ -118,7 +118,7 @@ func TestAuthService_ValidateAccessToken(t *testing.T) {
 
 func TestAuthService_ValidateAccessToken_Invalid(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewAuthService(repository.NewAuthRepository(db), testJWTConfig(), testLogger())
 
@@ -130,7 +130,7 @@ func TestAuthService_ValidateAccessToken_Invalid(t *testing.T) {
 
 func TestAuthService_GetSession(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewAuthService(repository.NewAuthRepository(db), testJWTConfig(), testLogger())
 
@@ -145,7 +145,7 @@ func TestAuthService_GetSession(t *testing.T) {
 
 func TestAuthService_Logout(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewAuthService(repository.NewAuthRepository(db), testJWTConfig(), testLogger())
 	tokens, _ := svc.Login(context.Background(), "admin@smarttraffic.local", "admin123")
@@ -158,7 +158,7 @@ func TestAuthService_Logout(t *testing.T) {
 
 func TestWireGuardService_CreatePeer(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
 
@@ -188,7 +188,7 @@ func TestWireGuardService_CreatePeer(t *testing.T) {
 
 func TestWireGuardService_CreatePeer_ValidationError(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
 
@@ -200,7 +200,7 @@ func TestWireGuardService_CreatePeer_ValidationError(t *testing.T) {
 
 func TestWireGuardService_ListPeers(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
 
@@ -219,7 +219,7 @@ func TestWireGuardService_ListPeers(t *testing.T) {
 
 func TestWireGuardService_DeletePeer(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	trafficRepo := repository.NewTrafficRepository(db)
 	svc := NewWireGuardService(repository.NewPeerRepository(db), trafficRepo, testVLESSConfig(), testLogger())
@@ -428,7 +428,7 @@ func contains(s, substr string) bool {
 
 func TestRoutingService_CreateRule(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewRoutingService(
 		repository.NewRouteRepository(db),
@@ -448,7 +448,7 @@ func TestRoutingService_CreateRule(t *testing.T) {
 
 func TestRoutingService_CreateRule_Validation(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewRoutingService(
 		repository.NewRouteRepository(db),
@@ -463,7 +463,7 @@ func TestRoutingService_CreateRule_Validation(t *testing.T) {
 
 func TestRoutingService_UpdateRule(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewRoutingService(
 		repository.NewRouteRepository(db),
@@ -488,7 +488,7 @@ func TestRoutingService_UpdateRule(t *testing.T) {
 
 func TestRoutingService_DeleteRule(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewRoutingService(
 		repository.NewRouteRepository(db),
@@ -506,7 +506,7 @@ func TestRoutingService_DeleteRule(t *testing.T) {
 
 func TestRoutingService_ApplyPreset(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	presetSvc := NewPresetService(
 		repository.NewPresetRepository(db),
@@ -525,7 +525,7 @@ func TestRoutingService_ApplyPreset(t *testing.T) {
 
 func TestDNSService_GetSettings(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewDNSService(repository.NewDNSRepository(db), testLogger())
 
@@ -540,7 +540,7 @@ func TestDNSService_GetSettings(t *testing.T) {
 
 func TestDNSService_UpdateSettings(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewDNSService(repository.NewDNSRepository(db), testLogger())
 
@@ -558,7 +558,7 @@ func TestDNSService_UpdateSettings(t *testing.T) {
 
 func TestTrafficService_GetTotalStats(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewTrafficService(
 		repository.NewTrafficRepository(db),
@@ -577,7 +577,7 @@ func TestTrafficService_GetTotalStats(t *testing.T) {
 
 func TestTrafficService_GetTrafficLogs(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewTrafficService(
 		repository.NewTrafficRepository(db),
@@ -596,7 +596,7 @@ func TestTrafficService_GetTrafficLogs(t *testing.T) {
 
 func TestTrafficService_Alerts(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewTrafficService(
 		repository.NewTrafficRepository(db),
@@ -630,7 +630,7 @@ func newTestSingBoxService(t *testing.T) (*SingBoxService, *sql.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	routeRepo := repository.NewRouteRepository(db)
 	dnsRepo := repository.NewDNSRepository(db)
@@ -664,7 +664,7 @@ func TestSingBoxService_GenerateConfig_NoForeignIP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	routeRepo := repository.NewRouteRepository(db)
 	dnsRepo := repository.NewDNSRepository(db)
@@ -711,12 +711,12 @@ func TestSingBoxService_GenerateConfig_OnlyActivePeersInUsers(t *testing.T) {
 	svc, db := newTestSingBoxService(t)
 	peerRepo := repository.NewPeerRepository(db)
 
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "p1", Name: "Active", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-active-1", PrivateKey: "pk", Address: "addr1",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
 	})
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "p2", Name: "Inactive", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-inactive-2", PrivateKey: "pk", Address: "addr2",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: false,
@@ -740,7 +740,7 @@ func TestSingBoxService_GenerateConfig_OnlyActivePeersInUsers(t *testing.T) {
 
 func TestWireGuardService_TogglePeer(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
 
@@ -769,7 +769,7 @@ func TestWireGuardService_TogglePeer(t *testing.T) {
 
 func TestWireGuardService_TogglePeer_NotFound(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
 
@@ -1034,17 +1034,17 @@ func TestSingBoxStatsCollector_AggregateUsesSourceIP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
 	trafficRepo := repository.NewTrafficRepository(db)
 
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "peer-1", Name: "Peer 1", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-1", PrivateKey: "pk", Address: "addr1",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
 	})
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "peer-2", Name: "Peer 2", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-2", PrivateKey: "pk", Address: "addr2",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
@@ -1059,14 +1059,14 @@ func TestSingBoxStatsCollector_AggregateUsesSourceIP(t *testing.T) {
 					{ID: "c1", Upload: 1000, Download: 5000, Metadata: clashMetadata{User: "uuid-1", SourceIP: "10.0.0.1", Type: "vless"}},
 				},
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		} else {
 			resp := clashConnectionsResponse{
 				Connections: []clashConnection{
 					{ID: "c2", Upload: 2000, Download: 8000, Metadata: clashMetadata{User: "", SourceIP: "10.0.0.1", Type: "vless"}},
 				},
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 		}
 	})
 
@@ -1107,17 +1107,17 @@ func TestSingBoxStatsCollector_AggregateNoDistributionWithoutMapping(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
 	trafficRepo := repository.NewTrafficRepository(db)
 
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "peer-a", Name: "Peer A", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-a", PrivateKey: "pk", Address: "addr-a",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
 	})
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "peer-b", Name: "Peer B", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-b", PrivateKey: "pk", Address: "addr-b",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
@@ -1129,7 +1129,7 @@ func TestSingBoxStatsCollector_AggregateNoDistributionWithoutMapping(t *testing.
 				{ID: "c1", Upload: 1000, Download: 5000, Metadata: clashMetadata{User: "", SourceIP: "10.0.0.99", Type: "vless"}},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 
 	server := httptest.NewServer(handler)
@@ -1157,7 +1157,7 @@ func TestSingBoxStatsCollector_Collect_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
 	trafficRepo := repository.NewTrafficRepository(db)
@@ -1206,7 +1206,7 @@ func TestSingBoxStatsCollector_Collect_Integration(t *testing.T) {
 
 func TestWireGuardService_GetPeerStats_OnlineByLastSeen(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
 	svc := NewWireGuardService(peerRepo, repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
@@ -1224,10 +1224,10 @@ func TestWireGuardService_GetPeerStats_OnlineByLastSeen(t *testing.T) {
 
 func TestTrafficService_LogTraffic(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "log-peer-1", Name: "LogTest", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "log-uuid-1", PrivateKey: "pk", Address: "addr1",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
@@ -1273,7 +1273,7 @@ func TestTrafficService_LogTraffic(t *testing.T) {
 
 func TestTrafficService_CleanupOldLogs(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	_, err := db.Exec(`INSERT INTO traffic_logs (peer_id, domain, dest_ip, dest_port, action, bytes_rx, bytes_tx, timestamp)
 		VALUES ('demo-peer-001', '', '', 0, 'test', 100, 200, datetime('now', '-60 days'))`)
@@ -1310,7 +1310,7 @@ func TestTrafficService_CleanupOldLogs(t *testing.T) {
 
 func TestTrafficService_CleanupOldLogs_DefaultRetain(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewTrafficService(
 		repository.NewTrafficRepository(db),
@@ -1335,7 +1335,7 @@ func TestTrafficService_CleanupOldLogs_DefaultRetain(t *testing.T) {
 
 func TestTrafficService_AddAlert_DeleteAlert(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewTrafficService(
 		repository.NewTrafficRepository(db),
@@ -1386,7 +1386,7 @@ func TestTrafficService_AddAlert_DeleteAlert(t *testing.T) {
 
 func TestTrafficService_ClearAllAlerts(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewTrafficService(
 		repository.NewTrafficRepository(db),
@@ -1418,7 +1418,7 @@ func TestTrafficService_ClearAllAlerts(t *testing.T) {
 
 func TestTrafficService_CleanupOldAlerts(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	trafficRepo := repository.NewTrafficRepository(db)
 	svc := NewTrafficService(trafficRepo, repository.NewPeerRepository(db), testLogger())
@@ -1453,7 +1453,7 @@ func TestTrafficService_CleanupOldAlerts(t *testing.T) {
 
 func TestTrafficService_GetAllPeerStats(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewTrafficService(
 		repository.NewTrafficRepository(db),
@@ -1472,18 +1472,18 @@ func TestTrafficService_GetAllPeerStats(t *testing.T) {
 
 func TestTrafficService_GetAllPeerStats_WithPeer(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
 	trafficRepo := repository.NewTrafficRepository(db)
 	svc := NewTrafficService(trafficRepo, peerRepo, testLogger())
 
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "sp1", Name: "StatsPeer", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-sp1", PrivateKey: "pk", Address: "addr1",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
 	})
-	trafficRepo.Log(context.Background(), &models.TrafficLog{
+	_ = trafficRepo.Log(context.Background(), &models.TrafficLog{
 		PeerID: "sp1", Domain: "test.com", Action: "test", BytesRx: 500, BytesTx: 300,
 	})
 
@@ -1509,10 +1509,10 @@ func TestTrafficService_GetAllPeerStats_WithPeer(t *testing.T) {
 
 func TestTrafficService_GetTrafficAggregate(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "agg-p1", Name: "AggPeer1", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-agg-1", PrivateKey: "pk", Address: "addr-a1",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
@@ -1548,10 +1548,10 @@ func TestTrafficService_GetTrafficAggregate(t *testing.T) {
 
 func TestTrafficService_GetTrafficAggregate_ByPeer(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "agg-p2", Name: "AggPeer2", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-agg-2", PrivateKey: "pk", Address: "addr-a2",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
@@ -1563,8 +1563,8 @@ func TestTrafficService_GetTrafficAggregate_ByPeer(t *testing.T) {
 		testLogger(),
 	)
 
-	svc.LogTraffic(context.Background(), &models.TrafficLog{PeerID: "agg-p2", Domain: "a.com", Action: "test", BytesRx: 100, BytesTx: 50})
-	svc.LogTraffic(context.Background(), &models.TrafficLog{PeerID: "agg-p2", Domain: "b.com", Action: "test", BytesRx: 200, BytesTx: 100})
+	_ = svc.LogTraffic(context.Background(), &models.TrafficLog{PeerID: "agg-p2", Domain: "a.com", Action: "test", BytesRx: 100, BytesTx: 50})
+	_ = svc.LogTraffic(context.Background(), &models.TrafficLog{PeerID: "agg-p2", Domain: "b.com", Action: "test", BytesRx: 200, BytesTx: 100})
 
 	items, err := svc.GetTrafficAggregate(context.Background(), "agg-p2", 10)
 	if err != nil {
@@ -1577,7 +1577,7 @@ func TestTrafficService_GetTrafficAggregate_ByPeer(t *testing.T) {
 
 func TestTrafficService_GetTrafficAggregate_DefaultLimit(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewTrafficService(
 		repository.NewTrafficRepository(db),
@@ -1596,10 +1596,10 @@ func TestTrafficService_GetTrafficAggregate_DefaultLimit(t *testing.T) {
 
 func TestTrafficService_GetPeerSessions(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "sess-peer-1", Name: "SessPeer", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-sess-1", PrivateKey: "pk", Address: "addr-s1",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
@@ -1625,7 +1625,7 @@ func TestTrafficService_GetPeerSessions(t *testing.T) {
 
 func TestTrafficService_GetPeerSessions_DefaultLimit(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewTrafficService(
 		repository.NewTrafficRepository(db),
@@ -1644,7 +1644,7 @@ func TestTrafficService_GetPeerSessions_DefaultLimit(t *testing.T) {
 
 func TestRoutingService_GetRule(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewRoutingService(repository.NewRouteRepository(db), testLogger())
 
@@ -1681,7 +1681,7 @@ func TestRoutingService_GetRule(t *testing.T) {
 
 func TestRoutingService_GetRule_NotFound(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewRoutingService(repository.NewRouteRepository(db), testLogger())
 
@@ -1693,7 +1693,7 @@ func TestRoutingService_GetRule_NotFound(t *testing.T) {
 
 func TestRoutingService_ListRules(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewRoutingService(repository.NewRouteRepository(db), testLogger())
 
@@ -1715,7 +1715,7 @@ func TestRoutingService_ListRules(t *testing.T) {
 
 func TestRoutingService_ReorderRules(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewRoutingService(repository.NewRouteRepository(db), testLogger())
 
@@ -1752,7 +1752,7 @@ func TestRoutingService_ReorderRules(t *testing.T) {
 
 func TestRoutingService_ReorderRules_Validation(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewRoutingService(repository.NewRouteRepository(db), testLogger())
 
@@ -1764,7 +1764,7 @@ func TestRoutingService_ReorderRules_Validation(t *testing.T) {
 
 func TestPresetService_List(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewPresetService(
 		repository.NewPresetRepository(db),
@@ -1791,7 +1791,7 @@ func TestPresetService_List(t *testing.T) {
 
 func TestPresetService_GetByID(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewPresetService(
 		repository.NewPresetRepository(db),
@@ -1816,7 +1816,7 @@ func TestPresetService_GetByID(t *testing.T) {
 
 func TestPresetService_GetByID_NotFound(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewPresetService(
 		repository.NewPresetRepository(db),
@@ -1832,7 +1832,7 @@ func TestPresetService_GetByID_NotFound(t *testing.T) {
 
 func TestDNSService_GetPresets(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewDNSService(repository.NewDNSRepository(db), testLogger())
 
@@ -1986,7 +1986,7 @@ func TestSingBoxService_buildDNSConfig(t *testing.T) {
 
 func TestSingBoxService_buildDNSConfig_EmptyForeign(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	routeRepo := repository.NewRouteRepository(db)
 	dnsRepo := repository.NewDNSRepository(db)
@@ -2143,15 +2143,15 @@ func TestWGStatsCollector_NewCollector(t *testing.T) {
 
 func TestSingBoxStatsCollector_countConnectionsPerPeer(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "cp-1", Name: "CP1", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-cp-1", PrivateKey: "pk", Address: "addr1",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
 	})
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "cp-2", Name: "CP2", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-cp-2", PrivateKey: "pk", Address: "addr2",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
@@ -2236,11 +2236,11 @@ func TestSingBoxStatsCollector_updatePeerRealtime(t *testing.T) {
 
 func TestSingBoxStatsCollector_startSession(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
 	trafficRepo := repository.NewTrafficRepository(db)
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "sess-rt-1", Name: "SessRT", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-sess-rt-1", PrivateKey: "pk", Address: "addr1",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
@@ -2268,11 +2268,11 @@ func TestSingBoxStatsCollector_startSession(t *testing.T) {
 
 func TestSingBoxStatsCollector_endSession(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
 	trafficRepo := repository.NewTrafficRepository(db)
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "sess-end-1", Name: "SessEnd", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-sess-end-1", PrivateKey: "pk", Address: "addr1",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
@@ -2325,7 +2325,7 @@ func TestSingBoxStatsCollector_endSession(t *testing.T) {
 
 func TestSingBoxStatsCollector_endSession_NoActiveSession(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	collector := NewSingBoxStatsCollector(nil, repository.NewTrafficRepository(db), nil, "127.0.0.1:1", "", testLogger())
 	collector.peerSessions = make(map[string]*peerSessionInfo)
@@ -2343,17 +2343,17 @@ func deactivateDemoPeers(t *testing.T, db *sql.DB) {
 
 func TestSingBoxStatsCollector_handleAggregateVLESS_Basic(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	deactivateDemoPeers(t, db)
 
 	peerRepo := repository.NewPeerRepository(db)
 	trafficRepo := repository.NewTrafficRepository(db)
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "agg-vl-1", Name: "AggVL1", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-agg-vl-1", PrivateKey: "pk", Address: "addr1",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true, TotalRx: 0, TotalTx: 0,
 	})
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "agg-vl-2", Name: "AggVL2", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-agg-vl-2", PrivateKey: "pk", Address: "addr2",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true, TotalRx: 0, TotalTx: 0,
@@ -2367,12 +2367,19 @@ func TestSingBoxStatsCollector_handleAggregateVLESS_Basic(t *testing.T) {
 		rx: 1000,
 		tx: 500,
 		connections: []userConnection{
-			{host: "example.com", rx: 600, tx: 300},
-			{host: "test.com", rx: 400, tx: 200},
+			{sourceIP: "10.0.0.1", host: "example.com", rx: 600, tx: 300},
+			{sourceIP: "10.0.0.2", host: "test.com", rx: 400, tx: 200},
 		},
 	}
 	currentOnline := make(map[string]bool)
 	peerConnCounts := map[string]int{"agg-vl-1": 2}
+
+	collector.mu.Lock()
+	collector.sourceIPToPeerID = map[string]string{
+		"10.0.0.1": "agg-vl-1",
+		"10.0.0.2": "agg-vl-2",
+	}
+	collector.mu.Unlock()
 
 	collector.handleAggregateVLESS(context.Background(), delta, currentOnline, peerConnCounts)
 
@@ -2416,11 +2423,11 @@ func TestSingBoxStatsCollector_handleAggregateVLESS_Basic(t *testing.T) {
 
 func TestSingBoxStatsCollector_handleAggregateVLESS_NoData(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
 	trafficRepo := repository.NewTrafficRepository(db)
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "agg-no-1", Name: "AggNo", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-agg-no-1", PrivateKey: "pk", Address: "addr1",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
@@ -2430,8 +2437,19 @@ func TestSingBoxStatsCollector_handleAggregateVLESS_NoData(t *testing.T) {
 	collector.peerRealtime = make(map[string]*models.PeerRealtimeStats)
 	collector.peerSessions = make(map[string]*peerSessionInfo)
 
-	delta := &userDelta{rx: 0, tx: 0}
+	delta := &userDelta{
+		rx: 0, tx: 0,
+		connections: []userConnection{
+			{sourceIP: "10.0.0.1", host: "", rx: 0, tx: 0},
+		},
+	}
 	currentOnline := make(map[string]bool)
+
+	collector.mu.Lock()
+	collector.sourceIPToPeerID = map[string]string{
+		"10.0.0.1": "agg-no-1",
+	}
+	collector.mu.Unlock()
 
 	collector.handleAggregateVLESS(context.Background(), delta, currentOnline, nil)
 
@@ -2450,12 +2468,12 @@ func TestSingBoxStatsCollector_handleAggregateVLESS_NoData(t *testing.T) {
 
 func TestSingBoxStatsCollector_handleAggregateVLESS_NoActivePeers(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	deactivateDemoPeers(t, db)
 
 	peerRepo := repository.NewPeerRepository(db)
 	trafficRepo := repository.NewTrafficRepository(db)
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "agg-inactive-1", Name: "Inactive", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-inactive", PrivateKey: "pk", Address: "addr1",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: false,
@@ -2538,7 +2556,7 @@ func TestWireGuardService_GenerateClientConfigCompact(t *testing.T) {
 
 func TestWireGuardService_GetPeerStats_NotFound(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
 
@@ -2550,12 +2568,12 @@ func TestWireGuardService_GetPeerStats_NotFound(t *testing.T) {
 
 func TestTrafficService_GetPeerStats_WithData(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
 	trafficRepo := repository.NewTrafficRepository(db)
 
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "tps-1", Name: "TPeer", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-tps-1", PrivateKey: "pk", Address: "addr1",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,
@@ -2563,7 +2581,7 @@ func TestTrafficService_GetPeerStats_WithData(t *testing.T) {
 
 	svc := NewTrafficService(trafficRepo, peerRepo, testLogger())
 
-	svc.LogTraffic(context.Background(), &models.TrafficLog{
+	_ = svc.LogTraffic(context.Background(), &models.TrafficLog{
 		PeerID:  "tps-1",
 		Domain:  "example.com",
 		Action:  "test",
@@ -2585,7 +2603,7 @@ func TestTrafficService_GetPeerStats_WithData(t *testing.T) {
 
 func TestAuthService_RefreshToken_Success(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	authRepo := repository.NewAuthRepository(db)
 	cfg := testJWTConfig()
@@ -2613,7 +2631,7 @@ func TestAuthService_RefreshToken_Success(t *testing.T) {
 
 func TestAuthService_RefreshToken_InvalidToken(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	authRepo := repository.NewAuthRepository(db)
 	cfg := testJWTConfig()
@@ -2627,7 +2645,7 @@ func TestAuthService_RefreshToken_InvalidToken(t *testing.T) {
 
 func TestAuthService_LogoutAll(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	authRepo := repository.NewAuthRepository(db)
 	cfg := testJWTConfig()
@@ -2671,7 +2689,7 @@ func TestSingBoxStatsCollector_clearPeerRealtime(t *testing.T) {
 
 func TestSingBoxStatsCollector_Start_Stop(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
 	trafficRepo := repository.NewTrafficRepository(db)
@@ -2699,7 +2717,7 @@ func TestSingBoxStatsCollector_Start_Stop(t *testing.T) {
 
 func TestWGStatsCollector_runWG(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	collector := NewWGStatsCollector(nil, nil, nil, "wg0", testLogger())
 
@@ -2718,7 +2736,7 @@ func TestWGStatsCollector_runWG(t *testing.T) {
 
 func TestWGStatsCollector_collect(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
 	trafficRepo := repository.NewTrafficRepository(db)
@@ -2741,7 +2759,7 @@ func TestWGStatsCollector_collect(t *testing.T) {
 
 func TestWGStatsCollector_Start(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	peerRepo := repository.NewPeerRepository(db)
 	trafficRepo := repository.NewTrafficRepository(db)

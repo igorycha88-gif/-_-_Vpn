@@ -17,7 +17,7 @@ func initTestDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("InitDB: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	return db
 }
 
@@ -102,7 +102,7 @@ func TestPeerRepository_GetByPublicKey(t *testing.T) {
 	repo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	repo.Create(ctx, &models.Peer{
+	_ = repo.Create(ctx, &models.Peer{
 		ID: "pk-test", Name: "PK", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uniquepubkey123",
 		PrivateKey: "uniqueprivkey123", Address: "10.99.0.3", IsActive: true,
@@ -122,13 +122,13 @@ func TestPeerRepository_UpdateTraffic(t *testing.T) {
 	repo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	repo.Create(ctx, &models.Peer{
+	_ = repo.Create(ctx, &models.Peer{
 		ID: "t-test", Name: "T", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "tpk", PrivateKey: "tpv",
 		Address: "10.99.0.4", IsActive: true,
 	})
 
-	repo.UpdateTraffic(ctx, "t-test", 1024, 2048)
+	_ = repo.UpdateTraffic(ctx, "t-test", 1024, 2048)
 	got, _ := repo.GetByID(ctx, "t-test")
 	if got.TotalRx != 1024 || got.TotalTx != 2048 {
 		t.Errorf("Rx=%d Tx=%d, want 1024,2048", got.TotalRx, got.TotalTx)
@@ -140,13 +140,13 @@ func TestPeerRepository_UpdateLastSeen(t *testing.T) {
 	repo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	repo.Create(ctx, &models.Peer{
+	_ = repo.Create(ctx, &models.Peer{
 		ID: "seen-test", Name: "S", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "spk", PrivateKey: "spv",
 		Address: "10.99.0.5", IsActive: true,
 	})
 
-	repo.UpdateLastSeen(ctx, "seen-test")
+	_ = repo.UpdateLastSeen(ctx, "seen-test")
 	got, _ := repo.GetByID(ctx, "seen-test")
 	if got.LastSeen == nil {
 		t.Fatal("LastSeen should not be nil")
@@ -203,7 +203,7 @@ func TestRouteRepository_Reorder(t *testing.T) {
 	ctx := context.Background()
 
 	for i, n := range []string{"A", "B", "C"} {
-		repo.Create(ctx, &models.RoutingRule{
+		_ = repo.Create(ctx, &models.RoutingRule{
 			ID: "r" + n, Name: n, Type: "domain",
 			Pattern: n + ".com", Action: "direct", Priority: i + 10,
 		})
@@ -333,7 +333,7 @@ func TestAuthRepository_CRUD(t *testing.T) {
 		t.Fatal("expected error for bad token")
 	}
 
-	repo.DeleteRefreshToken(ctx, "token-123")
+	_ = repo.DeleteRefreshToken(ctx, "token-123")
 	_, err = repo.GetRefreshToken(ctx, "token-123")
 	if err == nil {
 		t.Fatal("expected error after deletion")
@@ -357,7 +357,7 @@ func TestTrafficRepository_LogAndList(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "peer-1", Name: "P1", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "pk1", PrivateKey: "pv1",
 		Address: "10.99.0.6", IsActive: true,
@@ -395,11 +395,11 @@ func TestTrafficRepository_FilterByPeer(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{ID: "p1", Name: "P1", DeviceType: models.DeviceTypeIPhone, PublicKey: "pk1", PrivateKey: "pv1", Address: "10.99.0.7", IsActive: true})
-	peerRepo.Create(ctx, &models.Peer{ID: "p2", Name: "P2", DeviceType: models.DeviceTypeAndroid, PublicKey: "pk2", PrivateKey: "pv2", Address: "10.99.0.8", IsActive: true})
+	_ = peerRepo.Create(ctx, &models.Peer{ID: "p1", Name: "P1", DeviceType: models.DeviceTypeIPhone, PublicKey: "pk1", PrivateKey: "pv1", Address: "10.99.0.7", IsActive: true})
+	_ = peerRepo.Create(ctx, &models.Peer{ID: "p2", Name: "P2", DeviceType: models.DeviceTypeAndroid, PublicKey: "pk2", PrivateKey: "pv2", Address: "10.99.0.8", IsActive: true})
 
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "p1", Domain: "a.com", Action: "direct", BytesRx: 100, BytesTx: 50})
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "p2", Domain: "b.com", Action: "proxy", BytesRx: 200, BytesTx: 100})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "p1", Domain: "a.com", Action: "direct", BytesRx: 100, BytesTx: 50})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "p2", Domain: "b.com", Action: "proxy", BytesRx: 200, BytesTx: 100})
 
 	logs, _ := trafficRepo.List(ctx, models.TrafficFilter{PeerID: "p1", Limit: 10})
 	if len(logs) != 1 {
@@ -412,7 +412,7 @@ func TestTrafficRepository_Cleanup(t *testing.T) {
 	trafficRepo := NewTrafficRepository(db)
 	ctx := context.Background()
 
-	trafficRepo.Log(ctx, &models.TrafficLog{Action: "direct"})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{Action: "direct"})
 
 	deleted, err := trafficRepo.CleanupOld(ctx, 0)
 	if err != nil {
@@ -429,7 +429,7 @@ func TestTrafficRepository_DeleteSessionsByPeerID(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "sess-peer", Name: "SP", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "spk1", PrivateKey: "spv1",
 		Address: "10.99.0.9", IsActive: true,
@@ -444,7 +444,7 @@ func TestTrafficRepository_DeleteSessionsByPeerID(t *testing.T) {
 		t.Fatalf("CreateSession: %v", err)
 	}
 
-	trafficRepo.CloseSession(ctx, sid1, 100, 200, 3)
+	_ = trafficRepo.CloseSession(ctx, sid1, 100, 200, 3)
 
 	active, err := trafficRepo.GetActiveSession(ctx, "sess-peer")
 	if err != nil {
@@ -473,19 +473,19 @@ func TestTrafficRepository_GetTotalStats(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "stats-p1", Name: "SP1", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "statspk1", PrivateKey: "statspv1",
 		Address: "10.99.1.1", IsActive: true,
 	})
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "stats-p2", Name: "SP2", DeviceType: models.DeviceTypeAndroid,
 		PublicKey: "statspk2", PrivateKey: "statspv2",
 		Address: "10.99.1.2", IsActive: false,
 	})
 
-	peerRepo.UpdateTraffic(ctx, "stats-p1", 5000, 3000)
-	peerRepo.UpdateTraffic(ctx, "stats-p2", 1000, 2000)
+	_ = peerRepo.UpdateTraffic(ctx, "stats-p1", 5000, 3000)
+	_ = peerRepo.UpdateTraffic(ctx, "stats-p2", 1000, 2000)
 
 	stats, err := trafficRepo.GetTotalStats(ctx)
 	if err != nil {
@@ -514,12 +514,12 @@ func TestTrafficRepository_GetPeerStats(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "ps-peer", Name: "PS", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "pspk1", PrivateKey: "pspv1",
 		Address: "10.99.2.1", IsActive: true,
 	})
-	peerRepo.UpdateTraffic(ctx, "ps-peer", 1024, 2048)
+	_ = peerRepo.UpdateTraffic(ctx, "ps-peer", 1024, 2048)
 
 	stats, err := trafficRepo.GetPeerStats(ctx, "ps-peer")
 	if err != nil {
@@ -552,7 +552,7 @@ func TestTrafficRepository_InsertAlert_ListAlerts(t *testing.T) {
 	trafficRepo := NewTrafficRepository(db)
 	ctx := context.Background()
 
-	trafficRepo.DeleteAllAlerts(ctx)
+	_ = trafficRepo.DeleteAllAlerts(ctx)
 
 	alert := &models.Alert{
 		ID: "alert-1", Type: "traffic", Message: "High traffic detected",
@@ -566,7 +566,7 @@ func TestTrafficRepository_InsertAlert_ListAlerts(t *testing.T) {
 		ID: "alert-2", Type: "security", Message: "Suspicious activity",
 		Severity: "critical", Timestamp: time.Now().Add(-1 * time.Hour),
 	}
-	trafficRepo.InsertAlert(ctx, alert2)
+	_ = trafficRepo.InsertAlert(ctx, alert2)
 
 	alerts, err := trafficRepo.ListAlerts(ctx, 10)
 	if err != nil {
@@ -614,11 +614,11 @@ func TestTrafficRepository_DeleteAlert(t *testing.T) {
 	trafficRepo := NewTrafficRepository(db)
 	ctx := context.Background()
 
-	trafficRepo.InsertAlert(ctx, &models.Alert{
+	_ = trafficRepo.InsertAlert(ctx, &models.Alert{
 		ID: "del-alert-1", Type: "test", Message: "to delete",
 		Severity: "info", Timestamp: time.Now(),
 	})
-	trafficRepo.InsertAlert(ctx, &models.Alert{
+	_ = trafficRepo.InsertAlert(ctx, &models.Alert{
 		ID: "del-alert-2", Type: "test", Message: "to keep",
 		Severity: "info", Timestamp: time.Now(),
 	})
@@ -649,9 +649,9 @@ func TestTrafficRepository_DeleteAllAlerts(t *testing.T) {
 	trafficRepo := NewTrafficRepository(db)
 	ctx := context.Background()
 
-	trafficRepo.InsertAlert(ctx, &models.Alert{ID: "aa-1", Type: "test", Message: "a", Severity: "info", Timestamp: time.Now()})
-	trafficRepo.InsertAlert(ctx, &models.Alert{ID: "aa-2", Type: "test", Message: "b", Severity: "info", Timestamp: time.Now()})
-	trafficRepo.InsertAlert(ctx, &models.Alert{ID: "aa-3", Type: "test", Message: "c", Severity: "info", Timestamp: time.Now()})
+	_ = trafficRepo.InsertAlert(ctx, &models.Alert{ID: "aa-1", Type: "test", Message: "a", Severity: "info", Timestamp: time.Now()})
+	_ = trafficRepo.InsertAlert(ctx, &models.Alert{ID: "aa-2", Type: "test", Message: "b", Severity: "info", Timestamp: time.Now()})
+	_ = trafficRepo.InsertAlert(ctx, &models.Alert{ID: "aa-3", Type: "test", Message: "c", Severity: "info", Timestamp: time.Now()})
 
 	if err := trafficRepo.DeleteAllAlerts(ctx); err != nil {
 		t.Fatalf("DeleteAllAlerts: %v", err)
@@ -671,11 +671,11 @@ func TestTrafficRepository_CleanupOldAlerts(t *testing.T) {
 	trafficRepo := NewTrafficRepository(db)
 	ctx := context.Background()
 
-	trafficRepo.DeleteAllAlerts(ctx)
+	_ = trafficRepo.DeleteAllAlerts(ctx)
 
-	db.Exec("INSERT INTO alerts (id, type, message, severity, timestamp) VALUES (?, ?, ?, ?, datetime('now', '-60 days'))",
+	_, _ = db.Exec("INSERT INTO alerts (id, type, message, severity, timestamp) VALUES (?, ?, ?, ?, datetime('now', '-60 days'))",
 		"old-alert", "test", "old", "info")
-	db.Exec("INSERT INTO alerts (id, type, message, severity, timestamp) VALUES (?, ?, ?, ?, datetime('now'))",
+	_, _ = db.Exec("INSERT INTO alerts (id, type, message, severity, timestamp) VALUES (?, ?, ?, ?, datetime('now'))",
 		"new-alert", "test", "new", "info")
 
 	deleted, err := trafficRepo.CleanupOldAlerts(ctx, 30)
@@ -700,7 +700,7 @@ func TestTrafficRepository_CleanupOldAlerts_DefaultRetain(t *testing.T) {
 	trafficRepo := NewTrafficRepository(db)
 	ctx := context.Background()
 
-	db.Exec("INSERT INTO alerts (id, type, message, severity, timestamp) VALUES (?, ?, ?, ?, datetime('now'))",
+	_, _ = db.Exec("INSERT INTO alerts (id, type, message, severity, timestamp) VALUES (?, ?, ?, ?, datetime('now'))",
 		"recent", "test", "recent", "info")
 
 	deleted, err := trafficRepo.CleanupOldAlerts(ctx, 0)
@@ -718,7 +718,7 @@ func TestTrafficRepository_CreateSession_CloseSession(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "cs-peer", Name: "CS", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "cspk", PrivateKey: "cspv",
 		Address: "10.99.3.1", IsActive: true,
@@ -764,7 +764,7 @@ func TestTrafficRepository_GetActiveSession(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "ga-peer", Name: "GA", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "gapk", PrivateKey: "gapv",
 		Address: "10.99.4.1", IsActive: true,
@@ -794,7 +794,7 @@ func TestTrafficRepository_GetActiveSession(t *testing.T) {
 		t.Errorf("PeerID = %q, want ga-peer", active.PeerID)
 	}
 
-	trafficRepo.CloseSession(ctx, sid, 100, 50, 1)
+	_ = trafficRepo.CloseSession(ctx, sid, 100, 50, 1)
 
 	active, err = trafficRepo.GetActiveSession(ctx, "ga-peer")
 	if err != nil {
@@ -811,17 +811,17 @@ func TestTrafficRepository_ListSessions(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "ls-peer", Name: "LS", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "lspk", PrivateKey: "lspv",
 		Address: "10.99.5.1", IsActive: true,
 	})
 
 	sid1, _ := trafficRepo.CreateSession(ctx, "ls-peer")
-	trafficRepo.CloseSession(ctx, sid1, 100, 200, 2)
+	_ = trafficRepo.CloseSession(ctx, sid1, 100, 200, 2)
 
 	sid2, _ := trafficRepo.CreateSession(ctx, "ls-peer")
-	trafficRepo.CloseSession(ctx, sid2, 300, 400, 5)
+	_ = trafficRepo.CloseSession(ctx, sid2, 300, 400, 5)
 
 	sid3, _ := trafficRepo.CreateSession(ctx, "ls-peer")
 
@@ -851,12 +851,12 @@ func TestTrafficRepository_ListSessions_DefaultLimit(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "lsl-peer", Name: "LSL", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "lslpk", PrivateKey: "lslpv",
 		Address: "10.99.5.2", IsActive: true,
 	})
-	trafficRepo.CreateSession(ctx, "lsl-peer")
+	_, _ = trafficRepo.CreateSession(ctx, "lsl-peer")
 
 	sessions, err := trafficRepo.ListSessions(ctx, "lsl-peer", 0)
 	if err != nil {
@@ -873,20 +873,20 @@ func TestTrafficRepository_GetPeerTrafficSummary(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "pts-p1", Name: "PTS1", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "ptspk1", PrivateKey: "ptspv1",
 		Address: "10.99.6.1", IsActive: true,
 	})
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "pts-p2", Name: "PTS2", DeviceType: models.DeviceTypeAndroid,
 		PublicKey: "ptspk2", PrivateKey: "ptspv2",
 		Address: "10.99.6.2", IsActive: true,
 	})
 
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p1", Domain: "google.com", Action: "proxy", BytesRx: 1000, BytesTx: 500})
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p1", Domain: "vk.com", Action: "direct", BytesRx: 2000, BytesTx: 1000})
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p2", Domain: "youtube.com", Action: "proxy", BytesRx: 5000, BytesTx: 3000})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p1", Domain: "google.com", Action: "proxy", BytesRx: 1000, BytesTx: 500})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p1", Domain: "vk.com", Action: "direct", BytesRx: 2000, BytesTx: 1000})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p2", Domain: "youtube.com", Action: "proxy", BytesRx: 5000, BytesTx: 3000})
 
 	summaries, err := trafficRepo.GetPeerTrafficSummary(ctx)
 	if err != nil {
@@ -931,7 +931,7 @@ func TestTrafficRepository_GetPeerTrafficSummary_NoTraffic(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "empty-peer", Name: "Empty", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "empk", PrivateKey: "empv",
 		Address: "10.99.6.3", IsActive: true,
@@ -964,15 +964,15 @@ func TestTrafficRepository_GetTrafficAggregate(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "agg-p0", Name: "A0", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "aggpk0", PrivateKey: "aggpv0",
 		Address: "10.99.7.0", IsActive: true,
 	})
 
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p0", Domain: "google.com", Action: "proxy", BytesRx: 1000, BytesTx: 500})
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p0", Domain: "google.com", Action: "proxy", BytesRx: 2000, BytesTx: 1000})
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p0", Domain: "vk.com", Action: "direct", BytesRx: 500, BytesTx: 200})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p0", Domain: "google.com", Action: "proxy", BytesRx: 1000, BytesTx: 500})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p0", Domain: "google.com", Action: "proxy", BytesRx: 2000, BytesTx: 1000})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p0", Domain: "vk.com", Action: "direct", BytesRx: 500, BytesTx: 200})
 
 	items, err := trafficRepo.GetTrafficAggregate(ctx, "agg-p0", 10)
 	if err != nil {
@@ -1006,19 +1006,19 @@ func TestTrafficRepository_GetTrafficAggregate_ByPeer(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "agg-p1", Name: "A1", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "aggpk1", PrivateKey: "aggpv1",
 		Address: "10.99.7.1", IsActive: true,
 	})
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "agg-p2", Name: "A2", DeviceType: models.DeviceTypeAndroid,
 		PublicKey: "aggpk2", PrivateKey: "aggpv2",
 		Address: "10.99.7.2", IsActive: true,
 	})
 
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p1", Domain: "google.com", Action: "proxy", BytesRx: 100, BytesTx: 50})
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p2", Domain: "youtube.com", Action: "proxy", BytesRx: 999, BytesTx: 999})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p1", Domain: "google.com", Action: "proxy", BytesRx: 100, BytesTx: 50})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "agg-p2", Domain: "youtube.com", Action: "proxy", BytesRx: 999, BytesTx: 999})
 
 	items, err := trafficRepo.GetTrafficAggregate(ctx, "agg-p1", 10)
 	if err != nil {
@@ -1054,13 +1054,13 @@ func TestTrafficRepository_GetTrafficAggregate_FallbackToIP(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "fb-peer", Name: "FB", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "fbpk", PrivateKey: "fbpv",
 		Address: "10.99.7.3", IsActive: true,
 	})
 
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "fb-peer", Domain: "", DestIP: "1.2.3.4", Action: "direct", BytesRx: 100, BytesTx: 50})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "fb-peer", Domain: "", DestIP: "1.2.3.4", Action: "direct", BytesRx: 100, BytesTx: 50})
 
 	items, err := trafficRepo.GetTrafficAggregate(ctx, "fb-peer", 10)
 	if err != nil {
@@ -1080,14 +1080,14 @@ func TestTrafficRepository_DeleteByPeerID(t *testing.T) {
 	peerRepo := NewPeerRepository(db)
 	ctx := context.Background()
 
-	peerRepo.Create(ctx, &models.Peer{
+	_ = peerRepo.Create(ctx, &models.Peer{
 		ID: "del-peer", Name: "DP", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "dpk1", PrivateKey: "dpv1",
 		Address: "10.99.0.10", IsActive: true,
 	})
 
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "del-peer", Domain: "test.com", Action: "direct", BytesRx: 50, BytesTx: 30})
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "del-peer", Domain: "other.com", Action: "proxy", BytesRx: 70, BytesTx: 40})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "del-peer", Domain: "test.com", Action: "direct", BytesRx: 50, BytesTx: 30})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "del-peer", Domain: "other.com", Action: "proxy", BytesRx: 70, BytesTx: 40})
 
 	if err := trafficRepo.DeleteByPeerID(ctx, "del-peer"); err != nil {
 		t.Fatalf("DeleteByPeerID: %v", err)

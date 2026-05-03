@@ -133,7 +133,7 @@ func (h *PeerHandler) DownloadConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Content-Disposition", "attachment; filename="+peer.Name+".json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(config))
+	_, _ = w.Write([]byte(config))
 }
 
 func (h *PeerHandler) GetQRCode(w http.ResponseWriter, r *http.Request) {
@@ -169,7 +169,7 @@ func (h *PeerHandler) GetQRCode(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "image/png")
 	w.WriteHeader(http.StatusOK)
-	w.Write(png)
+	_, _ = w.Write(png)
 }
 
 func (h *PeerHandler) GetStats(w http.ResponseWriter, r *http.Request) {

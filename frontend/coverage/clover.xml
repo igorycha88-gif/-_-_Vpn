@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1777476639416" clover="3.2.0">
-  <project timestamp="1777476639416" name="All files">
-    <metrics statements="2544" coveredstatements="404" conditionals="126" coveredconditionals="101" methods="110" coveredmethods="64" elements="2780" coveredelements="569" complexity="0" loc="2544" ncloc="2544" packages="9" files="35" classes="35"/>
+<coverage generated="1777836043563" clover="3.2.0">
+  <project timestamp="1777836043563" name="All files">
+    <metrics statements="2545" coveredstatements="404" conditionals="126" coveredconditionals="101" methods="110" coveredmethods="64" elements="2781" coveredelements="569" complexity="0" loc="2545" ncloc="2545" packages="9" files="35" classes="35"/>
     <package name="frontend">
       <metrics statements="20" coveredstatements="0" conditionals="1" coveredconditionals="0" methods="1" coveredmethods="0"/>
       <file name="playwright.config.ts" path="/Users/igor/Сетевой_трафик_Vpn/frontend/playwright.config.ts">
@@ -125,7 +125,7 @@
       </file>
     </package>
     <package name="frontend.src.api">
-      <metrics statements="220" coveredstatements="96" conditionals="20" coveredconditionals="20" methods="39" coveredmethods="20"/>
+      <metrics statements="221" coveredstatements="96" conditionals="20" coveredconditionals="20" methods="39" coveredmethods="20"/>
       <file name="auth.ts" path="/Users/igor/Сетевой_трафик_Vpn/frontend/src/api/auth.ts">
         <metrics statements="19" coveredstatements="1" conditionals="0" coveredconditionals="0" methods="5" coveredmethods="0"/>
         <line num="1" count="1" type="stmt"/>
@@ -149,7 +149,7 @@
         <line num="25" count="0" type="stmt"/>
       </file>
       <file name="client.ts" path="/Users/igor/Сетевой_трафик_Vpn/frontend/src/api/client.ts">
-        <metrics statements="72" coveredstatements="15" conditionals="0" coveredconditionals="0" methods="2" coveredmethods="0"/>
+        <metrics statements="73" coveredstatements="15" conditionals="0" coveredconditionals="0" methods="2" coveredmethods="0"/>
         <line num="1" count="1" type="stmt"/>
         <line num="2" count="1" type="stmt"/>
         <line num="4" count="1" type="stmt"/>
@@ -189,9 +189,9 @@
         <line num="45" count="0" type="stmt"/>
         <line num="46" count="0" type="stmt"/>
         <line num="47" count="0" type="stmt"/>
-        <line num="49" count="0" type="stmt"/>
+        <line num="48" count="0" type="stmt"/>
         <line num="50" count="0" type="stmt"/>
-        <line num="52" count="0" type="stmt"/>
+        <line num="51" count="0" type="stmt"/>
         <line num="53" count="0" type="stmt"/>
         <line num="54" count="0" type="stmt"/>
         <line num="55" count="0" type="stmt"/>
@@ -199,7 +199,7 @@
         <line num="57" count="0" type="stmt"/>
         <line num="58" count="0" type="stmt"/>
         <line num="59" count="0" type="stmt"/>
-        <line num="61" count="0" type="stmt"/>
+        <line num="60" count="0" type="stmt"/>
         <line num="62" count="0" type="stmt"/>
         <line num="63" count="0" type="stmt"/>
         <line num="64" count="0" type="stmt"/>
@@ -218,10 +218,11 @@
         <line num="77" count="0" type="stmt"/>
         <line num="78" count="0" type="stmt"/>
         <line num="79" count="0" type="stmt"/>
-        <line num="81" count="0" type="stmt"/>
+        <line num="80" count="0" type="stmt"/>
         <line num="82" count="0" type="stmt"/>
-        <line num="83" count="1" type="stmt"/>
-        <line num="85" count="1" type="stmt"/>
+        <line num="83" count="0" type="stmt"/>
+        <line num="84" count="1" type="stmt"/>
+        <line num="86" count="1" type="stmt"/>
       </file>
       <file name="dns.ts" path="/Users/igor/Сетевой_трафик_Vpn/frontend/src/api/dns.ts">
         <metrics statements="13" coveredstatements="13" conditionals="3" coveredconditionals="3" methods="3" coveredmethods="3"/>
@@ -673,31 +674,31 @@
         <metrics statements="66" coveredstatements="37" conditionals="9" coveredconditionals="9" methods="9" coveredmethods="8"/>
         <line num="1" count="1" type="stmt"/>
         <line num="7" count="1" type="cond" truecount="1" falsecount="0"/>
-        <line num="8" count="9" type="stmt"/>
-        <line num="10" count="9" type="stmt"/>
-        <line num="11" count="9" type="cond" truecount="1" falsecount="0"/>
-        <line num="12" count="9" type="cond" truecount="1" falsecount="0"/>
+        <line num="8" count="8" type="stmt"/>
+        <line num="10" count="8" type="stmt"/>
+        <line num="11" count="8" type="cond" truecount="1" falsecount="0"/>
+        <line num="12" count="8" type="cond" truecount="1" falsecount="0"/>
         <line num="13" count="2" type="stmt"/>
         <line num="14" count="2" type="stmt"/>
         <line num="15" count="2" type="stmt"/>
-        <line num="16" count="9" type="stmt"/>
-        <line num="17" count="9" type="stmt"/>
+        <line num="16" count="8" type="stmt"/>
+        <line num="17" count="8" type="stmt"/>
         <line num="19" count="1" type="cond" truecount="1" falsecount="0"/>
-        <line num="20" count="3" type="stmt"/>
-        <line num="22" count="3" type="stmt"/>
-        <line num="23" count="3" type="cond" truecount="1" falsecount="0"/>
+        <line num="20" count="2" type="stmt"/>
+        <line num="22" count="2" type="stmt"/>
+        <line num="23" count="2" type="cond" truecount="1" falsecount="0"/>
         <line num="24" count="2" type="stmt"/>
         <line num="25" count="2" type="cond" truecount="1" falsecount="0"/>
         <line num="26" count="1" type="stmt"/>
         <line num="27" count="1" type="stmt"/>
         <line num="28" count="1" type="stmt"/>
         <line num="29" count="2" type="stmt"/>
-        <line num="30" count="3" type="cond" truecount="1" falsecount="0"/>
+        <line num="30" count="2" type="cond" truecount="1" falsecount="0"/>
         <line num="31" count="2" type="stmt"/>
         <line num="32" count="2" type="stmt"/>
         <line num="33" count="2" type="stmt"/>
-        <line num="34" count="3" type="stmt"/>
-        <line num="35" count="3" type="stmt"/>
+        <line num="34" count="2" type="stmt"/>
+        <line num="35" count="2" type="stmt"/>
         <line num="37" count="1" type="cond" truecount="1" falsecount="0"/>
         <line num="38" count="2" type="stmt"/>
         <line num="39" count="2" type="stmt"/>
