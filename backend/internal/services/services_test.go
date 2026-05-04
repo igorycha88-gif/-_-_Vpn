@@ -1486,6 +1486,7 @@ func TestTrafficService_GetAllPeerStats_WithPeer(t *testing.T) {
 	trafficRepo.Log(context.Background(), &models.TrafficLog{
 		PeerID: "sp1", Domain: "test.com", Action: "test", BytesRx: 500, BytesTx: 300,
 	})
+	_ = peerRepo.UpdateTraffic(context.Background(), "sp1", 500, 300)
 
 	summaries, err := svc.GetAllPeerStats(context.Background())
 	if err != nil {
@@ -2695,6 +2696,45 @@ func TestSingBoxStatsCollector_Start_Stop(t *testing.T) {
 	}()
 
 	<-done
+}
+
+func TestIsVLESSInbound_CaseInsensitive(t *testing.T) {
+	tests := []struct {
+		connType string
+		want     bool
+	}{
+		{"vless", true},
+		{"VLESS", true},
+		{"Vless", true},
+		{"VLESS-IN", true},
+		{"vless-in", true},
+		{"tcp", false},
+		{"", false},
+		{"http", false},
+	}
+	for _, tt := range tests {
+		got := isVLESSInbound(tt.connType)
+		if got != tt.want {
+			t.Errorf("isVLESSInbound(%q) = %v, want %v", tt.connType, got, tt.want)
+		}
+	}
+}
+
+func TestSingBoxStatsCollector_ComputeDeltas_VLESSUpperCaseType(t *testing.T) {
+	collector := &SingBoxStatsCollector{
+		connState: make(map[string]*connBytes),
+	}
+
+	connections := []clashConnection{
+		{ID: "conn1", Upload: 100, Download: 500, Metadata: clashMetadata{User: "", Type: "VLESS"}},
+	}
+
+	deltas := collector.computeDeltas(connections)
+
+	_, ok := deltas[aggregateVLESSKey]
+	if !ok {
+		t.Fatal("expected delta for aggregateVLESSKey when Type is uppercase VLESS")
+	}
 }
 
 func TestWGStatsCollector_runWG(t *testing.T) {

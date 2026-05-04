@@ -884,9 +884,11 @@ func TestTrafficRepository_GetPeerTrafficSummary(t *testing.T) {
 		Address: "10.99.6.2", IsActive: true,
 	})
 
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p1", Domain: "google.com", Action: "proxy", BytesRx: 1000, BytesTx: 500})
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p1", Domain: "vk.com", Action: "direct", BytesRx: 2000, BytesTx: 1000})
-	trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p2", Domain: "youtube.com", Action: "proxy", BytesRx: 5000, BytesTx: 3000})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p1", Domain: "google.com", Action: "proxy", BytesRx: 1000, BytesTx: 500})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p1", Domain: "vk.com", Action: "direct", BytesRx: 2000, BytesTx: 1000})
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "pts-p2", Domain: "youtube.com", Action: "proxy", BytesRx: 5000, BytesTx: 3000})
+	_ = peerRepo.UpdateTraffic(ctx, "pts-p1", 3000, 1500)
+	_ = peerRepo.UpdateTraffic(ctx, "pts-p2", 5000, 3000)
 
 	summaries, err := trafficRepo.GetPeerTrafficSummary(ctx)
 	if err != nil {
@@ -1141,6 +1143,85 @@ func TestAuthRepository_DeleteUserRefreshTokens(t *testing.T) {
 	}
 	if err3 != nil {
 		t.Errorf("expected other user token to exist: %v", err3)
+	}
+}
+
+func TestTrafficRepository_GetPeerTrafficSummary_UsesWgPeersTotals(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	_ = peerRepo.Create(ctx, &models.Peer{
+		ID: "wgts-p1", Name: "WGTS", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "wgtsk1", PrivateKey: "wgtsv1",
+		Address: "10.99.8.1", IsActive: true,
+	})
+
+	_ = peerRepo.UpdateTraffic(ctx, "wgts-p1", 9999, 8888)
+
+	summaries, err := trafficRepo.GetPeerTrafficSummary(ctx)
+	if err != nil {
+		t.Fatalf("GetPeerTrafficSummary: %v", err)
+	}
+	var found *models.PeerTrafficSummary
+	for _, s := range summaries {
+		if s.PeerID == "wgts-p1" {
+			found = s
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("expected to find wgts-p1 in summaries")
+	}
+	if found.TotalRx != 9999 {
+		t.Errorf("TotalRx = %d, want 9999 (from wg_peers)", found.TotalRx)
+	}
+	if found.TotalTx != 8888 {
+		t.Errorf("TotalTx = %d, want 8888 (from wg_peers)", found.TotalTx)
+	}
+}
+
+func TestTrafficRepository_GetPeerTrafficSummary_WgPeersOverTrafficLogs(t *testing.T) {
+	db := initTestDB(t)
+	trafficRepo := NewTrafficRepository(db)
+	peerRepo := NewPeerRepository(db)
+	ctx := context.Background()
+
+	_ = peerRepo.Create(ctx, &models.Peer{
+		ID: "wgot-p1", Name: "WGOT", DeviceType: models.DeviceTypeIPhone,
+		PublicKey: "wgotk1", PrivateKey: "wgotv1",
+		Address: "10.99.9.1", IsActive: true,
+	})
+
+	_ = peerRepo.UpdateTraffic(ctx, "wgot-p1", 5000, 3000)
+	_ = trafficRepo.Log(ctx, &models.TrafficLog{PeerID: "wgot-p1", Domain: "a.com", Action: "test", BytesRx: 100, BytesTx: 50})
+
+	summaries, err := trafficRepo.GetPeerTrafficSummary(ctx)
+	if err != nil {
+		t.Fatalf("GetPeerTrafficSummary: %v", err)
+	}
+	var found *models.PeerTrafficSummary
+	for _, s := range summaries {
+		if s.PeerID == "wgot-p1" {
+			found = s
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("expected to find wgot-p1")
+	}
+	if found.TotalRx != 5000 {
+		t.Errorf("TotalRx = %d, want 5000 (wg_peers value, not 100 from traffic_logs)", found.TotalRx)
+	}
+	if found.TotalTx != 3000 {
+		t.Errorf("TotalTx = %d, want 3000 (wg_peers value, not 50 from traffic_logs)", found.TotalTx)
+	}
+	if found.ConnCount != 1 {
+		t.Errorf("ConnCount = %d, want 1 (from traffic_logs)", found.ConnCount)
+	}
+	if found.TopDomain != "a.com" {
+		t.Errorf("TopDomain = %q, want a.com (from traffic_logs)", found.TopDomain)
 	}
 }
 
