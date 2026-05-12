@@ -375,6 +375,33 @@ func TestWireGuardService_GenerateClientConfig_iPhone_NoExcludePackage(t *testin
 	}
 }
 
+func TestWireGuardService_GenerateClientConfig_FinalIsDirectOut(t *testing.T) {
+	svc := NewWireGuardService(nil, nil, testVLESSConfig(), testLogger())
+
+	peer := &models.Peer{
+		PublicKey:  "test-uuid-final",
+		DeviceType: models.DeviceTypeIPhone,
+	}
+	config := svc.GenerateClientConfig(peer)
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(config), &parsed); err != nil {
+		t.Fatalf("config should be valid JSON: %v", err)
+	}
+
+	route, ok := parsed["route"].(map[string]any)
+	if !ok {
+		t.Fatal("config should have route object")
+	}
+	final, ok := route["final"].(string)
+	if !ok {
+		t.Fatal("route should have final string")
+	}
+	if final != "direct-out" {
+		t.Errorf("expected final to be 'direct-out', got '%s'", final)
+	}
+}
+
 func TestWireGuardService_GenerateClientConfig_DefaultFallback(t *testing.T) {
 	svc := NewWireGuardService(nil, nil, testVLESSConfig(), testLogger())
 
@@ -1486,6 +1513,7 @@ func TestTrafficService_GetAllPeerStats_WithPeer(t *testing.T) {
 	_ = trafficRepo.Log(context.Background(), &models.TrafficLog{
 		PeerID: "sp1", Domain: "test.com", Action: "test", BytesRx: 500, BytesTx: 300,
 	})
+	_ = peerRepo.UpdateTraffic(context.Background(), "sp1", 500, 300)
 
 	summaries, err := svc.GetAllPeerStats(context.Background())
 	if err != nil {
@@ -2713,6 +2741,45 @@ func TestSingBoxStatsCollector_Start_Stop(t *testing.T) {
 	}()
 
 	<-done
+}
+
+func TestIsVLESSInbound_CaseInsensitive(t *testing.T) {
+	tests := []struct {
+		connType string
+		want     bool
+	}{
+		{"vless", true},
+		{"VLESS", true},
+		{"Vless", true},
+		{"VLESS-IN", true},
+		{"vless-in", true},
+		{"tcp", false},
+		{"", false},
+		{"http", false},
+	}
+	for _, tt := range tests {
+		got := isVLESSInbound(tt.connType)
+		if got != tt.want {
+			t.Errorf("isVLESSInbound(%q) = %v, want %v", tt.connType, got, tt.want)
+		}
+	}
+}
+
+func TestSingBoxStatsCollector_ComputeDeltas_VLESSUpperCaseType(t *testing.T) {
+	collector := &SingBoxStatsCollector{
+		connState: make(map[string]*connBytes),
+	}
+
+	connections := []clashConnection{
+		{ID: "conn1", Upload: 100, Download: 500, Metadata: clashMetadata{User: "", Type: "VLESS"}},
+	}
+
+	deltas := collector.computeDeltas(connections)
+
+	_, ok := deltas[aggregateVLESSKey]
+	if !ok {
+		t.Fatal("expected delta for aggregateVLESSKey when Type is uppercase VLESS")
+	}
 }
 
 func TestWGStatsCollector_runWG(t *testing.T) {

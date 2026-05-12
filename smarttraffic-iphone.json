@@ -102,7 +102,7 @@
         "outbound": "proxy"
       }
     ],
-    "final": "proxy",
+    "final": "direct-out",
     "auto_detect_interface": true
   }
 }

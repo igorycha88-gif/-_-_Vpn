@@ -581,7 +581,7 @@ func (c *SingBoxStatsCollector) computeDeltas(connections []clashConnection) map
 }
 
 func isVLESSInbound(connType string) bool {
-	return strings.Contains(connType, "vless")
+	return strings.Contains(strings.ToLower(connType), "vless")
 }
 
 func (c *SingBoxStatsCollector) cleanupStaleConnections(connections []clashConnection) {
