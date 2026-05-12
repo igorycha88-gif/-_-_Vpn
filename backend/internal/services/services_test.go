@@ -375,6 +375,33 @@ func TestWireGuardService_GenerateClientConfig_iPhone_NoExcludePackage(t *testin
 	}
 }
 
+func TestWireGuardService_GenerateClientConfig_FinalIsDirectOut(t *testing.T) {
+	svc := NewWireGuardService(nil, nil, testVLESSConfig(), testLogger())
+
+	peer := &models.Peer{
+		PublicKey:  "test-uuid-final",
+		DeviceType: models.DeviceTypeIPhone,
+	}
+	config := svc.GenerateClientConfig(peer)
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(config), &parsed); err != nil {
+		t.Fatalf("config should be valid JSON: %v", err)
+	}
+
+	route, ok := parsed["route"].(map[string]any)
+	if !ok {
+		t.Fatal("config should have route object")
+	}
+	final, ok := route["final"].(string)
+	if !ok {
+		t.Fatal("route should have final string")
+	}
+	if final != "direct-out" {
+		t.Errorf("expected final to be 'direct-out', got '%s'", final)
+	}
+}
+
 func TestWireGuardService_GenerateClientConfig_DefaultFallback(t *testing.T) {
 	svc := NewWireGuardService(nil, nil, testVLESSConfig(), testLogger())
 

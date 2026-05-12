@@ -158,7 +158,7 @@ func (s *WireGuardService) buildClientConfigMap(peer *models.Peer) map[string]an
 		},
 		"route": map[string]any{
 			"rules":                 routeRules,
-			"final":                 "proxy",
+			"final":                 "direct-out",
 			"auto_detect_interface": true,
 		},
 	}
