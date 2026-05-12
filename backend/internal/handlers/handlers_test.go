@@ -45,7 +45,7 @@ func newTestDeps(t *testing.T) *testDeps {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	jwtCfg := &config.JWTConfig{Secret: "test-secret-key-at-least-32-chars!", AccessTTL: 15 * time.Minute, RefreshTTL: 168 * time.Hour}
@@ -106,17 +106,17 @@ func toJSON(v interface{}) string {
 
 func readBody(resp *http.Response) map[string]interface{} {
 	body, _ := io.ReadAll(resp.Body)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var result map[string]interface{}
-	json.Unmarshal(body, &result)
+	_ = json.Unmarshal(body, &result)
 	return result
 }
 
 func readBodySlice(resp *http.Response) []interface{} {
 	body, _ := io.ReadAll(resp.Body)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var result []interface{}
-	json.Unmarshal(body, &result)
+	_ = json.Unmarshal(body, &result)
 	return result
 }
 
@@ -392,7 +392,7 @@ func TestPeerHandler_Delete_WithActiveSession(t *testing.T) {
 		t.Fatalf("CreateSession: %v", err)
 	}
 
-	trafficRepo.Log(context.Background(), &models.TrafficLog{
+	_ = trafficRepo.Log(context.Background(), &models.TrafficLog{
 		PeerID: peer.ID, Domain: "youtube.com", Action: "proxy", BytesRx: 5000, BytesTx: 3000,
 	})
 
@@ -421,7 +421,7 @@ func TestPeerHandler_Delete_WithClosedSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
-	trafficRepo.CloseSession(context.Background(), sid, 1024, 2048, 5)
+	_ = trafficRepo.CloseSession(context.Background(), sid, 1024, 2048, 5)
 
 	req := d.authenticatedRequest(http.MethodDelete, "/api/v1/wg/peers/"+peer.ID, "")
 	req.SetPathValue("id", peer.ID)
@@ -948,7 +948,7 @@ func TestFullAPIWorkflow(t *testing.T) {
 	createResp := w.Result()
 	createBody, _ := io.ReadAll(createResp.Body)
 	var peerResp map[string]interface{}
-	json.Unmarshal(createBody, &peerResp)
+	_ = json.Unmarshal(createBody, &peerResp)
 
 	if createResp.StatusCode != http.StatusCreated {
 		t.Fatalf("Create peer: %d", createResp.StatusCode)
@@ -996,9 +996,9 @@ func TestMonitoringHandler_TrafficAggregate_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
-	trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "google.com", Action: "proxy", BytesRx: 1000, BytesTx: 500})
-	trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "google.com", Action: "proxy", BytesRx: 2000, BytesTx: 1000})
-	trafficRepo.CloseSession(context.Background(), sid, 3000, 1500, 2)
+	_ = trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "google.com", Action: "proxy", BytesRx: 1000, BytesTx: 500})
+	_ = trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "google.com", Action: "proxy", BytesRx: 2000, BytesTx: 1000})
+	_ = trafficRepo.CloseSession(context.Background(), sid, 3000, 1500, 2)
 
 	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/traffic-aggregate?peer_id="+peer.ID, "")
 	w := httptest.NewRecorder()
@@ -1008,9 +1008,9 @@ func TestMonitoringHandler_TrafficAggregate_Success(t *testing.T) {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	var items []interface{}
-	json.Unmarshal(body, &items)
+	_ = json.Unmarshal(body, &items)
 	if len(items) == 0 {
 		t.Error("expected aggregate items, got empty")
 	}
@@ -1031,8 +1031,8 @@ func TestMonitoringHandler_Logs_Success(t *testing.T) {
 	d := newTestDeps(t)
 	peer, _ := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "LogPeer", DeviceType: models.DeviceTypeIPhone})
 	trafficRepo := repository.NewTrafficRepository(d.db)
-	trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "example.com", Action: "direct", BytesRx: 500, BytesTx: 200})
-	trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "youtube.com", Action: "proxy", BytesRx: 8000, BytesTx: 3000})
+	_ = trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "example.com", Action: "direct", BytesRx: 500, BytesTx: 200})
+	_ = trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "youtube.com", Action: "proxy", BytesRx: 8000, BytesTx: 3000})
 
 	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/logs?peer_id="+peer.ID, "")
 	w := httptest.NewRecorder()
@@ -1042,9 +1042,9 @@ func TestMonitoringHandler_Logs_Success(t *testing.T) {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	var logs []interface{}
-	json.Unmarshal(body, &logs)
+	_ = json.Unmarshal(body, &logs)
 	if len(logs) != 2 {
 		t.Errorf("expected 2 log entries, got %d", len(logs))
 	}
@@ -1060,9 +1060,9 @@ func TestMonitoringHandler_Logs_Empty(t *testing.T) {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	var logs []interface{}
-	json.Unmarshal(body, &logs)
+	_ = json.Unmarshal(body, &logs)
 	if len(logs) == 0 {
 		t.Error("expected seed log entries, got 0")
 	}
@@ -1076,7 +1076,7 @@ func TestMonitoringHandler_PeerSessions_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
-	trafficRepo.CloseSession(context.Background(), sid, 4096, 2048, 10)
+	_ = trafficRepo.CloseSession(context.Background(), sid, 4096, 2048, 10)
 
 	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/peer/"+peer.ID+"/sessions?limit=10", "")
 	req.SetPathValue("id", peer.ID)
@@ -1087,9 +1087,9 @@ func TestMonitoringHandler_PeerSessions_Success(t *testing.T) {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	var sessions []interface{}
-	json.Unmarshal(body, &sessions)
+	_ = json.Unmarshal(body, &sessions)
 	if len(sessions) == 0 {
 		t.Error("expected at least 1 session, got 0")
 	}
@@ -1111,7 +1111,7 @@ func TestMonitoringHandler_PeerSessions_CustomLimit(t *testing.T) {
 	peer, _ := d.wgSvc.CreatePeer(context.Background(), &models.PeerCreateRequest{Name: "LimPeer", DeviceType: models.DeviceTypeIPhone})
 	trafficRepo := repository.NewTrafficRepository(d.db)
 	sid, _ := trafficRepo.CreateSession(context.Background(), peer.ID)
-	trafficRepo.CloseSession(context.Background(), sid, 100, 200, 1)
+	_ = trafficRepo.CloseSession(context.Background(), sid, 100, 200, 1)
 
 	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/peer/"+peer.ID+"/sessions?limit=1", "")
 	req.SetPathValue("id", peer.ID)
@@ -1127,7 +1127,7 @@ func TestMonitoringHandler_DeleteAlert_Success(t *testing.T) {
 	d := newTestDeps(t)
 	trafficRepo := repository.NewTrafficRepository(d.db)
 	alert := &models.Alert{ID: "alert-1", Type: "traffic", Message: "test alert", Severity: "warning"}
-	trafficRepo.InsertAlert(context.Background(), alert)
+	_ = trafficRepo.InsertAlert(context.Background(), alert)
 
 	req := d.authenticatedRequest(http.MethodDelete, "/api/v1/monitoring/alerts/alert-1", "")
 	req.SetPathValue("id", "alert-1")
@@ -1157,8 +1157,8 @@ func TestMonitoringHandler_DeleteAlert_MissingID(t *testing.T) {
 func TestMonitoringHandler_ClearAlerts_Success(t *testing.T) {
 	d := newTestDeps(t)
 	trafficRepo := repository.NewTrafficRepository(d.db)
-	trafficRepo.InsertAlert(context.Background(), &models.Alert{ID: "a1", Type: "traffic", Message: "alert 1", Severity: "warning"})
-	trafficRepo.InsertAlert(context.Background(), &models.Alert{ID: "a2", Type: "security", Message: "alert 2", Severity: "critical"})
+	_ = trafficRepo.InsertAlert(context.Background(), &models.Alert{ID: "a1", Type: "traffic", Message: "alert 1", Severity: "warning"})
+	_ = trafficRepo.InsertAlert(context.Background(), &models.Alert{ID: "a2", Type: "security", Message: "alert 2", Severity: "critical"})
 
 	req := d.authenticatedRequest(http.MethodDelete, "/api/v1/monitoring/alerts/clear", "")
 	w := httptest.NewRecorder()
@@ -1176,9 +1176,9 @@ func TestMonitoringHandler_ClearAlerts_Success(t *testing.T) {
 	w2 := httptest.NewRecorder()
 	d.monitoringHandler.Alerts(w2, alertsReq)
 	body, _ := io.ReadAll(w2.Result().Body)
-	w2.Result().Body.Close()
+	_ = w2.Result().Body.Close()
 	var alerts []interface{}
-	json.Unmarshal(body, &alerts)
+	_ = json.Unmarshal(body, &alerts)
 	if len(alerts) != 0 {
 		t.Errorf("expected 0 alerts after clear, got %d", len(alerts))
 	}
@@ -1292,8 +1292,8 @@ func TestMonitoringHandler_PeersStats_FullResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
-	trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "youtube.com", Action: "proxy", BytesRx: 5000, BytesTx: 3000})
-	trafficRepo.CloseSession(context.Background(), sid, 5000, 3000, 1)
+	_ = trafficRepo.Log(context.Background(), &models.TrafficLog{PeerID: peer.ID, Domain: "youtube.com", Action: "proxy", BytesRx: 5000, BytesTx: 3000})
+	_ = trafficRepo.CloseSession(context.Background(), sid, 5000, 3000, 1)
 
 	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/peers-stats", "")
 	w := httptest.NewRecorder()
@@ -1303,9 +1303,9 @@ func TestMonitoringHandler_PeersStats_FullResponse(t *testing.T) {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	var summaries []interface{}
-	json.Unmarshal(body, &summaries)
+	_ = json.Unmarshal(body, &summaries)
 	if len(summaries) == 0 {
 		t.Error("expected at least 1 peer summary, got 0")
 	}
@@ -1314,8 +1314,8 @@ func TestMonitoringHandler_PeersStats_FullResponse(t *testing.T) {
 func TestMonitoringHandler_Alerts_FullResponse(t *testing.T) {
 	d := newTestDeps(t)
 	trafficRepo := repository.NewTrafficRepository(d.db)
-	trafficRepo.InsertAlert(context.Background(), &models.Alert{ID: "alert-full-1", Type: "traffic", Message: "high traffic detected", Severity: "warning"})
-	trafficRepo.InsertAlert(context.Background(), &models.Alert{ID: "alert-full-2", Type: "security", Message: "suspicious activity", Severity: "critical"})
+	_ = trafficRepo.InsertAlert(context.Background(), &models.Alert{ID: "alert-full-1", Type: "traffic", Message: "high traffic detected", Severity: "warning"})
+	_ = trafficRepo.InsertAlert(context.Background(), &models.Alert{ID: "alert-full-2", Type: "security", Message: "suspicious activity", Severity: "critical"})
 
 	req := d.authenticatedRequest(http.MethodGet, "/api/v1/monitoring/alerts", "")
 	w := httptest.NewRecorder()
@@ -1325,9 +1325,9 @@ func TestMonitoringHandler_Alerts_FullResponse(t *testing.T) {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	var alerts []interface{}
-	json.Unmarshal(body, &alerts)
+	_ = json.Unmarshal(body, &alerts)
 	if len(alerts) < 2 {
 		t.Errorf("expected at least 2 alerts, got %d", len(alerts))
 	}
@@ -1410,7 +1410,7 @@ func TestMonitoringHandler_ClearAlerts_Error(t *testing.T) {
 func TestMonitoringHandler_PeersStats_WithRTProvider(t *testing.T) {
 	deps := newTestDeps(t)
 	peerRepo := repository.NewPeerRepository(deps.db)
-	peerRepo.Create(context.Background(), &models.Peer{
+	_ = peerRepo.Create(context.Background(), &models.Peer{
 		ID: "rt-p1", Name: "RT Peer", DeviceType: models.DeviceTypeIPhone,
 		PublicKey: "uuid-rt-p1", PrivateKey: "pk", Address: "addr1",
 		DNS: "1.1.1.1", MTU: 1280, IsActive: true,

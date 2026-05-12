@@ -23,7 +23,7 @@ func newTestAuthSvc(t *testing.T) *services.AuthService {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	return services.NewAuthService(
 		repository.NewAuthRepository(db),
 		&config.JWTConfig{Secret: "test-secret-key-at-least-32-chars!", AccessTTL: 15 * time.Minute, RefreshTTL: 168 * time.Hour},
@@ -143,7 +143,7 @@ func TestAuthMiddleware_MalformedAuthHeader(t *testing.T) {
 
 func TestAuthMiddleware_ExpiredToken(t *testing.T) {
 	db, _ := repository.InitDB(":memory:", migrations.Files)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	authSvc := services.NewAuthService(
 		repository.NewAuthRepository(db),
 		&config.JWTConfig{Secret: "test-secret-key-at-least-32-chars!", AccessTTL: 1 * time.Nanosecond, RefreshTTL: 168 * time.Hour},

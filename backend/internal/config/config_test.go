@@ -236,7 +236,7 @@ func TestGetEnv_SetValue(t *testing.T) {
 
 func TestGetEnv_EmptyValueUsesFallback(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("TEST_EMPTY_KEY", "")
+	_ = os.Setenv("TEST_EMPTY_KEY", "")
 	result := getEnv("TEST_EMPTY_KEY", "fallback")
 	if result != "fallback" {
 		t.Errorf("getEnv with empty value = %q, want fallback", result)
@@ -269,7 +269,7 @@ func TestGetEnvInt_InvalidInteger(t *testing.T) {
 
 func TestGetEnvInt_EmptyValue(t *testing.T) {
 	os.Clearenv()
-	os.Setenv("TEST_INT_EMPTY", "")
+	_ = os.Setenv("TEST_INT_EMPTY", "")
 	result := getEnvInt("TEST_INT_EMPTY", 77)
 	if result != 77 {
 		t.Errorf("getEnvInt with empty value = %d, want 77", result)

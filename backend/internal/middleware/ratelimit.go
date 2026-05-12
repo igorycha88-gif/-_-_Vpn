@@ -52,7 +52,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 			rl.mu.Unlock()
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
-			w.Write([]byte(`{"error":"слишком много запросов"}`))
+			_, _ = w.Write([]byte(`{"error":"слишком много запросов"}`))
 			return
 		}
 
