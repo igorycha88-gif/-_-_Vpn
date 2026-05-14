@@ -108,7 +108,10 @@ func (h *MonitoringHandler) Stats(w http.ResponseWriter, r *http.Request) {
 
 	if h.rtProvider != nil {
 		rtStats := h.rtProvider.GetRealtimeStats()
-		stats.OnlinePeers = len(rtStats)
+		rtOnline := len(rtStats)
+		if rtOnline > 0 {
+			stats.OnlinePeers = rtOnline
+		}
 	}
 
 	h.logger.Debug("monitoring stats", "online", stats.OnlinePeers, "total", stats.TotalPeers, "rx", stats.TotalRx, "tx", stats.TotalTx)
@@ -164,6 +167,7 @@ func (h *MonitoringHandler) PeersStats(w http.ResponseWriter, r *http.Request) {
 
 	if h.rtProvider != nil {
 		rtStats := h.rtProvider.GetRealtimeStats()
+		rtHasData := len(rtStats) > 0
 		for _, s := range summaries {
 			if rt, ok := rtStats[s.PeerID]; ok {
 				s.Online = true
@@ -173,7 +177,7 @@ func (h *MonitoringHandler) PeersStats(w http.ResponseWriter, r *http.Request) {
 				s.ConnectedAt = rt.ConnectedAt
 				s.SessionRx = rt.SessionRx
 				s.SessionTx = rt.SessionTx
-			} else {
+			} else if rtHasData {
 				s.Online = false
 			}
 		}
@@ -230,4 +234,20 @@ func (h *MonitoringHandler) ClearAlerts(w http.ResponseWriter, r *http.Request) 
 	}
 
 	JSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *MonitoringHandler) MonitoringStatus(w http.ResponseWriter, r *http.Request) {
+	status := map[string]interface{}{
+		"clash_api_reachable": false,
+		"realtime_available":  false,
+	}
+
+	if h.rtProvider != nil {
+		rtStats := h.rtProvider.GetRealtimeStats()
+		status["clash_api_reachable"] = h.rtProvider.IsAPIReachable()
+		status["realtime_available"] = len(rtStats) > 0
+		status["online_peers"] = len(rtStats)
+	}
+
+	JSON(w, http.StatusOK, status)
 }

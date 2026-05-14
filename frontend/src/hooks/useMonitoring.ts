@@ -82,3 +82,11 @@ export function usePeerSessions(peerId: string | undefined) {
     refetchInterval: 30000,
   })
 }
+
+export function useMonitoringStatus() {
+  return useQuery({
+    queryKey: ['monitoring', 'status'],
+    queryFn: () => monitoringApi.getMonitoringStatus(),
+    refetchInterval: 30000,
+  })
+}

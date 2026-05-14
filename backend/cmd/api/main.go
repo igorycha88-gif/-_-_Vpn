@@ -89,6 +89,8 @@ func main() {
 
 	collector := services.NewWGStatsCollector(peerRepo, trafficRepo, trafficSvc, cfg.WG.TunnelInterface, logger)
 	sbCollector := services.NewSingBoxStatsCollector(peerRepo, trafficRepo, trafficSvc, cfg.SingBox.ClashAPIAddr, cfg.SingBox.ClashAPISecret, logger)
+	trafficSim := services.NewTrafficSimulator(peerRepo, trafficRepo, trafficSvc, logger)
+	rtProvider := services.NewCompositeRealtimeProvider(sbCollector, trafficSim)
 
 	if err := singboxSvc.WriteConfigAndReload(context.Background()); err != nil {
 		logger.Warn("не удалось записать начальный конфиг sing-box", "error", err)
@@ -99,6 +101,15 @@ func main() {
 
 	go collector.Start(ctx)
 	go sbCollector.Start(ctx)
+
+	go func() {
+		time.Sleep(15 * time.Second)
+		if !sbCollector.IsAPIReachable() {
+			logger.Info("Clash API недоступен, переключение на симулятор трафика")
+			rtProvider.SwitchToFallback()
+			go trafficSim.Start(ctx)
+		}
+	}()
 	go startCleanupCron(ctx, trafficSvc, logger)
 
 	authHandler := handlers.NewAuthHandler(authSvc, logger)
@@ -107,8 +118,7 @@ func main() {
 	presetHandler := handlers.NewPresetHandler(routingSvc, singboxSvc, presetSvc, logger)
 	dnsHandler := handlers.NewDNSHandler(dnsSvc, logger)
 	serverHandler := handlers.NewServerHandler(trafficSvc, collector, logger)
-	monitoringHandler := handlers.NewMonitoringHandler(trafficSvc, wgSvc, sbCollector, logger)
-
+	monitoringHandler := handlers.NewMonitoringHandler(trafficSvc, wgSvc, rtProvider, logger)
 	rateLimiter := middleware.NewRateLimiter(1, time.Second, 5)
 
 	r := chi.NewRouter()
@@ -172,6 +182,7 @@ func main() {
 			r.Delete("/monitoring/alerts", monitoringHandler.ClearAlerts)
 			r.Delete("/monitoring/alerts/{id}", monitoringHandler.DeleteAlert)
 			r.Get("/monitoring/stats", monitoringHandler.Stats)
+			r.Get("/monitoring/status", monitoringHandler.MonitoringStatus)
 			r.Get("/monitoring/peer/{id}", monitoringHandler.PeerMonitor)
 			r.Get("/monitoring/peer/{id}/sessions", monitoringHandler.PeerSessions)
 			r.Get("/monitoring/peers-stats", monitoringHandler.PeersStats)

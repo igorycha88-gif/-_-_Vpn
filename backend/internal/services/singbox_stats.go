@@ -20,6 +20,7 @@ const aggregateVLESSKey = "__aggregate_vless__"
 
 type RealtimeStatsProvider interface {
 	GetRealtimeStats() map[string]*models.PeerRealtimeStats
+	IsAPIReachable() bool
 }
 
 type SingBoxStatsCollector struct {
@@ -129,6 +130,12 @@ func (c *SingBoxStatsCollector) GetRealtimeStats() map[string]*models.PeerRealti
 		result[k] = &cp
 	}
 	return result
+}
+
+func (c *SingBoxStatsCollector) IsAPIReachable() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.apiReachable
 }
 
 func (c *SingBoxStatsCollector) addAlert(ctx context.Context, alert *models.Alert) {
