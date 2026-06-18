@@ -5,7 +5,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM nginx:alpine
+FROM nginx:1.27-alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY <<'EOF' /etc/nginx/conf.d/default.conf
 server {
@@ -15,6 +15,9 @@ server {
     index index.html;
 
     resolver 127.0.0.11 valid=30s;
+
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
 
     location ~ ^/admin/(.*) {
         try_files /$1 /$1/ /index.html;

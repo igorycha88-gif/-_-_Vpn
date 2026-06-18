@@ -19,8 +19,7 @@
           "ya.ru", "mail.ru", "rambler.ru",
           "gosuslugi.ru", "sberbank.ru", "tinkoff.ru",
           "ozon.ru", "wildberries.ru", "avito.ru", "avito.st", "avito.com",
-          "habr.com", "kaspersky.com",
-          "max.ru", "maxpatrol.ru", "positive-technologies.ru"
+          "habr.com", "kaspersky.com"
         ],
         "server": "dns-ru"
       },
@@ -46,9 +45,9 @@
     {
       "type": "vless",
       "tag": "proxy",
-      "server": "130.49.129.241",
+      "server": "SERVER_IP",
       "server_port": 8443,
-      "uuid": "d187e6de-86d3-40fd-8685-e870a88286fa",
+      "uuid": "CLIENT_UUID",
       "flow": "xtls-rprx-vision",
       "tls": {
         "enabled": true,
@@ -56,8 +55,8 @@
         "utls": {"enabled": true, "fingerprint": "chrome"},
         "reality": {
           "enabled": true,
-          "public_key": "npwx-mboFds68oyFs6pTY8A5IL17VXjOWDMdXqWvvmg",
-          "short_id": "bb8329663411919b"
+          "public_key": "REALITY_PUBLIC_KEY",
+          "short_id": "REALITY_SHORT_ID"
         }
       }
     },
@@ -67,7 +66,7 @@
     "rules": [
       {"inbound": ["tun-in"], "action": "sniff"},
       {"protocol": "dns", "inbound": ["tun-in"], "action": "hijack-dns"},
-      {"ip_cidr": ["130.49.129.241/32"], "outbound": "direct-out"},
+      {"ip_cidr": ["SERVER_IP/32"], "outbound": "direct-out"},
       {"ip_is_private": true, "outbound": "direct-out"},
       {
         "domain_suffix": [".ru", ".su", ".xn--p1ai"],
@@ -80,8 +79,7 @@
           "ya.ru", "mail.ru", "rambler.ru",
           "gosuslugi.ru", "sberbank.ru", "tinkoff.ru",
           "ozon.ru", "wildberries.ru", "avito.ru", "avito.st", "avito.com",
-          "habr.com", "kaspersky.com",
-          "max.ru", "maxpatrol.ru", "positive-technologies.ru"
+          "habr.com", "kaspersky.com"
         ],
         "outbound": "direct-out"
       },
@@ -92,12 +90,11 @@
           "facebook.com", "fbcdn.net", "meta.com",
           "telegram.org", "t.me",
           "twitter.com", "x.com", "twimg.com",
-          "discord.com", "discordapp.com", "discord.gg",
-          "chatgpt.com", "openai.com", "ai.com",
+          "discord.com", "discordapp.com",
+          "chatgpt.com", "openai.com",
           "google.com", "googleapis.com", "gstatic.com",
           "github.com", "githubusercontent.com",
-          "netflix.com", "nflxvideo.net", "nflximg.net",
-          "tiktok.com", "tiktokcdn.com"
+          "netflix.com", "tiktok.com"
         ],
         "outbound": "proxy"
       }

@@ -1,0 +1,15 @@
+*.out
+*.test
+*.exe
+*.dll
+*.so
+*.dylib
+.git/
+.gitignore
+.idea/
+.vscode/
+cov.out
+coverage.out
+.golangci.yml
+Dockerfile
+.dockerignore

@@ -7,11 +7,12 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /bin/api ./cmd/api
 
-FROM alpine:3.19
+FROM alpine:3.20
 
 RUN apk --no-cache add ca-certificates tzdata wireguard-tools docker-cli
+
 COPY --from=builder /bin/api /bin/api
 
 EXPOSE 8080
