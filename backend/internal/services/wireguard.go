@@ -187,9 +187,10 @@ func (s *WireGuardService) buildTunConfigMap(peer *models.Peer) map[string]any {
 			map[string]any{"type": "direct", "tag": "direct-out"},
 		},
 		"route": map[string]any{
-			"rules":                 routeRules,
-			"final":                 "direct-out",
-			"auto_detect_interface": true,
+			"rules":                   routeRules,
+			"final":                   "direct-out",
+			"auto_detect_interface":   true,
+			"default_domain_resolver": "dns-foreign",
 		},
 	}
 }
@@ -245,14 +246,18 @@ func (s *WireGuardService) buildPackageNameRules() []any {
 	}
 }
 
+func (s *WireGuardService) buildClientDNSServers() []any {
+	return []any{
+		map[string]any{"type": "udp", "tag": "dns-foreign", "server": "1.1.1.1", "detour": "proxy"},
+		map[string]any{"type": "udp", "tag": "dns-foreign-alt", "server": "8.8.8.8", "detour": "proxy"},
+		map[string]any{"type": "udp", "tag": "dns-ru", "server": "77.88.8.8", "detour": "direct-out"},
+		map[string]any{"type": "udp", "tag": "dns-ru-alt", "server": "77.88.8.1", "detour": "direct-out"},
+	}
+}
+
 func (s *WireGuardService) buildClientDNSConfig() map[string]any {
 	return map[string]any{
-		"servers": []any{
-			map[string]any{"tag": "dns-foreign", "address": "1.1.1.1", "detour": "proxy"},
-			map[string]any{"tag": "dns-foreign-alt", "address": "8.8.8.8", "detour": "proxy"},
-			map[string]any{"tag": "dns-ru", "address": "77.88.8.8", "detour": "direct-out"},
-			map[string]any{"tag": "dns-ru-alt", "address": "77.88.8.1", "detour": "direct-out"},
-		},
+		"servers": s.buildClientDNSServers(),
 		"rules": []any{
 			map[string]any{"domain_suffix": ruDomainSuffixes, "server": "dns-ru"},
 			map[string]any{"domain_suffix": ruDirectDomains, "server": "dns-ru"},
@@ -281,9 +286,10 @@ func (s *WireGuardService) buildProxyConfigMap(peer *models.Peer) map[string]any
 			map[string]any{"type": "direct", "tag": "direct-out"},
 		},
 		"route": map[string]any{
-			"rules":                 rules,
-			"final":                 "proxy",
-			"auto_detect_interface": true,
+			"rules":                   rules,
+			"final":                   "proxy",
+			"auto_detect_interface":   true,
+			"default_domain_resolver": "dns-foreign",
 		},
 	}
 }
@@ -299,12 +305,7 @@ func (s *WireGuardService) buildMixedInbound() map[string]any {
 
 func (s *WireGuardService) buildProxyDNSConfig() map[string]any {
 	return map[string]any{
-		"servers": []any{
-			map[string]any{"tag": "dns-foreign", "address": "1.1.1.1", "detour": "proxy"},
-			map[string]any{"tag": "dns-foreign-alt", "address": "8.8.8.8", "detour": "proxy"},
-			map[string]any{"tag": "dns-ru", "address": "77.88.8.8", "detour": "direct-out"},
-			map[string]any{"tag": "dns-ru-alt", "address": "77.88.8.1", "detour": "direct-out"},
-		},
+		"servers": s.buildClientDNSServers(),
 		"rules": []any{
 			map[string]any{"domain_suffix": ruDomainSuffixes, "server": "dns-ru"},
 			map[string]any{"domain_suffix": ruDirectDomains, "server": "dns-ru"},

@@ -184,7 +184,7 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*singBoxConfig, er
 			"type":        "vless",
 			"tag":         "foreign-out",
 			"server":      s.srvConfig.ForeignIP,
-			"server_port": 443,
+			"server_port": s.srvConfig.ForeignVLESS.Port,
 			"uuid":        s.srvConfig.ForeignVLESS.UUID,
 			"flow":        "xtls-rprx-vision",
 			"tls": map[string]any{
