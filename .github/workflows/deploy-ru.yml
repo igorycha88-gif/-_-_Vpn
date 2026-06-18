@@ -212,6 +212,21 @@ jobs:
           echo "${PRODUCTION_ENV}" | $SSH "cat > ${RU_PATH}/.env"
           echo "${PRODUCTION_ENV}" | $SSH "cat > ${RU_PATH}/deploy/server-ru/.env"
 
+      - name: Apply FOREIGN_VLESS overrides
+        env:
+          RU_HOST: ${{ secrets.RU_SERVER_HOST }}
+          RU_USER: ${{ secrets.RU_SERVER_USER }}
+          RU_PATH: ${{ secrets.RU_SERVER_PATH }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=15 ${RU_USER}@${RU_HOST}"
+          $SSH "for F in ${RU_PATH}/.env ${RU_PATH}/deploy/server-ru/.env; do \
+            sed -i 's#^FOREIGN_VLESS_UUID=.*#FOREIGN_VLESS_UUID=${{ secrets.FOREIGN_VLESS_UUID }}#' \$F; \
+            sed -i 's#^FOREIGN_VLESS_REALITY_PUBLIC_KEY=.*#FOREIGN_VLESS_REALITY_PUBLIC_KEY=${{ secrets.FOREIGN_VLESS_REALITY_PUBLIC_KEY }}#' \$F; \
+            sed -i 's#^FOREIGN_VLESS_REALITY_SHORT_ID=.*#FOREIGN_VLESS_REALITY_SHORT_ID=${{ secrets.FOREIGN_VLESS_REALITY_SHORT_ID }}#' \$F; \
+            (grep -q '^FOREIGN_VLESS_PORT=' \$F && sed -i 's#^FOREIGN_VLESS_PORT=.*#FOREIGN_VLESS_PORT=${{ secrets.FOREIGN_VLESS_PORT }}#' \$F || echo FOREIGN_VLESS_PORT=${{ secrets.FOREIGN_VLESS_PORT }} >> \$F); \
+          done"
+          echo "FOREIGN_VLESS overrides applied"
+
       - name: Login server to GHCR
         timeout-minutes: 3
         env:
