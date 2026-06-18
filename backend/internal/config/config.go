@@ -8,14 +8,15 @@ import (
 )
 
 type Config struct {
-	App     AppConfig
-	DB      DBConfig
-	JWT     JWTConfig
-	WG      WGConfig
-	VLESS   VLESSConfig
-	Server  ServerConfig
-	SingBox SingBoxConfig
-	CORS    CORSConfig
+	App        AppConfig
+	DB         DBConfig
+	JWT        JWTConfig
+	WG         WGConfig
+	VLESS      VLESSConfig
+	Hysteria2  Hysteria2Config
+	Server     ServerConfig
+	SingBox    SingBoxConfig
+	CORS       CORSConfig
 }
 
 type AppConfig struct {
@@ -56,6 +57,14 @@ type ForeignVLESSConfig struct {
 	RealityShortID   string
 	ServerName       string
 	Port             int
+}
+
+type Hysteria2Config struct {
+	Enabled    bool
+	Server     string
+	Port       int
+	Password   string
+	ServerName string
 }
 
 type ServerConfig struct {
@@ -111,6 +120,12 @@ func Load() (*Config, error) {
 	cfg.VLESS.Fingerprint = getEnv("VLESS_FINGERPRINT", "chrome")
 	cfg.VLESS.ServerEndpoint = getEnv("VLESS_SERVER_ENDPOINT", "")
 
+	cfg.Hysteria2.Enabled = getEnvBool("HY2_ENABLED", false)
+	cfg.Hysteria2.Server = getEnv("HY2_SERVER", cfg.VLESS.ServerEndpoint)
+	cfg.Hysteria2.Port = getEnvInt("HY2_PORT", 8444)
+	cfg.Hysteria2.Password = getEnv("HY2_PASSWORD", "")
+	cfg.Hysteria2.ServerName = getEnv("HY2_SERVER_NAME", "www.bing.com")
+
 	cfg.Server.ForeignIP = getEnv("FOREIGN_SERVER_IP", "")
 
 	cfg.Server.ForeignVLESS.UUID = getEnv("FOREIGN_VLESS_UUID", "")
@@ -140,6 +155,16 @@ func getEnvInt(key string, fallback int) int {
 		i, err := strconv.Atoi(v)
 		if err == nil {
 			return i
+		}
+	}
+	return fallback
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	if v := os.Getenv(key); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err == nil {
+			return b
 		}
 	}
 	return fallback

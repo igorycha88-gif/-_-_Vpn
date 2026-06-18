@@ -330,6 +330,20 @@ func TestWireGuardService_GenerateClientConfig_Android(t *testing.T) {
 	if !contains(config, `"stack": "gvisor"`) {
 		t.Error("Android config should use stack gvisor")
 	}
+	if !contains(config, `"mtu": 1280`) {
+		t.Error("Android config should set tun mtu 1280 for mobile stability")
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(config), &parsed); err != nil {
+		t.Fatalf("config should be valid JSON: %v", err)
+	}
+	route, ok := parsed["route"].(map[string]any)
+	if !ok {
+		t.Fatal("config should have route object")
+	}
+	if route["final"] != "proxy" {
+		t.Errorf("Android route.final = %v, want proxy", route["final"])
+	}
 	if !contains(config, "youtube.com") {
 		t.Error("Android config should contain youtube.com in proxy rules")
 	}
@@ -375,7 +389,7 @@ func TestWireGuardService_GenerateClientConfig_iPhone_NoExcludePackage(t *testin
 	}
 }
 
-func TestWireGuardService_GenerateClientConfig_FinalIsDirectOut(t *testing.T) {
+func TestWireGuardService_GenerateClientConfig_FinalIsProxy(t *testing.T) {
 	svc := NewWireGuardService(nil, nil, testVLESSConfig(), testLogger())
 
 	peer := &models.Peer{
@@ -397,8 +411,115 @@ func TestWireGuardService_GenerateClientConfig_FinalIsDirectOut(t *testing.T) {
 	if !ok {
 		t.Fatal("route should have final string")
 	}
-	if final != "direct-out" {
-		t.Errorf("expected final to be 'direct-out', got '%s'", final)
+	if final != "proxy" {
+		t.Errorf("expected final to be 'proxy', got '%s'", final)
+	}
+}
+
+func testHysteria2Config() *config.Hysteria2Config {
+	return &config.Hysteria2Config{
+		Enabled:    true,
+		Server:     "1.2.3.4",
+		Port:       8444,
+		Password:   "hy2-secret-password",
+		ServerName: "www.bing.com",
+	}
+}
+
+func TestWireGuardService_GenerateClientConfig_Hysteria2Fallback(t *testing.T) {
+	svc := NewWireGuardService(nil, nil, testVLESSConfig(), testLogger()).WithHysteria2(testHysteria2Config())
+
+	peer := &models.Peer{
+		PublicKey:  "test-uuid-hy2",
+		DeviceType: models.DeviceTypeAndroid,
+	}
+	config := svc.GenerateClientConfig(peer)
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(config), &parsed); err != nil {
+		t.Fatalf("config should be valid JSON: %v", err)
+	}
+
+	outbounds, ok := parsed["outbounds"].([]any)
+	if !ok {
+		t.Fatal("config should have outbounds array")
+	}
+
+	var urltestTags []string
+	hy2Seen := false
+	realitySeen := false
+	for _, ob := range outbounds {
+		o, ok := ob.(map[string]any)
+		if !ok {
+			continue
+		}
+		switch o["tag"] {
+		case "proxy":
+			if o["type"] != "urltest" {
+				t.Errorf("proxy outbound should be urltest when HY2 enabled, got %v", o["type"])
+			}
+			if m, ok := o["outbounds"].([]any); ok {
+				for _, v := range m {
+					if s, ok := v.(string); ok {
+						urltestTags = append(urltestTags, s)
+					}
+				}
+			}
+		case "proxy-hy2":
+			hy2Seen = true
+			if o["type"] != "hysteria2" {
+				t.Errorf("proxy-hy2 should be hysteria2, got %v", o["type"])
+			}
+			if o["password"] != "hy2-secret-password" {
+				t.Errorf("hy2 password mismatch: %v", o["password"])
+			}
+			if o["server_port"].(float64) != 8444 {
+				t.Errorf("hy2 port mismatch: %v", o["server_port"])
+			}
+		case "vless-reality":
+			realitySeen = true
+			if o["type"] != "vless" {
+				t.Errorf("vless-reality should be vless, got %v", o["type"])
+			}
+		}
+	}
+
+	if !hy2Seen {
+		t.Error("HY2-enabled config should contain proxy-hy2 outbound")
+	}
+	if !realitySeen {
+		t.Error("HY2-enabled config should contain vless-reality outbound")
+	}
+	if len(urltestTags) != 2 {
+		t.Errorf("urltest group should wrap 2 outbounds, got %v", urltestTags)
+	}
+
+	route, _ := parsed["route"].(map[string]any)
+	if route["final"] != "proxy" {
+		t.Errorf("route.final should still be 'proxy' (the urltest), got %v", route["final"])
+	}
+	if !contains(config, "www.gstatic.com/generate_204") {
+		t.Error("urltest should health-check via gstatic generate_204")
+	}
+}
+
+func TestWireGuardService_GenerateClientConfig_Hysteria2DisabledNoRegression(t *testing.T) {
+	svc := NewWireGuardService(nil, nil, testVLESSConfig(), testLogger())
+
+	peer := &models.Peer{
+		PublicKey:  "test-uuid-nohy2",
+		DeviceType: models.DeviceTypeIPhone,
+	}
+	config := svc.GenerateClientConfig(peer)
+
+	if contains(config, "hysteria2") {
+		t.Error("HY2-disabled config must NOT contain hysteria2 outbound")
+	}
+	if contains(config, "urltest") {
+		t.Error("HY2-disabled config must NOT contain urltest group")
+	}
+	if !contains(config, `"tag": "proxy"`) {
+		t.Error("HY2-disabled config should keep a 'proxy' vless outbound")
 	}
 }
 
@@ -507,8 +628,8 @@ func TestWireGuardService_GenerateClientConfig_TunIsDefaultMode(t *testing.T) {
 	if !ok {
 		t.Fatal("config should have route object")
 	}
-	if route["final"] != "direct-out" {
-		t.Errorf("tun route.final = %v, want direct-out", route["final"])
+	if route["final"] != "proxy" {
+		t.Errorf("tun route.final = %v, want proxy", route["final"])
 	}
 }
 
