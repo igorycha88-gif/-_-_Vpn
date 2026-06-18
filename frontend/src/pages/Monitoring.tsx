@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Tabs, Card, Table, Tag, Select, Spin, Alert, Typography, Row, Col, Badge, Empty, Progress, Button, Popconfirm, Tooltip } from 'antd'
-import { CheckCircleOutlined, CloseCircleOutlined, BellOutlined, ExclamationCircleOutlined, BarChartOutlined, DeleteOutlined, ClearOutlined, HistoryOutlined, LinkOutlined } from '@ant-design/icons'
-import { useRoutingLogs, useMonitoringStats, useAlerts, usePeerMonitor, usePeersStats, useTrafficAggregate, usePeerSessions, useDeleteAlert, useClearAllAlerts } from '../hooks/useMonitoring'
+import { CheckCircleOutlined, CloseCircleOutlined, BellOutlined, ExclamationCircleOutlined, BarChartOutlined, DeleteOutlined, ClearOutlined, HistoryOutlined, LinkOutlined, DashboardOutlined, ApiOutlined } from '@ant-design/icons'
+import { useRoutingLogs, useMonitoringStats, useAlerts, usePeerMonitor, usePeersStats, useTrafficAggregate, usePeerSessions, useDeleteAlert, useClearAllAlerts, useMonitoringStatus } from '../hooks/useMonitoring'
 import { usePeers } from '../hooks/usePeers'
 import TrafficChart from '../components/TrafficChart'
+import BandwidthChart from '../components/BandwidthChart'
 import type { PeerTrafficSummary, PeerSession } from '../types'
 import { formatBytes } from '../utils/format'
 
@@ -79,6 +80,7 @@ export default function Monitoring() {
   const { data: stats, isLoading: statsLoading, error: statsError } = useMonitoringStats()
   const { data: alerts, error: alertsError } = useAlerts()
   const { data: peersStats, isLoading: peersStatsLoading, error: peersStatsError } = usePeersStats()
+  const { data: monitoringStatus } = useMonitoringStatus()
   const [selectedPeer, setSelectedPeer] = useState<string | undefined>()
   const [sessionPeerId, setSessionPeerId] = useState<string | undefined>()
 
@@ -338,6 +340,18 @@ export default function Monitoring() {
     <div>
       <h2>Мониторинг</h2>
 
+      {monitoringStatus && !monitoringStatus.clash_api_reachable && (
+        <Alert
+          type="info"
+          message="Реальное время: симуляция (dev mode)"
+          description="sing-box Clash API недоступен. Данные генерируются симулятором для демонстрации интерфейса."
+          style={{ marginBottom: 16 }}
+          showIcon
+          icon={<ApiOutlined />}
+          closable
+        />
+      )}
+
       {statsError ? (
         <Alert type="warning" message="Не удалось загрузить статистику" style={{ marginBottom: 16 }} showIcon closable />
       ) : (
@@ -349,6 +363,9 @@ export default function Monitoring() {
               <Text>Трафик TX: <strong>{formatBytes(stats?.total_tx ?? 0)}</strong></Text>
               <Text>Общая скорость: <strong style={{ color: '#1890ff' }}>↓ {formatRate(totalBandwidthRx)}</strong> <strong style={{ color: '#52c41a' }}>↑ {formatRate(totalBandwidthTx)}</strong></Text>
               <Text>Правил: <strong>{stats?.rules_count ?? 0}</strong></Text>
+              {monitoringStatus?.clash_api_reachable && (
+                <Tag icon={<ApiOutlined />} color="success">Clash API</Tag>
+              )}
             </div>
           </Card>
         </Spin>
@@ -520,8 +537,25 @@ export default function Monitoring() {
                     scroll={{ x: 1300 }}
                   />
                 ) : (
-                  <Empty description="Нет данных о трафике клиентов" />
+                  <Empty description="Нет данных о трафике клиентов. Подключите клиенты к VPN или дождитесь сбора статистики." />
                 )}
+              </Spin>
+            ),
+          },
+          {
+            key: 'bandwidth',
+            label: (
+              <span>
+                <DashboardOutlined /> Скорость
+              </span>
+            ),
+            children: peersStatsError ? (
+              <Alert type="error" message="Ошибка загрузки данных" showIcon />
+            ) : (
+              <Spin spinning={peersStatsLoading}>
+                <Card size="small">
+                  <BandwidthChart peers={peersStats ?? []} />
+                </Card>
               </Spin>
             ),
           },

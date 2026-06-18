@@ -415,6 +415,163 @@ func TestWireGuardService_GenerateClientConfig_DefaultFallback(t *testing.T) {
 	}
 }
 
+func TestWireGuardService_GenerateClientConfig_ProxyMode(t *testing.T) {
+	svc := NewWireGuardService(nil, nil, testVLESSConfig(), testLogger())
+
+	peer := &models.Peer{
+		PublicKey:  "proxy-uuid-test",
+		DeviceType: models.DeviceTypeIPhone,
+		ConfigMode: models.ConfigModeProxy,
+	}
+	config := svc.GenerateClientConfig(peer)
+	if config == "" {
+		t.Fatal("config is empty")
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(config), &parsed); err != nil {
+		t.Fatalf("config should be valid JSON: %v", err)
+	}
+
+	inbounds, ok := parsed["inbounds"].([]any)
+	if !ok || len(inbounds) == 0 {
+		t.Fatal("config should have inbounds array")
+	}
+	inbound, ok := inbounds[0].(map[string]any)
+	if !ok {
+		t.Fatal("inbound[0] should be an object")
+	}
+	if inbound["type"] != "mixed" {
+		t.Errorf("proxy inbound type = %v, want mixed", inbound["type"])
+	}
+	if inbound["listen"] != "127.0.0.1" {
+		t.Errorf("proxy inbound listen = %v, want 127.0.0.1", inbound["listen"])
+	}
+	if inbound["tag"] != "mixed-in" {
+		t.Errorf("proxy inbound tag = %v, want mixed-in", inbound["tag"])
+	}
+
+	if contains(config, `"type": "tun"`) {
+		t.Error("proxy config should NOT contain tun inbound")
+	}
+	if contains(config, "auto_route") {
+		t.Error("proxy config should NOT contain auto_route")
+	}
+	if contains(config, "strict_route") {
+		t.Error("proxy config should NOT contain strict_route")
+	}
+	if contains(config, "hijack-dns") {
+		t.Error("proxy config should NOT contain hijack-dns (no TUN to capture DNS)")
+	}
+
+	route, ok := parsed["route"].(map[string]any)
+	if !ok {
+		t.Fatal("config should have route object")
+	}
+	if route["final"] != "proxy" {
+		t.Errorf("proxy route.final = %v, want proxy", route["final"])
+	}
+
+	if !contains(config, "proxy-uuid-test") {
+		t.Error("proxy config should contain UUID")
+	}
+	if !contains(config, "youtube.com") {
+		t.Error("proxy config should contain youtube.com in proxy rules")
+	}
+	if !contains(config, "vk.com") {
+		t.Error("proxy config should contain vk.com in direct rules")
+	}
+	if !contains(config, ".ru") {
+		t.Error("proxy config should contain .ru domain suffix in direct rules")
+	}
+}
+
+func TestWireGuardService_GenerateClientConfig_TunIsDefaultMode(t *testing.T) {
+	svc := NewWireGuardService(nil, nil, testVLESSConfig(), testLogger())
+
+	peer := &models.Peer{
+		PublicKey:  "tun-default-mode-uuid",
+		DeviceType: models.DeviceTypeIPhone,
+		ConfigMode: "",
+	}
+	config := svc.GenerateClientConfig(peer)
+	if !contains(config, `"type": "tun"`) {
+		t.Error("empty config_mode should default to tun inbound")
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(config), &parsed); err != nil {
+		t.Fatalf("config should be valid JSON: %v", err)
+	}
+	route, ok := parsed["route"].(map[string]any)
+	if !ok {
+		t.Fatal("config should have route object")
+	}
+	if route["final"] != "direct-out" {
+		t.Errorf("tun route.final = %v, want direct-out", route["final"])
+	}
+}
+
+func TestPeerCreateRequest_Validate_ConfigMode(t *testing.T) {
+	tests := []struct {
+		name    string
+		mode    string
+		wantErr bool
+	}{
+		{"empty allowed defaults to tun", "", false},
+		{"valid tun", models.ConfigModeTun, false},
+		{"valid proxy", models.ConfigModeProxy, false},
+		{"invalid value", "wireguard", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := models.PeerCreateRequest{Name: "Test", DeviceType: "iphone", ConfigMode: tt.mode}
+			errs := req.Validate()
+			_, hasErr := errs["config_mode"]
+			if tt.wantErr && !hasErr {
+				t.Errorf("expected config_mode error, got: %v", errs)
+			}
+			if !tt.wantErr && hasErr {
+				t.Errorf("unexpected config_mode error: %v", errs)
+			}
+		})
+	}
+}
+
+func TestWireGuardService_CreatePeer_ConfigMode(t *testing.T) {
+	db, _ := repository.InitDB(":memory:", migrations.Files)
+	defer func() { _ = db.Close() }()
+	svc := NewWireGuardService(repository.NewPeerRepository(db), repository.NewTrafficRepository(db), testVLESSConfig(), testLogger())
+
+	pProxy, err := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{
+		Name: "Mac", DeviceType: models.DeviceTypeIPhone, ConfigMode: models.ConfigModeProxy,
+	})
+	if err != nil {
+		t.Fatalf("CreatePeer proxy: %v", err)
+	}
+	if pProxy.ConfigMode != models.ConfigModeProxy {
+		t.Errorf("explicit proxy: ConfigMode = %q, want proxy", pProxy.ConfigMode)
+	}
+
+	pTun, err := svc.CreatePeer(context.Background(), &models.PeerCreateRequest{
+		Name: "Phone", DeviceType: models.DeviceTypeIPhone,
+	})
+	if err != nil {
+		t.Fatalf("CreatePeer tun: %v", err)
+	}
+	if pTun.ConfigMode != models.ConfigModeTun {
+		t.Errorf("empty mode: ConfigMode = %q, want tun", pTun.ConfigMode)
+	}
+
+	reloaded, err := svc.GetPeer(context.Background(), pProxy.ID)
+	if err != nil {
+		t.Fatalf("GetPeer: %v", err)
+	}
+	if reloaded.ConfigMode != models.ConfigModeProxy {
+		t.Errorf("reloaded proxy: ConfigMode = %q, want proxy", reloaded.ConfigMode)
+	}
+}
+
 func TestPeerCreateRequest_Validate_DeviceType(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -1898,7 +2055,10 @@ func TestSingBoxService_populateRouteRuleFields(t *testing.T) {
 
 	t.Run("domain", func(t *testing.T) {
 		rr := map[string]any{}
-		svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "domain", Pattern: "example.com"})
+		ok := svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "domain", Pattern: "example.com"})
+		if !ok {
+			t.Error("domain should be accepted")
+		}
 		arr, ok := rr["domain"].([]string)
 		if !ok || len(arr) != 1 || arr[0] != "example.com" {
 			t.Errorf("got %v", rr["domain"])
@@ -1907,7 +2067,10 @@ func TestSingBoxService_populateRouteRuleFields(t *testing.T) {
 
 	t.Run("domain_suffix", func(t *testing.T) {
 		rr := map[string]any{}
-		svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "domain_suffix", Pattern: ".com"})
+		ok := svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "domain_suffix", Pattern: ".com"})
+		if !ok {
+			t.Error("domain_suffix should be accepted")
+		}
 		arr, ok := rr["domain_suffix"].([]string)
 		if !ok || len(arr) != 1 || arr[0] != ".com" {
 			t.Errorf("got %v", rr["domain_suffix"])
@@ -1916,7 +2079,10 @@ func TestSingBoxService_populateRouteRuleFields(t *testing.T) {
 
 	t.Run("domain_keyword", func(t *testing.T) {
 		rr := map[string]any{}
-		svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "domain_keyword", Pattern: "google"})
+		ok := svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "domain_keyword", Pattern: "google"})
+		if !ok {
+			t.Error("domain_keyword should be accepted")
+		}
 		arr, ok := rr["domain_keyword"].([]string)
 		if !ok || len(arr) != 1 || arr[0] != "google" {
 			t.Errorf("got %v", rr["domain_keyword"])
@@ -1925,7 +2091,10 @@ func TestSingBoxService_populateRouteRuleFields(t *testing.T) {
 
 	t.Run("ip", func(t *testing.T) {
 		rr := map[string]any{}
-		svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "ip", Pattern: "1.2.3.4/32"})
+		ok := svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "ip", Pattern: "1.2.3.4/32"})
+		if !ok {
+			t.Error("ip should be accepted")
+		}
 		arr, ok := rr["ip_cidr"].([]string)
 		if !ok || len(arr) != 1 || arr[0] != "1.2.3.4/32" {
 			t.Errorf("got %v", rr["ip_cidr"])
@@ -1934,7 +2103,10 @@ func TestSingBoxService_populateRouteRuleFields(t *testing.T) {
 
 	t.Run("port", func(t *testing.T) {
 		rr := map[string]any{}
-		svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "port", Pattern: "443"})
+		ok := svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "port", Pattern: "443"})
+		if !ok {
+			t.Error("port should be accepted")
+		}
 		arr, ok := rr["port"].([]int)
 		if !ok || len(arr) != 1 || arr[0] != 443 {
 			t.Errorf("got %v", rr["port"])
@@ -1943,7 +2115,10 @@ func TestSingBoxService_populateRouteRuleFields(t *testing.T) {
 
 	t.Run("regex", func(t *testing.T) {
 		rr := map[string]any{}
-		svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "regex", Pattern: ".*\\.com"})
+		ok := svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "regex", Pattern: ".*\\.com"})
+		if !ok {
+			t.Error("regex should be accepted")
+		}
 		arr, ok := rr["domain"].([]string)
 		if !ok || len(arr) != 1 || arr[0] != "regexp:.*\\.com" {
 			t.Errorf("got %v", rr["domain"])
@@ -1952,17 +2127,34 @@ func TestSingBoxService_populateRouteRuleFields(t *testing.T) {
 
 	t.Run("geoip_skipped", func(t *testing.T) {
 		rr := map[string]any{}
-		svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "geoip", Pattern: "RU"})
+		ok := svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "geoip", Pattern: "RU"})
+		if ok {
+			t.Error("geoip should be skipped (return false)")
+		}
 		if len(rr) != 0 {
-			t.Errorf("geoip should be skipped, got fields: %v", rr)
+			t.Errorf("geoip should not populate fields, got: %v", rr)
 		}
 	})
 
 	t.Run("port_invalid", func(t *testing.T) {
 		rr := map[string]any{}
-		svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "port", Pattern: "notanumber"})
+		ok := svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "port", Pattern: "notanumber"})
+		if ok {
+			t.Error("invalid port should be skipped (return false)")
+		}
 		if _, ok := rr["port"]; ok {
 			t.Error("invalid port should not set port field")
+		}
+	})
+
+	t.Run("unknown_type_skipped", func(t *testing.T) {
+		rr := map[string]any{}
+		ok := svc.populateRouteRuleFields(rr, &models.RoutingRule{Type: "mystery", Pattern: "x"})
+		if ok {
+			t.Error("unknown type should be skipped (return false)")
+		}
+		if len(rr) != 0 {
+			t.Errorf("unknown type should not populate fields, got: %v", rr)
 		}
 	})
 }

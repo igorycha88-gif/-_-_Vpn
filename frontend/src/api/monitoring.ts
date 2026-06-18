@@ -67,6 +67,17 @@ export async function getPeersStats(): Promise<PeerTrafficSummary[]> {
   return res.data
 }
 
+export interface MonitoringStatusResponse {
+  clash_api_reachable: boolean
+  realtime_available: boolean
+  online_peers?: number
+}
+
+export async function getMonitoringStatus(): Promise<MonitoringStatusResponse> {
+  const res = await client.get<MonitoringStatusResponse>('/monitoring/status')
+  return res.data
+}
+
 export async function getPeerSessions(peerId: string, limit = 50): Promise<PeerSession[]> {
   const res = await client.get<PeerSession[]>(`/monitoring/peer/${peerId}/sessions`, { params: { limit } })
   return res.data

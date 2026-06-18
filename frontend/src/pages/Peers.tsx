@@ -22,7 +22,7 @@ import {
 } from '@ant-design/icons'
 import { usePeers, useCreatePeer, useDeletePeer, useTogglePeer } from '../hooks/usePeers'
 import QrModal from '../components/QrModal'
-import type { Peer, PeerCreateRequest, DeviceType } from '../types'
+import type { Peer, PeerCreateRequest, DeviceType, ConfigMode } from '../types'
 import { formatBytes } from '../utils/format'
 import { downloadWithAuth } from '../utils/download'
 
@@ -73,6 +73,17 @@ export default function Peers() {
           {v === 'iphone' ? 'iPhone' : 'Android'}
         </Tag>
       ),
+    },
+    {
+      title: 'Режим',
+      dataIndex: 'config_mode',
+      key: 'config_mode',
+      render: (v: ConfigMode | undefined) => {
+        const mode = v ?? 'tun'
+        return mode === 'proxy'
+          ? <Tag color="orange">Proxy · Cisco-safe</Tag>
+          : <Tag color="purple">TUN · весь трафик</Tag>
+      },
     },
     {
       title: 'UUID',
@@ -172,7 +183,7 @@ export default function Peers() {
         confirmLoading={createMutation.isPending}
         destroyOnClose
       >
-        <Form form={form} layout="vertical" onFinish={handleCreate} initialValues={{ device_type: 'iphone' }}>
+        <Form form={form} layout="vertical" onFinish={handleCreate} initialValues={{ device_type: 'iphone', config_mode: 'tun' }}>
           <Form.Item name="name" label="Имя" rules={[{ required: true, message: 'Обязательное поле' }]}>
             <Input placeholder="Имя устройства" />
           </Form.Item>
@@ -183,6 +194,16 @@ export default function Peers() {
             <Select placeholder="Выберите устройство">
               <Select.Option value="iphone">iPhone</Select.Option>
               <Select.Option value="android">Android</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item
+            name="config_mode"
+            label="Режим конфигурации"
+            tooltip="TUN — весь трафик устройства (ломает Cisco AnyConnect). Proxy — мирный с Cisco, но только TCP (отключите QUIC в браузере)."
+          >
+            <Select placeholder="Выберите режим">
+              <Select.Option value="tun">TUN — весь трафик (без Cisco)</Select.Option>
+              <Select.Option value="proxy">Proxy — Cisco-safe (масOS)</Select.Option>
             </Select>
           </Form.Item>
         </Form>

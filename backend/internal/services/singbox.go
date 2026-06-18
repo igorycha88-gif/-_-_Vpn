@@ -174,6 +174,12 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*singBoxConfig, er
 	cfg.Experimental = &singBoxExperimental{ClashAPI: clashAPI}
 
 	if s.srvConfig.ForeignIP != "" && s.srvConfig.ForeignVLESS.UUID != "" {
+		s.logger.Info("foreign-out: VLESS relay outbound будет создан",
+			"foreign_ip", s.srvConfig.ForeignIP,
+			"foreign_uuid", s.srvConfig.ForeignVLESS.UUID,
+			"reality_public_key_set", s.srvConfig.ForeignVLESS.RealityPublicKey != "",
+			"reality_short_id_set", s.srvConfig.ForeignVLESS.RealityShortID != "",
+		)
 		vlessOutbound := map[string]any{
 			"type":        "vless",
 			"tag":         "foreign-out",
@@ -197,6 +203,13 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*singBoxConfig, er
 		}
 		cfg.Outbounds = append(cfg.Outbounds, vlessOutbound)
 		cfg.Route.Final = "foreign-out"
+	} else {
+		s.logger.Error("foreign-out: НЕ СОЗДАН — отсутствуют FOREIGN_SERVER_IP или FOREIGN_VLESS_UUID. Заблокированные сервисы НЕ БУДУТ работать!",
+			"foreign_ip_set", s.srvConfig.ForeignIP != "",
+			"foreign_uuid_set", s.srvConfig.ForeignVLESS.UUID != "",
+			"reality_public_key_set", s.srvConfig.ForeignVLESS.RealityPublicKey != "",
+			"reality_short_id_set", s.srvConfig.ForeignVLESS.RealityShortID != "",
+		)
 	}
 
 	for _, rule := range rules {
@@ -206,7 +219,9 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*singBoxConfig, er
 
 		if rule.Action == "block" {
 			routeRule := map[string]any{"action": "reject"}
-			s.populateRouteRuleFields(routeRule, rule)
+			if !s.populateRouteRuleFields(routeRule, rule) {
+				continue
+			}
 			cfg.Route.Rules = append(cfg.Route.Rules, routeRule)
 			continue
 		}
@@ -217,14 +232,62 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*singBoxConfig, er
 		}
 
 		routeRule := map[string]any{"outbound": outbound}
-		s.populateRouteRuleFields(routeRule, rule)
+		if !s.populateRouteRuleFields(routeRule, rule) {
+			continue
+		}
 		cfg.Route.Rules = append(cfg.Route.Rules, routeRule)
+	}
+
+	if err := s.validateConfig(cfg); err != nil {
+		s.logger.Error("ВАЛИДАЦИЯ КОНФИГА sing-box НЕ ПРОЙДЕНА", "error", err)
 	}
 
 	return cfg, nil
 }
 
-func (s *SingBoxService) populateRouteRuleFields(routeRule map[string]any, rule *models.RoutingRule) {
+func (s *SingBoxService) validateConfig(cfg *singBoxConfig) error {
+	tags := make(map[string]bool)
+	for _, ob := range cfg.Outbounds {
+		if m, ok := ob.(map[string]any); ok {
+			if tag, ok := m["tag"].(string); ok {
+				tags[tag] = true
+			}
+		}
+	}
+
+	var missing []string
+	s.checkRuleOutbounds(cfg.Route.Rules, tags, &missing)
+	if cfg.Route.Final != "" && !tags[cfg.Route.Final] {
+		missing = append(missing, cfg.Route.Final+" (final)")
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("правила маршрутизации ссылаются на несуществующие outbound: %v. Доступные: %v", missing, mapKeys(tags))
+	}
+	return nil
+}
+
+func (s *SingBoxService) checkRuleOutbounds(rules []any, tags map[string]bool, missing *[]string) {
+	for _, r := range rules {
+		m, ok := r.(map[string]any)
+		if !ok {
+			continue
+		}
+		if ob, ok := m["outbound"].(string); ok && ob != "" && !tags[ob] {
+			*missing = append(*missing, ob)
+		}
+	}
+}
+
+func mapKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func (s *SingBoxService) populateRouteRuleFields(routeRule map[string]any, rule *models.RoutingRule) bool {
 	switch rule.Type {
 	case "domain":
 		routeRule["domain"] = []string{rule.Pattern}
@@ -236,16 +299,21 @@ func (s *SingBoxService) populateRouteRuleFields(routeRule map[string]any, rule 
 		routeRule["ip_cidr"] = []string{rule.Pattern}
 	case "geoip":
 		s.logger.Warn("geoip правило пропущено — не поддерживается в sing-box 1.12+", "pattern", rule.Pattern)
-		return
+		return false
 	case "port":
 		var port int
 		_, _ = fmt.Sscanf(rule.Pattern, "%d", &port)
 		if port > 0 {
 			routeRule["port"] = []int{port}
+		} else {
+			return false
 		}
 	case "regex":
 		routeRule["domain"] = []string{"regexp:" + rule.Pattern}
+	default:
+		return false
 	}
+	return true
 }
 
 func (s *SingBoxService) WriteConfig(ctx context.Context) error {
