@@ -48,11 +48,17 @@ func (s *WireGuardService) CreatePeer(ctx context.Context, req *models.PeerCreat
 
 	peerUUID := uuid.New().String()
 
+	configMode := req.ConfigMode
+	if configMode == "" {
+		configMode = models.ConfigModeTun
+	}
+
 	peer := &models.Peer{
 		ID:         uuid.New().String(),
 		Name:       req.Name,
 		Email:      req.Email,
 		DeviceType: req.DeviceType,
+		ConfigMode: configMode,
 		PublicKey:  peerUUID,
 		PrivateKey: "",
 		Address:    peerUUID,
@@ -65,7 +71,7 @@ func (s *WireGuardService) CreatePeer(ctx context.Context, req *models.PeerCreat
 		return nil, fmt.Errorf("service.wireguard.CreatePeer save: %w", err)
 	}
 
-	s.logger.Info("создан VLESS клиент", "id", peer.ID, "name", peer.Name, "device", peer.DeviceType, "uuid", peerUUID)
+	s.logger.Info("создан VLESS клиент", "id", peer.ID, "name", peer.Name, "device", peer.DeviceType, "mode", peer.ConfigMode, "uuid", peerUUID)
 	return peer, nil
 }
 
@@ -125,7 +131,31 @@ var androidAutoExcludePackages = []string{
 	"com.google.android.apps.auto",
 }
 
+var ruDomainSuffixes = []string{".ru", ".su", ".xn--p1ai"}
+
+var ruDirectDomains = []string{
+	"vk.com", "userapi.com", "vk-cdn.net",
+	"yandex.com", "yandex.ru", "yandex.net", "yastatic.net",
+	"ya.ru", "mail.ru", "rambler.ru",
+	"gosuslugi.ru", "esia.gosuslugi.ru",
+	"sberbank.ru", "tinkoff.ru",
+	"ozon.ru", "wildberries.ru", "avito.ru", "avito.st", "avito.com",
+	"habr.com", "kaspersky.com",
+	"max.ru", "maxpatrol.ru", "positive-technologies.ru",
+}
+
 func (s *WireGuardService) buildClientConfigMap(peer *models.Peer) map[string]any {
+	mode := peer.ConfigMode
+	if mode == "" {
+		mode = models.ConfigModeTun
+	}
+	if mode == models.ConfigModeProxy {
+		return s.buildProxyConfigMap(peer)
+	}
+	return s.buildTunConfigMap(peer)
+}
+
+func (s *WireGuardService) buildTunConfigMap(peer *models.Peer) map[string]any {
 	deviceType := peer.DeviceType
 	if deviceType == "" {
 		deviceType = models.DeviceTypeIPhone
@@ -148,7 +178,7 @@ func (s *WireGuardService) buildClientConfigMap(peer *models.Peer) map[string]an
 		routeRules = append(baseRules, proxyDomains...)
 	}
 
-	cfg := map[string]any{
+	return map[string]any{
 		"log":      map[string]any{"level": "info", "timestamp": true},
 		"dns":      s.buildClientDNSConfig(),
 		"inbounds": []any{s.buildTunInbound(stack, excludePackages)},
@@ -162,33 +192,22 @@ func (s *WireGuardService) buildClientConfigMap(peer *models.Peer) map[string]an
 			"auto_detect_interface": true,
 		},
 	}
-
-	return cfg
 }
 
 func (s *WireGuardService) buildBaseRules() []any {
-	return []any{
+	rules := []any{
 		map[string]any{"inbound": []string{"tun-in"}, "action": "sniff"},
 		map[string]any{"protocol": "dns", "inbound": []string{"tun-in"}, "action": "hijack-dns"},
 		map[string]any{"ip_cidr": []string{s.vlessCfg.ServerEndpoint + "/32"}, "outbound": "direct-out"},
 		map[string]any{"ip_is_private": true, "outbound": "direct-out"},
-		map[string]any{
-			"domain_suffix": []string{".ru", ".su", ".xn--p1ai"},
-			"outbound":      "direct-out",
-		},
-		map[string]any{
-			"domain_suffix": []string{
-				"vk.com", "userapi.com", "vk-cdn.net",
-				"yandex.com", "yandex.ru", "yandex.net", "yastatic.net",
-				"ya.ru", "mail.ru", "rambler.ru",
-				"gosuslugi.ru", "esia.gosuslugi.ru",
-				"sberbank.ru", "tinkoff.ru",
-			"ozon.ru", "wildberries.ru", "avito.ru", "avito.st", "avito.com",
-				"habr.com", "kaspersky.com",
-				"max.ru", "maxpatrol.ru", "positive-technologies.ru",
-			},
-			"outbound":      "direct-out",
-		},
+	}
+	return append(rules, s.buildDirectDomainRules()...)
+}
+
+func (s *WireGuardService) buildDirectDomainRules() []any {
+	return []any{
+		map[string]any{"domain_suffix": ruDomainSuffixes, "outbound": "direct-out"},
+		map[string]any{"domain_suffix": ruDirectDomains, "outbound": "direct-out"},
 	}
 }
 
@@ -235,21 +254,60 @@ func (s *WireGuardService) buildClientDNSConfig() map[string]any {
 			map[string]any{"tag": "dns-ru-alt", "address": "77.88.8.1", "detour": "direct-out"},
 		},
 		"rules": []any{
-			map[string]any{"domain_suffix": []string{".ru", ".su", ".xn--p1ai"}, "server": "dns-ru"},
-			map[string]any{
-				"domain_suffix": []string{
-					"vk.com", "userapi.com", "vk-cdn.net",
-					"yandex.com", "yandex.ru", "yandex.net", "yastatic.net",
-					"ya.ru", "mail.ru", "rambler.ru",
-					"gosuslugi.ru", "esia.gosuslugi.ru",
-					"sberbank.ru", "tinkoff.ru",
-					"ozon.ru", "wildberries.ru", "avito.ru", "avito.st", "avito.com",
-					"habr.com", "kaspersky.com",
-					"max.ru", "maxpatrol.ru", "positive-technologies.ru",
-				},
-				"server": "dns-ru",
-			},
+			map[string]any{"domain_suffix": ruDomainSuffixes, "server": "dns-ru"},
+			map[string]any{"domain_suffix": ruDirectDomains, "server": "dns-ru"},
 			map[string]any{"inbound": []string{"tun-in"}, "server": "dns-foreign"},
+		},
+		"final":    "dns-foreign",
+		"strategy": "prefer_ipv4",
+	}
+}
+
+func (s *WireGuardService) buildProxyConfigMap(peer *models.Peer) map[string]any {
+	rules := []any{
+		map[string]any{"inbound": []string{"mixed-in"}, "action": "sniff"},
+		map[string]any{"ip_cidr": []string{s.vlessCfg.ServerEndpoint + "/32"}, "outbound": "direct-out"},
+		map[string]any{"ip_is_private": true, "outbound": "direct-out"},
+	}
+	rules = append(rules, s.buildDirectDomainRules()...)
+	rules = append(rules, s.buildProxyDomains()...)
+
+	return map[string]any{
+		"log":      map[string]any{"level": "info", "timestamp": true},
+		"dns":      s.buildProxyDNSConfig(),
+		"inbounds": []any{s.buildMixedInbound()},
+		"outbounds": []any{
+			s.buildVlessOutbound(peer),
+			map[string]any{"type": "direct", "tag": "direct-out"},
+		},
+		"route": map[string]any{
+			"rules":                 rules,
+			"final":                 "proxy",
+			"auto_detect_interface": true,
+		},
+	}
+}
+
+func (s *WireGuardService) buildMixedInbound() map[string]any {
+	return map[string]any{
+		"type":        "mixed",
+		"tag":         "mixed-in",
+		"listen":      "127.0.0.1",
+		"listen_port": 2080,
+	}
+}
+
+func (s *WireGuardService) buildProxyDNSConfig() map[string]any {
+	return map[string]any{
+		"servers": []any{
+			map[string]any{"tag": "dns-foreign", "address": "1.1.1.1", "detour": "proxy"},
+			map[string]any{"tag": "dns-foreign-alt", "address": "8.8.8.8", "detour": "proxy"},
+			map[string]any{"tag": "dns-ru", "address": "77.88.8.8", "detour": "direct-out"},
+			map[string]any{"tag": "dns-ru-alt", "address": "77.88.8.1", "detour": "direct-out"},
+		},
+		"rules": []any{
+			map[string]any{"domain_suffix": ruDomainSuffixes, "server": "dns-ru"},
+			map[string]any{"domain_suffix": ruDirectDomains, "server": "dns-ru"},
 		},
 		"final":    "dns-foreign",
 		"strategy": "prefer_ipv4",

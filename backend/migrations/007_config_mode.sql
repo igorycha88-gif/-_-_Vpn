@@ -1,0 +1,1 @@
+ALTER TABLE wg_peers ADD COLUMN config_mode TEXT NOT NULL DEFAULT 'tun';

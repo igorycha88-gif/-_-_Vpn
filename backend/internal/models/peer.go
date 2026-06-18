@@ -3,7 +3,7 @@ package models
 import "time"
 
 const (
-	DeviceTypeIPhone = "iphone"
+	DeviceTypeIPhone  = "iphone"
 	DeviceTypeAndroid = "android"
 )
 
@@ -12,11 +12,22 @@ var ValidDeviceTypes = map[string]bool{
 	DeviceTypeAndroid: true,
 }
 
+const (
+	ConfigModeTun   = "tun"
+	ConfigModeProxy = "proxy"
+)
+
+var ValidConfigModes = map[string]bool{
+	ConfigModeTun:   true,
+	ConfigModeProxy: true,
+}
+
 type Peer struct {
 	ID         string     `json:"id"`
 	Name       string     `json:"name"`
 	Email      string     `json:"email,omitempty"`
 	DeviceType string     `json:"device_type"`
+	ConfigMode string     `json:"config_mode"`
 	PublicKey  string     `json:"public_key"`
 	PrivateKey string     `json:"private_key,omitempty"`
 	Address    string     `json:"address"`
@@ -34,6 +45,7 @@ type PeerCreateRequest struct {
 	Name       string `json:"name"`
 	Email      string `json:"email,omitempty"`
 	DeviceType string `json:"device_type"`
+	ConfigMode string `json:"config_mode"`
 }
 
 func (r *PeerCreateRequest) Validate() map[string]string {
@@ -48,6 +60,9 @@ func (r *PeerCreateRequest) Validate() map[string]string {
 		errs["device_type"] = "обязательное поле"
 	} else if !ValidDeviceTypes[r.DeviceType] {
 		errs["device_type"] = "допустимые значения: iphone, android"
+	}
+	if r.ConfigMode != "" && !ValidConfigModes[r.ConfigMode] {
+		errs["config_mode"] = "допустимые значения: tun, proxy"
 	}
 	return errs
 }

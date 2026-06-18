@@ -1,10 +1,13 @@
 export type DeviceType = 'iphone' | 'android'
 
+export type ConfigMode = 'tun' | 'proxy'
+
 export interface Peer {
   id: string
   name: string
   email?: string
   device_type: DeviceType
+  config_mode?: ConfigMode
   public_key: string
   private_key?: string
   address: string
@@ -22,6 +25,7 @@ export interface PeerCreateRequest {
   name: string
   email?: string
   device_type: DeviceType
+  config_mode?: ConfigMode
 }
 
 export interface PeerStats {
