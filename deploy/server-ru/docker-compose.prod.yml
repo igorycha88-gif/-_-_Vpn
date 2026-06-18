@@ -63,6 +63,7 @@ services:
       - FOREIGN_VLESS_REALITY_PUBLIC_KEY=${FOREIGN_VLESS_REALITY_PUBLIC_KEY:-}
       - FOREIGN_VLESS_REALITY_SHORT_ID=${FOREIGN_VLESS_REALITY_SHORT_ID:-}
       - FOREIGN_VLESS_SERVER_NAME=${FOREIGN_VLESS_SERVER_NAME:-www.microsoft.com}
+      - FOREIGN_VLESS_PORT=${FOREIGN_VLESS_PORT:-443}
     volumes:
       - api-data:/data
       - ./singbox:/etc/singbox
