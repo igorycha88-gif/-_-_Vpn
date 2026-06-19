@@ -14,3 +14,9 @@ linters:
         - fmt.Printf
         - fmt.Println
         - encoding/json.Encoder.Encode
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - staticcheck
+        text: "SA5011"

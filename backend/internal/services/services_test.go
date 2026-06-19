@@ -3039,7 +3039,7 @@ func TestSingBoxStatsCollector_Start_Stop(t *testing.T) {
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"inbounds":[],"outbounds":[]}`)
+		_, _ = fmt.Fprint(w, `{"inbounds":[],"outbounds":[]}`)
 	}))
 	defer ts.Close()
 	collector.apiURL = ts.URL
