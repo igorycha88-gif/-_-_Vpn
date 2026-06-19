@@ -19,6 +19,7 @@ type WireGuardService struct {
 	peerRepo    repository.PeerRepository
 	trafficRepo repository.TrafficRepository
 	vlessCfg    *config.VLESSConfig
+	hy2Cfg      *config.Hysteria2Config
 	logger      *slog.Logger
 }
 
@@ -29,6 +30,15 @@ func NewWireGuardService(peerRepo repository.PeerRepository, trafficRepo reposit
 		vlessCfg:    vlessCfg,
 		logger:      logger,
 	}
+}
+
+func (s *WireGuardService) WithHysteria2(cfg *config.Hysteria2Config) *WireGuardService {
+	s.hy2Cfg = cfg
+	return s
+}
+
+func (s *WireGuardService) hy2Enabled() bool {
+	return s.hy2Cfg != nil && s.hy2Cfg.Enabled && s.hy2Cfg.Password != ""
 }
 
 func (s *WireGuardService) mapErr(err error) error {
@@ -182,13 +192,10 @@ func (s *WireGuardService) buildTunConfigMap(peer *models.Peer) map[string]any {
 		"log":      map[string]any{"level": "info", "timestamp": true},
 		"dns":      s.buildClientDNSConfig(),
 		"inbounds": []any{s.buildTunInbound(stack, excludePackages)},
-		"outbounds": []any{
-			s.buildVlessOutbound(peer),
-			map[string]any{"type": "direct", "tag": "direct-out"},
-		},
+		"outbounds": s.buildOutbounds(peer),
 		"route": map[string]any{
 			"rules":                   routeRules,
-			"final":                   "direct-out",
+			"final":                   "proxy",
 			"auto_detect_interface":   true,
 			"default_domain_resolver": "dns-foreign",
 		},
@@ -281,10 +288,7 @@ func (s *WireGuardService) buildProxyConfigMap(peer *models.Peer) map[string]any
 		"log":      map[string]any{"level": "info", "timestamp": true},
 		"dns":      s.buildProxyDNSConfig(),
 		"inbounds": []any{s.buildMixedInbound()},
-		"outbounds": []any{
-			s.buildVlessOutbound(peer),
-			map[string]any{"type": "direct", "tag": "direct-out"},
-		},
+		"outbounds": s.buildOutbounds(peer),
 		"route": map[string]any{
 			"rules":                   rules,
 			"final":                   "proxy",
@@ -322,6 +326,7 @@ func (s *WireGuardService) buildTunInbound(stack string, excludePackages []strin
 		"address":      []string{"172.19.0.1/30"},
 		"auto_route":   true,
 		"strict_route": true,
+		"mtu":          1280,
 		"stack":        stack,
 	}
 	if len(excludePackages) > 0 {
@@ -330,10 +335,10 @@ func (s *WireGuardService) buildTunInbound(stack string, excludePackages []strin
 	return inbound
 }
 
-func (s *WireGuardService) buildVlessOutbound(peer *models.Peer) map[string]any {
+func (s *WireGuardService) buildVlessOutbound(peer *models.Peer, tag string) map[string]any {
 	return map[string]any{
 		"type":        "vless",
-		"tag":         "proxy",
+		"tag":         tag,
 		"server":      s.vlessCfg.ServerEndpoint,
 		"server_port": s.vlessCfg.Port,
 		"uuid":        peer.PublicKey,
@@ -351,6 +356,47 @@ func (s *WireGuardService) buildVlessOutbound(peer *models.Peer) map[string]any 
 				"short_id":   s.vlessCfg.ShortID,
 			},
 		},
+	}
+}
+
+func (s *WireGuardService) buildHy2Outbound() map[string]any {
+	server := s.hy2Cfg.Server
+	if server == "" {
+		server = s.vlessCfg.ServerEndpoint
+	}
+	return map[string]any{
+		"type":        "hysteria2",
+		"tag":         "proxy-hy2",
+		"server":      server,
+		"server_port": s.hy2Cfg.Port,
+		"password":    s.hy2Cfg.Password,
+		"tls": map[string]any{
+			"enabled":     true,
+			"server_name": s.hy2Cfg.ServerName,
+			"insecure":    true,
+			"alpn":        []string{"h3"},
+		},
+	}
+}
+
+func (s *WireGuardService) buildOutbounds(peer *models.Peer) []any {
+	direct := map[string]any{"type": "direct", "tag": "direct-out"}
+	if !s.hy2Enabled() {
+		return []any{s.buildVlessOutbound(peer, "proxy"), direct}
+	}
+	urltest := map[string]any{
+		"type":      "urltest",
+		"tag":       "proxy",
+		"outbounds": []string{"vless-reality", "proxy-hy2"},
+		"url":       "https://www.gstatic.com/generate_204",
+		"interval":  "3m",
+		"tolerance": 200,
+	}
+	return []any{
+		urltest,
+		s.buildVlessOutbound(peer, "vless-reality"),
+		s.buildHy2Outbound(),
+		direct,
 	}
 }
 

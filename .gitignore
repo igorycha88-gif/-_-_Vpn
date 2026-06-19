@@ -1,6 +1,7 @@
 # === OS ===
 .DS_Store
 Thumbs.db
+._*
 
 # === IDE ===
 .idea/
@@ -49,10 +50,25 @@ certbot/www/
 # === Logs ===
 *.log
 
-# === WireGuard keys (never commit) ===
+# === Secrets — NEVER commit ===
 *.key
 *.pem
 wg*.conf
+
+# === sing-box configs (contain real keys) ===
+deploy/**/singbox/config.json
+deploy/**/singbox/geoip.db
+deploy/**/singbox/geosite.db
+deploy/**/singbox/hy2/
+
+# === Client configs (contain real UUIDs, IPs, keys) ===
+smarttraffic-iphone.json
+smarttraffic-combined-template.json
+smarttraffic-combined.json
+mac.json
+olya-iphone-config.json
+*-client.json
+*-config.json
 
 # === Deploy state ===
 .deploy-*
@@ -60,6 +76,5 @@ deploy/**/backups/
 deploy/server-ru/.env
 
 # === Build artifacts ===
-deploy/server-ru/singbox/config.json
-deploy/server-ru/singbox/geoip.db
-deploy/server-ru/singbox/geosite.db
+frontend/coverage/
+

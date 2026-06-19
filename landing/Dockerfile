@@ -3,34 +3,40 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm ci
 
 COPY . .
 RUN npm run build
 
-FROM nginx:alpine
+FROM nginx:1.27-alpine
 
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY 404.html /usr/share/nginx/html/404.html
 
-RUN echo 'server {' > /etc/nginx/conf.d/default.conf && \
-    echo '    listen 80;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    server_name _;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    root /usr/share/nginx/html;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    index index.html;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    gzip on;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    gzip_types text/plain text/css application/javascript text/xml application/xml;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    add_header X-Content-Type-Options nosniff;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    add_header X-Frame-Options SAMEORIGIN;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    add_header X-XSS-Protection "1; mode=block";' >> /etc/nginx/conf.d/default.conf && \
-    echo '    location / {' >> /etc/nginx/conf.d/default.conf && \
-    echo '        try_files $uri $uri/ /404.html;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    }' >> /etc/nginx/conf.d/default.conf && \
-    echo '    error_page 404 /404.html;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    location = /404.html {' >> /etc/nginx/conf.d/default.conf && \
-    echo '        internal;' >> /etc/nginx/conf.d/default.conf && \
-    echo '    }' >> /etc/nginx/conf.d/default.conf && \
-    echo '}' >> /etc/nginx/conf.d/default.conf
+COPY <<'EOF' /etc/nginx/conf.d/default.conf
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-XSS-Protection "1; mode=block";
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript text/xml application/xml;
+
+    location / {
+        try_files $uri $uri/ /404.html;
+    }
+
+    error_page 404 /404.html;
+    location = /404.html {
+        internal;
+    }
+}
+EOF
 
 EXPOSE 80
 

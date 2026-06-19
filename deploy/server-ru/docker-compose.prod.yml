@@ -1,15 +1,18 @@
 services:
   nginx:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     container_name: smarttraffic-nginx
     ports:
       - "80:80"
+      - "443:443"
     extra_hosts:
       - "api:host-gateway"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - certbot-data:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
+    environment:
+      - DOMAIN=${DOMAIN}
     depends_on:
       api:
         condition: service_started
@@ -23,15 +26,30 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.5'
 
   certbot:
-    image: certbot/certbot
+    image: certbot/certbot:latest
     container_name: smarttraffic-certbot
     volumes:
       - certbot-data:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
 
   api:
     image: ${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/smarttraffic}/api:${IMAGE_TAG:-latest}
@@ -50,6 +68,11 @@ services:
       - VLESS_FLOW=${VLESS_FLOW:-xtls-rprx-vision}
       - VLESS_FINGERPRINT=${VLESS_FINGERPRINT:-chrome}
       - VLESS_SERVER_ENDPOINT=${VLESS_SERVER_ENDPOINT:-}
+      - HY2_ENABLED=${HY2_ENABLED:-false}
+      - HY2_SERVER=${HY2_SERVER:-}
+      - HY2_PORT=${HY2_PORT:-8444}
+      - HY2_PASSWORD=${HY2_PASSWORD:-}
+      - HY2_SERVER_NAME=${HY2_SERVER_NAME:-www.bing.com}
       - WG_TUNNEL_INTERFACE=${WG_TUNNEL_INTERFACE:-wg1}
       - SINGBOX_CONFIG_PATH=/etc/singbox/config.json
       - SINGBOX_CLASH_API_ADDR=${SINGBOX_CLASH_API_ADDR:-127.0.0.1:9090}
@@ -67,6 +90,7 @@ services:
     volumes:
       - api-data:/data
       - ./singbox:/etc/singbox
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
     network_mode: host
     cap_add:
@@ -77,9 +101,19 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
 
   singbox:
-    image: ghcr.io/sagernet/sing-box
+    image: ghcr.io/sagernet/sing-box:v1.10.7
     container_name: smarttraffic-singbox
     working_dir: /etc/singbox
     environment:
@@ -91,6 +125,16 @@ services:
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
 
   frontend:
     image: ${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/smarttraffic}/frontend:${IMAGE_TAG:-latest}
@@ -98,11 +142,31 @@ services:
     environment:
       - VITE_API_URL=https://${DOMAIN}
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.25'
 
   landing:
     image: ${IMAGE_PREFIX:-ghcr.io/igorycha88-gif/smarttraffic}/landing:${IMAGE_TAG:-latest}
     container_name: smarttraffic-landing
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.25'
 
 volumes:
   certbot-data:
