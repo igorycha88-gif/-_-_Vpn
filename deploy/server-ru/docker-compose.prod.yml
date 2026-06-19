@@ -113,7 +113,7 @@ services:
           cpus: '1.0'
 
   singbox:
-    image: ghcr.io/sagernet/sing-box:v1.10.7
+    image: ghcr.io/sagernet/sing-box:v1.13.12@sha256:da0e2331395c9025a85fa58892772b4cdbe5f2e530e93defeec3968175d06c6d
     container_name: smarttraffic-singbox
     working_dir: /etc/singbox
     environment:
