@@ -290,8 +290,8 @@ func TestWireGuardService_GenerateClientConfig(t *testing.T) {
 	if !contains(config, `"detour": "proxy"`) {
 		t.Error("iPhone config should have DNS foreign with proxy detour")
 	}
-	if !contains(config, `"detour": "direct-out"`) {
-		t.Error("iPhone config should have DNS RU with direct-out detour")
+	if contains(config, `"detour": "direct-out"`) {
+		t.Error("iPhone config DNS RU must not have direct-out detour (breaks sing-box v1.13+: 'detour to an empty direct outbound')")
 	}
 	if !contains(config, "dns-foreign") {
 		t.Error("iPhone config should have dns-foreign server")
