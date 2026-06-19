@@ -227,6 +227,23 @@ jobs:
           done"
           echo "FOREIGN_VLESS overrides applied"
 
+      - name: Apply Hysteria2 foreign-out overrides
+        env:
+          RU_HOST: ${{ secrets.RU_SERVER_HOST }}
+          RU_USER: ${{ secrets.RU_SERVER_USER }}
+          RU_PATH: ${{ secrets.RU_SERVER_PATH }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=15 ${RU_USER}@${RU_HOST}"
+          $SSH "for F in ${RU_PATH}/.env ${RU_PATH}/deploy/server-ru/.env; do \
+            grep -q '^FOREIGN_TRANSPORT=' \$F && sed -i 's#^FOREIGN_TRANSPORT=.*#FOREIGN_TRANSPORT=${{ secrets.FOREIGN_TRANSPORT }}#' \$F || echo FOREIGN_TRANSPORT=${{ secrets.FOREIGN_TRANSPORT }} >> \$F; \
+            grep -q '^FOREIGN_HYSTERIA2_PORT=' \$F && sed -i 's#^FOREIGN_HYSTERIA2_PORT=.*#FOREIGN_HYSTERIA2_PORT=${{ secrets.FOREIGN_HYSTERIA2_PORT }}#' \$F || echo FOREIGN_HYSTERIA2_PORT=${{ secrets.FOREIGN_HYSTERIA2_PORT }} >> \$F; \
+            grep -q '^FOREIGN_HYSTERIA2_AUTH=' \$F && sed -i 's#^FOREIGN_HYSTERIA2_AUTH=.*#FOREIGN_HYSTERIA2_AUTH=${{ secrets.FOREIGN_HYSTERIA2_AUTH }}#' \$F || echo FOREIGN_HYSTERIA2_AUTH=${{ secrets.FOREIGN_HYSTERIA2_AUTH }} >> \$F; \
+            grep -q '^FOREIGN_HYSTERIA2_SNI=' \$F && sed -i 's#^FOREIGN_HYSTERIA2_SNI=.*#FOREIGN_HYSTERIA2_SNI=${{ secrets.FOREIGN_HYSTERIA2_SNI }}#' \$F || echo FOREIGN_HYSTERIA2_SNI=${{ secrets.FOREIGN_HYSTERIA2_SNI }} >> \$F; \
+            grep -q '^FOREIGN_HYSTERIA2_INSECURE=' \$F && sed -i 's#^FOREIGN_HYSTERIA2_INSECURE=.*#FOREIGN_HYSTERIA2_INSECURE=${{ secrets.FOREIGN_HYSTERIA2_INSECURE }}#' \$F || echo FOREIGN_HYSTERIA2_INSECURE=${{ secrets.FOREIGN_HYSTERIA2_INSECURE }} >> \$F; \
+            grep -q '^FOREIGN_HYSTERIA2_OBFS=' \$F && sed -i 's#^FOREIGN_HYSTERIA2_OBFS=.*#FOREIGN_HYSTERIA2_OBFS=${{ secrets.FOREIGN_HYSTERIA2_OBFS }}#' \$F || echo FOREIGN_HYSTERIA2_OBFS=${{ secrets.FOREIGN_HYSTERIA2_OBFS }} >> \$F; \
+          done"
+          echo "Hysteria2 foreign-out overrides applied"
+
       - name: Login server to GHCR
         timeout-minutes: 3
         env:
