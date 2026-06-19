@@ -8,15 +8,15 @@ import (
 )
 
 type Config struct {
-	App        AppConfig
-	DB         DBConfig
-	JWT        JWTConfig
-	WG         WGConfig
-	VLESS      VLESSConfig
-	Hysteria2  Hysteria2Config
-	Server     ServerConfig
-	SingBox    SingBoxConfig
-	CORS       CORSConfig
+	App       AppConfig
+	DB        DBConfig
+	JWT       JWTConfig
+	WG        WGConfig
+	VLESS     VLESSConfig
+	Hysteria2 Hysteria2Config
+	Server    ServerConfig
+	SingBox   SingBoxConfig
+	CORS      CORSConfig
 }
 
 type AppConfig struct {
@@ -68,8 +68,18 @@ type Hysteria2Config struct {
 }
 
 type ServerConfig struct {
-	ForeignIP    string
-	ForeignVLESS ForeignVLESSConfig
+	ForeignIP        string
+	ForeignTransport string
+	ForeignVLESS     ForeignVLESSConfig
+	ForeignHysteria2 ForeignHysteria2Config
+}
+
+type ForeignHysteria2Config struct {
+	Port     int
+	Auth     string
+	SNI      string
+	Insecure bool
+	Obfs     string
 }
 
 type SingBoxConfig struct {
@@ -133,6 +143,13 @@ func Load() (*Config, error) {
 	cfg.Server.ForeignVLESS.RealityShortID = getEnv("FOREIGN_VLESS_REALITY_SHORT_ID", "")
 	cfg.Server.ForeignVLESS.ServerName = getEnv("FOREIGN_VLESS_SERVER_NAME", "www.microsoft.com")
 	cfg.Server.ForeignVLESS.Port = getEnvInt("FOREIGN_VLESS_PORT", 443)
+
+	cfg.Server.ForeignTransport = getEnv("FOREIGN_TRANSPORT", "vless")
+	cfg.Server.ForeignHysteria2.Port = getEnvInt("FOREIGN_HYSTERIA2_PORT", 8443)
+	cfg.Server.ForeignHysteria2.Auth = getEnv("FOREIGN_HYSTERIA2_AUTH", "")
+	cfg.Server.ForeignHysteria2.SNI = getEnv("FOREIGN_HYSTERIA2_SNI", "bing.com")
+	cfg.Server.ForeignHysteria2.Insecure = getEnvBool("FOREIGN_HYSTERIA2_INSECURE", true)
+	cfg.Server.ForeignHysteria2.Obfs = getEnv("FOREIGN_HYSTERIA2_OBFS", "")
 
 	cfg.SingBox.ConfigPath = getEnv("SINGBOX_CONFIG_PATH", "/etc/singbox/config.json")
 	cfg.SingBox.ClashAPIAddr = getEnv("SINGBOX_CLASH_API_ADDR", "127.0.0.1:9090")

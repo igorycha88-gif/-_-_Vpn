@@ -34,6 +34,12 @@ func TestLoad_AllEnvVarsSet(t *testing.T) {
 	setEnv(t, "FOREIGN_VLESS_REALITY_PUBLIC_KEY", "reality-pk")
 	setEnv(t, "FOREIGN_VLESS_REALITY_SHORT_ID", "reality-sid")
 	setEnv(t, "FOREIGN_VLESS_SERVER_NAME", "www.apple.com")
+	setEnv(t, "FOREIGN_TRANSPORT", "hysteria2")
+	setEnv(t, "FOREIGN_HYSTERIA2_PORT", "8443")
+	setEnv(t, "FOREIGN_HYSTERIA2_AUTH", "hy-auth")
+	setEnv(t, "FOREIGN_HYSTERIA2_SNI", "bing.com")
+	setEnv(t, "FOREIGN_HYSTERIA2_INSECURE", "false")
+	setEnv(t, "FOREIGN_HYSTERIA2_OBFS", "obfs-pw")
 	setEnv(t, "SINGBOX_CONFIG_PATH", "/tmp/singbox.json")
 	setEnv(t, "SINGBOX_CLASH_API_ADDR", "0.0.0.0:9091")
 	setEnv(t, "SINGBOX_CLASH_API_SECRET", "clash-secret")
@@ -122,6 +128,24 @@ func TestLoad_AllEnvVarsSet(t *testing.T) {
 	if cfg.CORS.AllowedOrigins != "http://localhost:5173" {
 		t.Errorf("CORS.AllowedOrigins = %q, unexpected", cfg.CORS.AllowedOrigins)
 	}
+	if cfg.Server.ForeignTransport != "hysteria2" {
+		t.Errorf("Server.ForeignTransport = %q, want hysteria2", cfg.Server.ForeignTransport)
+	}
+	if cfg.Server.ForeignHysteria2.Port != 8443 {
+		t.Errorf("ForeignHysteria2.Port = %d, want 8443", cfg.Server.ForeignHysteria2.Port)
+	}
+	if cfg.Server.ForeignHysteria2.Auth != "hy-auth" {
+		t.Errorf("ForeignHysteria2.Auth = %q, unexpected", cfg.Server.ForeignHysteria2.Auth)
+	}
+	if cfg.Server.ForeignHysteria2.SNI != "bing.com" {
+		t.Errorf("ForeignHysteria2.SNI = %q, unexpected", cfg.Server.ForeignHysteria2.SNI)
+	}
+	if cfg.Server.ForeignHysteria2.Insecure != false {
+		t.Errorf("ForeignHysteria2.Insecure = %v, want false", cfg.Server.ForeignHysteria2.Insecure)
+	}
+	if cfg.Server.ForeignHysteria2.Obfs != "obfs-pw" {
+		t.Errorf("ForeignHysteria2.Obfs = %q, unexpected", cfg.Server.ForeignHysteria2.Obfs)
+	}
 }
 
 func TestLoad_Defaults(t *testing.T) {
@@ -165,6 +189,24 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 	if cfg.Server.ForeignVLESS.ServerName != "www.microsoft.com" {
 		t.Errorf("Server.ForeignVLESS.ServerName default = %q, want www.microsoft.com", cfg.Server.ForeignVLESS.ServerName)
+	}
+	if cfg.Server.ForeignTransport != "vless" {
+		t.Errorf("Server.ForeignTransport default = %q, want vless", cfg.Server.ForeignTransport)
+	}
+	if cfg.Server.ForeignHysteria2.Port != 8443 {
+		t.Errorf("ForeignHysteria2.Port default = %d, want 8443", cfg.Server.ForeignHysteria2.Port)
+	}
+	if cfg.Server.ForeignHysteria2.SNI != "bing.com" {
+		t.Errorf("ForeignHysteria2.SNI default = %q, want bing.com", cfg.Server.ForeignHysteria2.SNI)
+	}
+	if cfg.Server.ForeignHysteria2.Insecure != true {
+		t.Errorf("ForeignHysteria2.Insecure default = %v, want true", cfg.Server.ForeignHysteria2.Insecure)
+	}
+	if cfg.Server.ForeignHysteria2.Auth != "" {
+		t.Errorf("ForeignHysteria2.Auth default = %q, want empty", cfg.Server.ForeignHysteria2.Auth)
+	}
+	if cfg.Server.ForeignHysteria2.Obfs != "" {
+		t.Errorf("ForeignHysteria2.Obfs default = %q, want empty", cfg.Server.ForeignHysteria2.Obfs)
 	}
 	if cfg.SingBox.ConfigPath != "/etc/singbox/config.json" {
 		t.Errorf("SingBox.ConfigPath default = %q, unexpected", cfg.SingBox.ConfigPath)
@@ -278,9 +320,9 @@ func TestGetEnvInt_EmptyValue(t *testing.T) {
 
 func TestLoad_TTLParsing(t *testing.T) {
 	tests := []struct {
-		name      string
-		accessTTL string
-		refreshTTL string
+		name        string
+		accessTTL   string
+		refreshTTL  string
 		wantAccess  time.Duration
 		wantRefresh time.Duration
 	}{
@@ -334,5 +376,50 @@ func TestLoad_VLESSPortInvalid(t *testing.T) {
 	}
 	if cfg.VLESS.Port != 8443 {
 		t.Errorf("VLESS.Port with invalid value = %d, want default 8443", cfg.VLESS.Port)
+	}
+}
+
+func TestGetEnvBool_ParseBool(t *testing.T) {
+	tests := []struct {
+		name string
+		val  string
+		want bool
+	}{
+		{"true", "true", true},
+		{"TRUE", "TRUE", true},
+		{"T", "T", true},
+		{"1", "1", true},
+		{"false", "false", false},
+		{"FALSE", "FALSE", false},
+		{"F", "F", false},
+		{"0", "0", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setEnv(t, "TEST_BOOL_PARSE", tt.val)
+			if got := getEnvBool("TEST_BOOL_PARSE", !tt.want); got != tt.want {
+				t.Errorf("getEnvBool(%q) = %v, want %v", tt.val, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetEnvBool_Fallback(t *testing.T) {
+	os.Clearenv()
+	if got := getEnvBool("NONEXIST_BOOL_XYZ_1", true); got != true {
+		t.Errorf("getEnvBool unset fallback true = %v, want true", got)
+	}
+	if got := getEnvBool("NONEXIST_BOOL_XYZ_2", false); got != false {
+		t.Errorf("getEnvBool unset fallback false = %v, want false", got)
+	}
+}
+
+func TestGetEnvBool_InvalidUsesFallback(t *testing.T) {
+	setEnv(t, "TEST_BOOL_INVALID", "maybe")
+	if got := getEnvBool("TEST_BOOL_INVALID", true); got != true {
+		t.Errorf("getEnvBool invalid should use fallback true, got %v", got)
+	}
+	if got := getEnvBool("TEST_BOOL_INVALID", false); got != false {
+		t.Errorf("getEnvBool invalid should use fallback false, got %v", got)
 	}
 }

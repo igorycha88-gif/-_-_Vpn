@@ -264,14 +264,47 @@ on:
 
 ### 5.3. Компоненты зарубежного сервера
 
-На зарубежном сервере работают:
+> ⚠️ Актуализировано 2026-06-19 по результатам диагностики продакшена.
+> Ранее DEPLOY.md описывал sing-box:443 как primary — это расходилось с реальностью.
+
+На зарубежном сервере фактически работают:
 
 | Компонент | Порт | Назначение |
 |---|---|---|
-| sing-box (systemd) | 443/TCP | VLESS+Reality — приём relay трафика от РФ-сервера |
+| sing-box (systemd) | 8443/UDP | **Hysteria2-сервер** — основной приём ноги `foreign-out` от РФ-сервера (UDP, устойчив к DPI) |
+| xray (systemd) | 443/TCP, 8443/TCP | VLESS+Reality+Vision — legacy/резервный endpoint ноги `foreign-out` (ранее primary) |
 | WireGuard (wg0) | 51821/UDP | Резервный межсерверный тоннель от РФ-сервера |
-| xray (systemd) | 8443/TCP | Сторонний сервис (не входит в SmartTraffic) |
 | sshd | 22/TCP | SSH-доступ |
+
+**Диагностика (подтверждено):** нога RU→foreign по VLESS+Reality падала с `foreign-out: EOF`
+в ~40% сессий из-за DPI (ТСПУ) на пути Москва→зарубеж — RST-инъекция в середине
+TLS-handshake. Сырой TCP RU→foreign:443 при этом проходил 10/10. Перевод ноги на
+Hysteria2 (UDP/QUIC + обфускация salamander) устраняет корневую причину.
+
+**Конфликт портов (исправлен):** ранее sing-box и xray были оба настроены на :8443/TCP →
+sing-box рестартился (`bind: address already in use`) и «умирал». Теперь sing-box
+переведён на Hysteria2/UDP:8443, конфликт устранён.
+
+### 5.4. Транспорт RU → foreign (выбор ноги `foreign-out`)
+
+Тип исходящего `foreign-out` на РФ-сервере задаётся переменной `FOREIGN_TRANSPORT`
+в `.env` API и реализован в `backend/internal/services/singbox.go`:
+
+| `FOREIGN_TRANSPORT` | outbound | Когда использовать |
+|---|---|---|
+| `hysteria2` (рекомендуется) | `hysteria2` → foreign sing-box :8443/UDP | Основной режим, DPI активен |
+| `vless` (по умолчанию) | `vless`+Reality+Vision → foreign xray :443/TCP | Резерв/fallback, DPI неактивен |
+
+Параметры Hysteria2: `FOREIGN_HYSTERIA2_PORT`, `FOREIGN_HYSTERIA2_AUTH` (пароль),
+`FOREIGN_HYSTERIA2_SNI`, `FOREIGN_HYSTERIA2_INSECURE=true` (self-signed cert на foreign),
+`FOREIGN_HYSTERIA2_OBFS` (пароль обфускации salamander — должен совпадать с сервером).
+
+Откат: переключить `FOREIGN_TRANSPORT=vless` и пересобрать/перезапустить API →
+sing-box перегенерирует конфиг с VLESS outbound (xray на foreign продолжает слушать :443).
+
+> Примечание: `FOREIGN_TRANSPORT`/`FOREIGN_HYSTERIA2_*` (нога RU→foreign, серверный sing-box)
+> не путать с `HY2_*` (нога клиент→RU, клиентский urltest-fallback в `wireguard.go`).
+> Это два независимых UDP-транспорта для разных сегментов пути.
 
 ---
 
