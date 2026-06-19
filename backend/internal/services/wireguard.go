@@ -257,8 +257,8 @@ func (s *WireGuardService) buildClientDNSServers() []any {
 	return []any{
 		map[string]any{"type": "udp", "tag": "dns-foreign", "server": "1.1.1.1", "detour": "proxy"},
 		map[string]any{"type": "udp", "tag": "dns-foreign-alt", "server": "8.8.8.8", "detour": "proxy"},
-		map[string]any{"type": "udp", "tag": "dns-ru", "server": "77.88.8.8", "detour": "direct-out"},
-		map[string]any{"type": "udp", "tag": "dns-ru-alt", "server": "77.88.8.1", "detour": "direct-out"},
+		map[string]any{"type": "udp", "tag": "dns-ru", "server": "77.88.8.8"},
+		map[string]any{"type": "udp", "tag": "dns-ru-alt", "server": "77.88.8.1"},
 	}
 }
 

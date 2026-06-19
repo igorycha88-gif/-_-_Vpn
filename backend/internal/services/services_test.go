@@ -290,8 +290,8 @@ func TestWireGuardService_GenerateClientConfig(t *testing.T) {
 	if !contains(config, `"detour": "proxy"`) {
 		t.Error("iPhone config should have DNS foreign with proxy detour")
 	}
-	if !contains(config, `"detour": "direct-out"`) {
-		t.Error("iPhone config should have DNS RU with direct-out detour")
+	if contains(config, `"detour": "direct-out"`) {
+		t.Error("iPhone config DNS RU must not have direct-out detour (breaks sing-box v1.13+: 'detour to an empty direct outbound')")
 	}
 	if !contains(config, "dns-foreign") {
 		t.Error("iPhone config should have dns-foreign server")
@@ -695,10 +695,10 @@ func TestWireGuardService_CreatePeer_ConfigMode(t *testing.T) {
 
 func TestPeerCreateRequest_Validate_DeviceType(t *testing.T) {
 	tests := []struct {
-		name       string
-		req        models.PeerCreateRequest
-		wantErr    bool
-		errField   string
+		name     string
+		req      models.PeerCreateRequest
+		wantErr  bool
+		errField string
 	}{
 		{"valid iphone", models.PeerCreateRequest{Name: "Test", DeviceType: "iphone"}, false, ""},
 		{"valid android", models.PeerCreateRequest{Name: "Test", DeviceType: "android"}, false, ""},
@@ -1100,6 +1100,156 @@ func TestSingBoxService_ActionToOutbound(t *testing.T) {
 		if got != tt.expected {
 			t.Errorf("actionToOutbound(%q) = %q, want %q", tt.action, got, tt.expected)
 		}
+	}
+}
+
+func findOutboundByTag(t *testing.T, cfg *singBoxConfig, tag string) map[string]any {
+	t.Helper()
+	for _, o := range cfg.Outbounds {
+		m, ok := o.(map[string]any)
+		if !ok {
+			continue
+		}
+		if m["tag"] == tag {
+			return m
+		}
+	}
+	t.Fatalf("outbound %q not found", tag)
+	return nil
+}
+
+func TestSingBoxService_GenerateConfig_VLESSForeignOutboundDefault(t *testing.T) {
+	svc, _ := newTestSingBoxService(t)
+	svc.srvConfig.ForeignVLESS.Port = 443
+
+	cfg, err := svc.GenerateConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateConfig: %v", err)
+	}
+
+	ob := findOutboundByTag(t, cfg, "foreign-out")
+	if ob["type"] != "vless" {
+		t.Errorf("default foreign-out type = %v, want vless", ob["type"])
+	}
+	if ob["server_port"] != 443 {
+		t.Errorf("default foreign-out server_port = %v, want 443", ob["server_port"])
+	}
+}
+
+func TestSingBoxService_GenerateConfig_Hysteria2Outbound(t *testing.T) {
+	svc, _ := newTestSingBoxService(t)
+	svc.srvConfig.ForeignTransport = "hysteria2"
+	svc.srvConfig.ForeignHysteria2 = config.ForeignHysteria2Config{
+		Port: 8443, Auth: "secret-auth", SNI: "bing.com", Insecure: true,
+	}
+
+	cfg, err := svc.GenerateConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateConfig: %v", err)
+	}
+
+	if cfg.Route.Final != "foreign-out" {
+		t.Errorf("Final = %q, want foreign-out", cfg.Route.Final)
+	}
+
+	ob := findOutboundByTag(t, cfg, "foreign-out")
+	if ob["type"] != "hysteria2" {
+		t.Errorf("foreign-out type = %v, want hysteria2", ob["type"])
+	}
+	if ob["server"] != "1.2.3.4" {
+		t.Errorf("foreign-out server = %v, want 1.2.3.4", ob["server"])
+	}
+	if ob["server_port"] != 8443 {
+		t.Errorf("foreign-out server_port = %v, want 8443", ob["server_port"])
+	}
+	if ob["password"] != "secret-auth" {
+		t.Errorf("foreign-out password = %v, want secret-auth", ob["password"])
+	}
+	if _, ok := ob["obfs"]; ok {
+		t.Error("obfs block should be absent when Obfs empty")
+	}
+
+	tls, ok := ob["tls"].(map[string]any)
+	if !ok {
+		t.Fatal("tls block missing")
+	}
+	if tls["server_name"] != "bing.com" {
+		t.Errorf("tls.server_name = %v, want bing.com", tls["server_name"])
+	}
+	if tls["insecure"] != true {
+		t.Errorf("tls.insecure = %v, want true", tls["insecure"])
+	}
+}
+
+func TestSingBoxService_GenerateConfig_Hysteria2Obfs(t *testing.T) {
+	svc, _ := newTestSingBoxService(t)
+	svc.srvConfig.ForeignTransport = "hysteria2"
+	svc.srvConfig.ForeignHysteria2 = config.ForeignHysteria2Config{
+		Port: 8443, Auth: "a", SNI: "bing.com", Insecure: true, Obfs: "obfspw",
+	}
+
+	cfg, err := svc.GenerateConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateConfig: %v", err)
+	}
+
+	ob := findOutboundByTag(t, cfg, "foreign-out")
+	block, ok := ob["obfs"].(map[string]any)
+	if !ok {
+		t.Fatalf("obfs block missing")
+	}
+	if block["type"] != "salamander" {
+		t.Errorf("obfs.type = %v, want salamander", block["type"])
+	}
+	if block["password"] != "obfspw" {
+		t.Errorf("obfs.password = %v, want obfspw", block["password"])
+	}
+}
+
+func TestSingBoxService_GenerateConfig_Hysteria2NoAuth(t *testing.T) {
+	svc, _ := newTestSingBoxService(t)
+	svc.srvConfig.ForeignTransport = "hysteria2"
+	svc.srvConfig.ForeignHysteria2 = config.ForeignHysteria2Config{
+		Port: 8443, Auth: "", SNI: "bing.com", Insecure: true,
+	}
+
+	cfg, err := svc.GenerateConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateConfig: %v", err)
+	}
+
+	if cfg.Route.Final != "direct-out" {
+		t.Errorf("Final = %q, want direct-out", cfg.Route.Final)
+	}
+	for _, o := range cfg.Outbounds {
+		if m, ok := o.(map[string]any); ok && m["tag"] == "foreign-out" {
+			t.Error("foreign-out should not exist without hysteria2 auth")
+		}
+	}
+}
+
+func TestSingBoxService_hasForeignLeg(t *testing.T) {
+	svc, _ := newTestSingBoxService(t)
+
+	if !svc.hasForeignLeg() {
+		t.Error("default vless leg with ForeignIP+UUID should be present")
+	}
+
+	svc.srvConfig.ForeignIP = ""
+	if svc.hasForeignLeg() {
+		t.Error("no foreign leg without ForeignIP")
+	}
+
+	svc.srvConfig.ForeignIP = "1.2.3.4"
+	svc.srvConfig.ForeignTransport = "hysteria2"
+	svc.srvConfig.ForeignHysteria2.Auth = ""
+	if svc.hasForeignLeg() {
+		t.Error("hysteria2 leg without auth should be absent")
+	}
+
+	svc.srvConfig.ForeignHysteria2.Auth = "secret"
+	if !svc.hasForeignLeg() {
+		t.Error("hysteria2 leg with auth should be present")
 	}
 }
 

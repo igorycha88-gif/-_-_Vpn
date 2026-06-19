@@ -173,42 +173,19 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*singBoxConfig, er
 	}
 	cfg.Experimental = &singBoxExperimental{ClashAPI: clashAPI}
 
-	if s.srvConfig.ForeignIP != "" && s.srvConfig.ForeignVLESS.UUID != "" {
-		s.logger.Info("foreign-out: VLESS relay outbound будет создан",
+	if outbound, ok := s.buildForeignOutbound(); ok {
+		s.logger.Info("foreign-out: outbound будет создан",
+			"transport", s.transportLabel(),
 			"foreign_ip", s.srvConfig.ForeignIP,
-			"foreign_uuid", s.srvConfig.ForeignVLESS.UUID,
-			"reality_public_key_set", s.srvConfig.ForeignVLESS.RealityPublicKey != "",
-			"reality_short_id_set", s.srvConfig.ForeignVLESS.RealityShortID != "",
 		)
-		vlessOutbound := map[string]any{
-			"type":        "vless",
-			"tag":         "foreign-out",
-			"server":      s.srvConfig.ForeignIP,
-			"server_port": s.srvConfig.ForeignVLESS.Port,
-			"uuid":        s.srvConfig.ForeignVLESS.UUID,
-			"flow":        "xtls-rprx-vision",
-			"tls": map[string]any{
-				"enabled":     true,
-				"server_name": s.srvConfig.ForeignVLESS.ServerName,
-				"utls": map[string]any{
-					"enabled":     true,
-					"fingerprint": "chrome",
-				},
-				"reality": map[string]any{
-					"enabled":     true,
-					"public_key":  s.srvConfig.ForeignVLESS.RealityPublicKey,
-					"short_id":    s.srvConfig.ForeignVLESS.RealityShortID,
-				},
-			},
-		}
-		cfg.Outbounds = append(cfg.Outbounds, vlessOutbound)
+		cfg.Outbounds = append(cfg.Outbounds, outbound)
 		cfg.Route.Final = "foreign-out"
 	} else {
-		s.logger.Error("foreign-out: НЕ СОЗДАН — отсутствуют FOREIGN_SERVER_IP или FOREIGN_VLESS_UUID. Заблокированные сервисы НЕ БУДУТ работать!",
+		s.logger.Error("foreign-out: НЕ СОЗДАН — недостаточно параметров для выбранного транспорта. Заблокированные сервисы НЕ БУДУТ работать!",
+			"transport", s.transportLabel(),
 			"foreign_ip_set", s.srvConfig.ForeignIP != "",
 			"foreign_uuid_set", s.srvConfig.ForeignVLESS.UUID != "",
-			"reality_public_key_set", s.srvConfig.ForeignVLESS.RealityPublicKey != "",
-			"reality_short_id_set", s.srvConfig.ForeignVLESS.RealityShortID != "",
+			"hysteria2_auth_set", s.srvConfig.ForeignHysteria2.Auth != "",
 		)
 	}
 
@@ -418,7 +395,7 @@ func (s *SingBoxService) buildDNSConfig(settings *models.DNSSettings) *singBoxDN
 		servers = append(servers, singBoxDNSServer{Tag: tag, Type: "udp", Server: addr})
 		ruTags = append(ruTags, tag)
 	}
-	hasForeignOut := s.srvConfig.ForeignIP != "" && s.srvConfig.ForeignVLESS.UUID != ""
+	hasForeignOut := s.hasForeignLeg()
 	for _, addr := range splitCommaList(settings.UpstreamForeign) {
 		tag := "dns-foreign-" + addr
 		srv := singBoxDNSServer{Tag: tag, Type: "udp", Server: addr}
@@ -464,6 +441,86 @@ func (s *SingBoxService) actionToOutbound(action string) string {
 		return "foreign-out"
 	}
 	return ""
+}
+
+func (s *SingBoxService) transportLabel() string {
+	if s.srvConfig.ForeignTransport == "hysteria2" {
+		return "hysteria2"
+	}
+	return "vless"
+}
+
+func (s *SingBoxService) hasForeignLeg() bool {
+	if s.srvConfig.ForeignIP == "" {
+		return false
+	}
+	if s.srvConfig.ForeignTransport == "hysteria2" {
+		return s.srvConfig.ForeignHysteria2.Auth != ""
+	}
+	return s.srvConfig.ForeignVLESS.UUID != ""
+}
+
+func (s *SingBoxService) buildForeignOutbound() (map[string]any, bool) {
+	if s.srvConfig.ForeignIP == "" {
+		return nil, false
+	}
+	if s.srvConfig.ForeignTransport == "hysteria2" {
+		if s.srvConfig.ForeignHysteria2.Auth == "" {
+			return nil, false
+		}
+		return s.buildHysteria2Outbound(), true
+	}
+	if s.srvConfig.ForeignVLESS.UUID == "" {
+		return nil, false
+	}
+	return s.buildVlessForeignOutbound(), true
+}
+
+func (s *SingBoxService) buildHysteria2Outbound() map[string]any {
+	h := s.srvConfig.ForeignHysteria2
+	outbound := map[string]any{
+		"type":        "hysteria2",
+		"tag":         "foreign-out",
+		"server":      s.srvConfig.ForeignIP,
+		"server_port": h.Port,
+		"password":    h.Auth,
+		"tls": map[string]any{
+			"enabled":     true,
+			"server_name": h.SNI,
+			"insecure":    h.Insecure,
+		},
+	}
+	if h.Obfs != "" {
+		outbound["obfs"] = map[string]any{
+			"type":     "salamander",
+			"password": h.Obfs,
+		}
+	}
+	return outbound
+}
+
+func (s *SingBoxService) buildVlessForeignOutbound() map[string]any {
+	return map[string]any{
+		"type":        "vless",
+		"tag":         "foreign-out",
+		"server":      s.srvConfig.ForeignIP,
+		"server_port": s.srvConfig.ForeignVLESS.Port,
+		"uuid":        s.srvConfig.ForeignVLESS.UUID,
+		"flow":        "xtls-rprx-vision",
+		"tls": map[string]any{
+			"enabled":     true,
+			"server_name": s.srvConfig.ForeignVLESS.ServerName,
+			"utls": map[string]any{
+				"enabled":     true,
+				"fingerprint": "chrome",
+			},
+			"reality": map[string]any{
+				"enabled":    true,
+				"public_key": s.srvConfig.ForeignVLESS.RealityPublicKey,
+				"short_id":   s.srvConfig.ForeignVLESS.RealityShortID,
+			},
+		},
+	}
 }
 
 func splitCommaList(s string) []string {
