@@ -244,6 +244,20 @@ jobs:
           done"
           echo "Hysteria2 foreign-out overrides applied"
 
+      - name: Apply HY2 client-fallback overrides
+        env:
+          RU_HOST: ${{ secrets.RU_SERVER_HOST }}
+          RU_USER: ${{ secrets.RU_SERVER_USER }}
+          RU_PATH: ${{ secrets.RU_SERVER_PATH }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=15 ${RU_USER}@${RU_HOST}"
+          $SSH "for F in ${RU_PATH}/.env ${RU_PATH}/deploy/server-ru/.env; do \
+            grep -q '^HY2_ENABLED=' \$F && sed -i 's#^HY2_ENABLED=.*#HY2_ENABLED=${{ secrets.HY2_ENABLED }}#' \$F || echo HY2_ENABLED=${{ secrets.HY2_ENABLED }} >> \$F; \
+            grep -q '^HY2_SERVER=' \$F && sed -i 's#^HY2_SERVER=.*#HY2_SERVER=${{ secrets.HY2_SERVER }}#' \$F || echo HY2_SERVER=${{ secrets.HY2_SERVER }} >> \$F; \
+            grep -q '^HY2_PASSWORD=' \$F && sed -i 's#^HY2_PASSWORD=.*#HY2_PASSWORD=${{ secrets.HY2_PASSWORD }}#' \$F || echo HY2_PASSWORD=${{ secrets.HY2_PASSWORD }} >> \$F; \
+          done"
+          echo "HY2 client-fallback overrides applied"
+
       - name: Login server to GHCR
         timeout-minutes: 3
         env:

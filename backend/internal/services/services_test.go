@@ -1118,6 +1118,76 @@ func findOutboundByTag(t *testing.T, cfg *singBoxConfig, tag string) map[string]
 	return nil
 }
 
+func findInboundByTag(t *testing.T, cfg *singBoxConfig, tag string) map[string]any {
+	t.Helper()
+	for _, i := range cfg.Inbounds {
+		m, ok := i.(map[string]any)
+		if !ok {
+			continue
+		}
+		if m["tag"] == tag {
+			return m
+		}
+	}
+	t.Fatalf("inbound %q not found", tag)
+	return nil
+}
+
+func TestSingBoxService_GenerateConfig_Hysteria2Inbound(t *testing.T) {
+	svc, _ := newTestSingBoxService(t)
+	svc.WithHysteria2(&config.Hysteria2Config{
+		Enabled: true, Password: "hy2pass", Port: 8444, ServerName: "www.bing.com",
+	})
+
+	cfg, err := svc.GenerateConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateConfig: %v", err)
+	}
+
+	in := findInboundByTag(t, cfg, "hy2-in")
+	if in["type"] != "hysteria2" {
+		t.Errorf("hy2-in type = %v, want hysteria2", in["type"])
+	}
+	if in["listen"] != "::" {
+		t.Errorf("hy2-in listen = %v, want ::", in["listen"])
+	}
+	if in["listen_port"] != 8444 {
+		t.Errorf("hy2-in listen_port = %v, want 8444", in["listen_port"])
+	}
+	users, ok := in["users"].([]map[string]any)
+	if !ok || len(users) != 1 || users[0]["password"] != "hy2pass" {
+		t.Errorf("hy2-in users = %v, want [{password:hy2pass}]", in["users"])
+	}
+	tls, ok := in["tls"].(map[string]any)
+	if !ok {
+		t.Fatal("hy2-in tls block missing")
+	}
+	if tls["server_name"] != "www.bing.com" {
+		t.Errorf("hy2-in tls.server_name = %v, want www.bing.com", tls["server_name"])
+	}
+	if tls["certificate_path"] != "/etc/singbox/hy2/cert.pem" {
+		t.Errorf("hy2-in certificate_path = %v, want /etc/singbox/hy2/cert.pem", tls["certificate_path"])
+	}
+	if tls["key_path"] != "/etc/singbox/hy2/key.pem" {
+		t.Errorf("hy2-in key_path = %v, want /etc/singbox/hy2/key.pem", tls["key_path"])
+	}
+}
+
+func TestSingBoxService_GenerateConfig_Hysteria2InboundDisabledByDefault(t *testing.T) {
+	svc, _ := newTestSingBoxService(t)
+
+	cfg, err := svc.GenerateConfig(context.Background())
+	if err != nil {
+		t.Fatalf("GenerateConfig: %v", err)
+	}
+
+	for _, i := range cfg.Inbounds {
+		if m, ok := i.(map[string]any); ok && m["tag"] == "hy2-in" {
+			t.Error("hy2-in must NOT exist without WithHysteria2 enabled")
+		}
+	}
+}
+
 func TestSingBoxService_GenerateConfig_VLESSForeignOutboundDefault(t *testing.T) {
 	svc, _ := newTestSingBoxService(t)
 	svc.srvConfig.ForeignVLESS.Port = 443

@@ -81,7 +81,7 @@ func main() {
 
 	authSvc := services.NewAuthService(authRepo, &cfg.JWT, logger)
 	wgSvc := services.NewWireGuardService(peerRepo, trafficRepo, &cfg.VLESS, logger).WithHysteria2(&cfg.Hysteria2)
-	singboxSvc := services.NewSingBoxService(routeRepo, dnsRepo, peerRepo, &cfg.SingBox, &cfg.VLESS, &cfg.WG, &cfg.Server, logger)
+	singboxSvc := services.NewSingBoxService(routeRepo, dnsRepo, peerRepo, &cfg.SingBox, &cfg.VLESS, &cfg.WG, &cfg.Server, logger).WithHysteria2(&cfg.Hysteria2)
 	presetSvc := services.NewPresetService(presetRepo, routeRepo, logger)
 	routingSvc := services.NewRoutingService(routeRepo, logger)
 	dnsSvc := services.NewDNSService(dnsRepo, logger)

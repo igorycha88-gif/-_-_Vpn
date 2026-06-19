@@ -25,6 +25,7 @@ type SingBoxService struct {
 	vlessCfg  *config.VLESSConfig
 	wgConfig  *config.WGConfig
 	srvConfig *config.ServerConfig
+	hy2Cfg    *config.Hysteria2Config
 	logger    *slog.Logger
 }
 
@@ -47,6 +48,32 @@ func NewSingBoxService(
 		wgConfig:  wgConfig,
 		srvConfig: srvConfig,
 		logger:    logger,
+	}
+}
+
+func (s *SingBoxService) WithHysteria2(cfg *config.Hysteria2Config) *SingBoxService {
+	s.hy2Cfg = cfg
+	return s
+}
+
+func (s *SingBoxService) hy2Enabled() bool {
+	return s.hy2Cfg != nil && s.hy2Cfg.Enabled && s.hy2Cfg.Password != ""
+}
+
+func (s *SingBoxService) buildHy2Inbound() map[string]any {
+	return map[string]any{
+		"type":        "hysteria2",
+		"tag":         "hy2-in",
+		"listen":      "::",
+		"listen_port": s.hy2Cfg.Port,
+		"users":       []map[string]any{{"password": s.hy2Cfg.Password}},
+		"tls": map[string]any{
+			"enabled":          true,
+			"server_name":      s.hy2Cfg.ServerName,
+			"alpn":             []string{"h3"},
+			"certificate_path": "/etc/singbox/hy2/cert.pem",
+			"key_path":         "/etc/singbox/hy2/key.pem",
+		},
 	}
 }
 
@@ -148,9 +175,15 @@ func (s *SingBoxService) GenerateConfig(ctx context.Context) (*singBoxConfig, er
 
 	directOutbound := map[string]any{"type": "direct", "tag": "direct-out"}
 
+	inbounds := []any{vlessInbound}
+	if s.hy2Enabled() {
+		inbounds = append(inbounds, s.buildHy2Inbound())
+		s.logger.Info("hysteria2 inbound будет создан (UDP DPI-fallback для клиентов)", "port", s.hy2Cfg.Port)
+	}
+
 	cfg := &singBoxConfig{
 		Log:       &singBoxLog{Level: "info", Timestamp: true},
-		Inbounds:  []any{vlessInbound},
+		Inbounds:  inbounds,
 		Outbounds: []any{directOutbound},
 		Route: &singBoxRoute{
 			Rules: []any{
